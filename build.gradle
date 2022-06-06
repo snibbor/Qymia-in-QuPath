@@ -1,0 +1,50 @@
+plugins {
+  id 'qupath.extension-conventions'
+  id 'java-library'
+  id 'application'
+  id 'org.openjfx.javafxplugin' version '0.0.13'
+  // To create a shadow/fat jar, including dependencies
+  id 'maven-publish'
+}
+
+repositories {
+  // Use this only for local development!
+  mavenLocal()
+
+  mavenCentral()
+  
+  maven {
+    url "https://maven.scijava.org/content/repositories/releases"
+  }
+  
+  maven {
+    url "https://maven.scijava.org/content/repositories/snapshots"
+  }
+  
+}
+
+ext.moduleName = 'qupath.extension.aqua'
+archivesBaseName = 'qupath-extension-aqua'
+description = 'AQUAnalysis in QuPath'
+
+//version = "0.3.0"
+
+
+javafx {
+    version = "17.0.1"
+    modules = ['javafx.base', 'javafx.controls', 'javafx.fxml']
+}
+
+dependencies {
+	// https://mvnrepository.com/artifact/org.hildan.fxgson/fx-gson
+	implementation 'org.hildan.fxgson:fx-gson:4.0.1'
+    //def qupathVersion = "0.3.0" // For now
+    
+    //shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+    //shadow "org.slf4j:slf4j-api:1.7.30"
+    
+    //testImplementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+    //testImplementation "org.junit.jupiter:junit-jupiter-api:5.7.2"
+    //testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+    
+}
