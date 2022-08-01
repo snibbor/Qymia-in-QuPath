@@ -3,36 +3,26 @@ package qupath.extension.aqua;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Objects;
 import java.util.ResourceBundle;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.eventbus.EventBus;
-import com.google.common.eventbus.Subscribe;
 
-import javafx.beans.property.DoubleProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.MapChangeListener;
-import javafx.collections.ObservableList;
 import javafx.collections.ObservableMap;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Node;
-import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuBar;
 import javafx.scene.control.MenuItem;
@@ -40,8 +30,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.AnchorPane;
 import javafx.scene.layout.VBox;
-import qupath.extension.aqua.events.DeleteMaskEvent;
-import qupath.extension.aqua.events.MaskTextChangedEvent;
 
 public class AQUAPanelController implements Initializable{
 	
@@ -458,7 +446,7 @@ public class AQUAPanelController implements Initializable{
 		Integer newResultantID = getNextResultantID();
 		String tempResultantName = String.format("Resultant%s", newResultantID.toString());
 		//Create new titled pane with root node in tree populated with channel number/name
-		FXMLLoader resultantPaneLoader = new FXMLLoader(getClass().getResource("resultant-pane.fxml"));
+		FXMLLoader resultantPaneLoader = new FXMLLoader(getClass().getResource("/resultant-pane.fxml"));
 		resultantPaneLoader.setControllerFactory(controllerClass -> new ResultantPaneController(newResultantID, tempResultantName, fromOption, appEventBus, getObsMaps()));
 		TitledPane resultantPane = resultantPaneLoader.load();
 		resultantVBox.getChildren().add(resultantPane);
@@ -481,7 +469,7 @@ public class AQUAPanelController implements Initializable{
 		Integer newResultantID = getNextResultantID();
 		String tempResultantName = String.format("Resultant%s", newResultantID.toString());
 		//Create new titled pane with root node in tree populated with resultant number/name
-		FXMLLoader resultantPaneLoader = new FXMLLoader(getClass().getResource("resultant-pane.fxml"));
+		FXMLLoader resultantPaneLoader = new FXMLLoader(getClass().getResource("/resultant-pane.fxml"));
 		resultantPaneLoader.setControllerFactory(controllerClass -> new ResultantPaneController(newResultantID, tempResultantName, fromOption, appEventBus, getObsMaps()));
 		TitledPane resultantPane = resultantPaneLoader.load();
 		resultantVBox.getChildren().add(resultantPane);

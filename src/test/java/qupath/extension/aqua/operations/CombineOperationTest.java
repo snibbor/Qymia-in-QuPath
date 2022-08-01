@@ -17,6 +17,7 @@ import qupath.extension.aqua.AQUAPanelController;
 
 class CombineOperationTest {
 	private String maskID = "1";
+	private String resultantID = "1";
 	private ObservableMap<String, String> obsMaskNameMap = FXCollections.observableMap(
 			new LinkedHashMap<String, String>(){{
 				put("1", "Mask1");
@@ -24,7 +25,14 @@ class CombineOperationTest {
 				put("3", "Mask3");
 				}}
 			);
-	private CombineOperation combOp = new CombineOperation("intersection", maskID, obsMaskNameMap);;
+	private ObservableMap<String, String> obsDatatypeMap = FXCollections.observableMap(
+			new LinkedHashMap<String, String>(){{
+				put("1", "mask");
+				put("2", "mask");
+				put("3", "mask");
+			}}
+	);
+	private CombineOperation combOp = new CombineOperation("intersection", maskID, resultantID, obsMaskNameMap, obsDatatypeMap);
 	Gson fxGsonWithExtras = FxGson.createWithExtras();
 	
 	@Test

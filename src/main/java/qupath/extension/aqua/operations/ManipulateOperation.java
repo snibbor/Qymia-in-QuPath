@@ -15,6 +15,10 @@ public class ManipulateOperation extends Operation {
 
 	protected ArrayList<OperationParameter> opParameterList;
 	protected SimpleDoubleProperty pxDistance = new SimpleDoubleProperty();
+
+	protected SimpleStringProperty thresholdValue = new SimpleStringProperty();
+	protected SimpleDoubleProperty downsample = new SimpleDoubleProperty(2.0);
+	protected SimpleDoubleProperty blurSigma = new SimpleDoubleProperty(0);
 	
 	private void initParameters() {
 //		//Setup for customizing the controls for each type of operation...
@@ -27,7 +31,7 @@ public class ManipulateOperation extends Operation {
 			this.inputControlType = "text_posNumber";
 			this.opParameterList = new ArrayList<OperationParameter>();
 			this.acceptableResultantInputs = new ArrayList<>(List.of("mask"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		case "shrink":
 			this.displayText.set("Shrink (px): ");
@@ -37,7 +41,7 @@ public class ManipulateOperation extends Operation {
 			this.inputControlType = "text_posNumber";
 			this.opParameterList = new ArrayList<OperationParameter>();
 			this.acceptableResultantInputs = new ArrayList<>(List.of("mask"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		case "fill_holes":
 			this.displayText.set("Fill holes: ");
@@ -52,7 +56,7 @@ public class ManipulateOperation extends Operation {
 							blurSigma)
 					));
 			this.acceptableResultantInputs = new ArrayList<>(List.of("continuous"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		case "histogram_threshold":
 			this.displayText.set("Histogram threshold: ");
@@ -67,7 +71,7 @@ public class ManipulateOperation extends Operation {
 							blurSigma)
 					));
 			this.acceptableResultantInputs = new ArrayList<>(List.of("continuous"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		case "auto_threshold":
 			this.displayText.set("Auto threshold: ");
@@ -102,7 +106,7 @@ public class ManipulateOperation extends Operation {
 							blurSigma)
 					));
 			this.acceptableResultantInputs = new ArrayList<>(List.of("continuous"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		case "mean_threshold":
 			this.displayText.set("Mean threshold: ");
@@ -117,12 +121,12 @@ public class ManipulateOperation extends Operation {
 							blurSigma)
 					));
 			this.acceptableResultantInputs = new ArrayList<>(List.of("continuous"));
-			this.outputResultantType="mask";
+			this.outputResultantType.set("mask");
 			break;
 		}
 	}
 	
-	public ThresholdOperation(String operation, String thresholdValue) {
+	public ManipulateOperation(String operation, String thresholdValue) {
 		this.operation = operation;
 		this.thresholdValue.set(thresholdValue);
 		this.controlValue = this.thresholdValue;

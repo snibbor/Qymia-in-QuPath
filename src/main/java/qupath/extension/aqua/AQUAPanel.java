@@ -36,11 +36,11 @@ public class AQUAPanel implements Runnable{
 			try {
 				logger.info("Starting AQUAnalysis panel...");
 //				Parent panel = FXMLLoader.load(getClass().getResource("AQUAPanel.fxml"));
-				FXMLLoader loader = new FXMLLoader(getClass().getResource("AQUAPanel.fxml"));
+				FXMLLoader loader = new FXMLLoader(getClass().getResource("/AQUAPanel.fxml"));
 				loader.setControllerFactory(controllerClass -> new AQUAPanelController());
 				Parent panel = loader.load();
 				Scene scene = new Scene(panel);
-				scene.getStylesheets().add(getClass().getResource("application.css").toExternalForm());
+				scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
 				stage.setScene(scene);
 				stage.setMinHeight(210);
 				stage.setMinWidth(300);
