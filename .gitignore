@@ -3,3 +3,7 @@
 
 # Ignore Gradle build output directory
 build
+.idea/gradle.xml
+.idea/misc.xml
+.idea/vcs.xml
+.idea/workspace.xml
