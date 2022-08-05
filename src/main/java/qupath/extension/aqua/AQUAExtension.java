@@ -10,15 +10,19 @@ import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.tools.MenuTools;
 import qupath.extension.aqua.AQUAPanel;
+import qupath.extension.aqua.CompQuantPanel;
 
 public class AQUAExtension implements QuPathExtension, GitHubProject {
 	
 	@Override
     public void installExtension(QuPathGUI qupath) {
 		
-		var actionStartAQUA = ActionTools.createAction(new AQUAPanel(qupath), "Start AQUA...");
-		actionStartAQUA.setLongText("Start AQUAnalysis in QuPath for quantitative immunofluorescence and immunohistochemistry calculations."
-    			+ "Can create/utilize tissue specific compartments and calculate intensity measurements within those compartments.");
+		var actionStartCompMaker = ActionTools.createAction(new AQUAPanel(qupath), "Start Compartment Maker...");
+		actionStartCompMaker.setLongText("Make tissue compartments for quantitative immunofluorescence and immunohistochemistry images."
+    			+ "Can create tissue specific compartments for downstream analysis.");
+		var actionStartCompQuant = ActionTools.createAction(new CompQuantPanel(qupath), "Start CompQuant...");
+		actionStartCompQuant.setLongText("Quantify immunofluorescence and immunohistochemistry staining in defined compartments."
+				+ "Can utilize compartments and calculate intensity measurements within those compartments for experiment.");
 //		System.out.println("Starting AQUAnalysis...");
     	
 //    	var actionExport = ActionTools.createAction(new SvgExportCommand(qupath, SvgExportType.SELECTED_REGION), "Rendered SVG");
@@ -30,9 +34,13 @@ public class AQUAExtension implements QuPathExtension, GitHubProject {
 //    			+ "Any annotations and ROIs will be stored as vectors, which can later be adjusted in other software.");
 //    	
     	MenuTools.addMenuItems(
-                qupath.getMenu("Extensions>AQUAnalysis", true),
-                actionStartAQUA     
+                qupath.getMenu("Extensions>CompAnalysis", true),
+                actionStartCompMaker
         );
+		MenuTools.addMenuItems(
+				qupath.getMenu("Extensions>CompAnalysis", false),
+				actionStartCompQuant
+		);
 //    	MenuTools.addMenuItems(
 //                qupath.getMenu("Extensions>AQUAnalysis>Run preset...", true),
 //                System.out.println("Running preset protocol for AQUAnalysis...")
@@ -42,7 +50,7 @@ public class AQUAExtension implements QuPathExtension, GitHubProject {
 
     @Override
     public String getName() {
-        return "AQUAnalysis in QuPath";
+        return "Molecular Compartment Analysis in QuPath";
     }
 
     @Override
