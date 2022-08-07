@@ -7,6 +7,7 @@ import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.dialogs.Dialogs;
 
 import java.io.IOException;
 
@@ -20,6 +21,8 @@ public class CompQuantPanel implements Runnable{
 	private Stage stage;
 	private Parent panel;
 
+	private CompQuantPanelController compQuantController;
+
 	public CompQuantPanel(final QuPathGUI qupath) {
 		this.qupath = qupath;
 	}
@@ -27,6 +30,10 @@ public class CompQuantPanel implements Runnable{
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
+//		if (qupath.getImageData() == null) {
+//			Dialogs.showNoImageError("CompQuant Panel");
+//			return;
+//		}
 		if (stage == null) {
 			stage = new Stage();
 			if (qupath != null)
@@ -37,12 +44,13 @@ public class CompQuantPanel implements Runnable{
 				logger.info("Starting CompQuant panel...");
 //				Parent panel = FXMLLoader.load(getClass().getResource("AQUAPanel.fxml"));
 				FXMLLoader loader = new FXMLLoader(getClass().getResource("/CompQuantPanel.fxml"));
-				loader.setControllerFactory(controllerClass -> new CompQuantPanelController());
+				loader.setControllerFactory(controllerClass -> new CompQuantPanelController(qupath));
 				Parent panel = loader.load();
+				this.compQuantController = loader.getController();
 				Scene scene = new Scene(panel);
 				scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
 				stage.setScene(scene);
-				stage.setMinHeight(210);
+				stage.setMinHeight(325);
 				stage.setMinWidth(300);
 				stage.setMaxWidth(500);
 				
@@ -59,6 +67,11 @@ public class CompQuantPanel implements Runnable{
 				e.printStackTrace();
 			}
 			
+		} else {
+			// update GUI based on changes to color transforms, path classes, etc.
+			compQuantController.updateGUI();
+			if (stage.isShowing())
+				stage.toFront();
 		}
 		
 	}

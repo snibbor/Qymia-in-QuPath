@@ -9,8 +9,8 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.QuPathExtension;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.tools.MenuTools;
-import qupath.extension.aqua.AQUAPanel;
-import qupath.extension.aqua.CompQuantPanel;
+//import qupath.extension.aqua.AQUAPanel;
+//import qupath.extension.aqua.CompQuantPanel;
 
 public class AQUAExtension implements QuPathExtension, GitHubProject {
 	
