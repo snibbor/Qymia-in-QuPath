@@ -35,11 +35,18 @@ javafx {
     modules = ['javafx.base', 'javafx.controls', 'javafx.fxml']
 }
 
+configurations {
+  implementation.extendsFrom commonsmath
+  implementation.extendsFrom guava
+}
+
 dependencies {
 	// https://mvnrepository.com/artifact/org.hildan.fxgson/fx-gson
 	implementation 'org.hildan.fxgson:fx-gson:4.0.1'
     implementation 'com.google.guava:guava:29.0-jre'
-    //def qupathVersion = "0.3.0" // For now
+    implementation 'org.apache.commons:commons-math3:3.6.1'
+
+  //def qupathVersion = "0.3.0" // For now
     
     //shadow "io.github.qupath:qupath-gui-fx:${qupathVersion}"
     //shadow "org.slf4j:slf4j-api:1.7.30"

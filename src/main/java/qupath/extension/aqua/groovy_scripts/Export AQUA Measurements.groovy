@@ -27,8 +27,10 @@ def exportType = PathAnnotationObject.class
 //def exportType = PathObject.class
 
 // Choose your *full* output path
-def outputPath = "E:/AQUA/QuAQUA/AQUA-annotation-measurements.csv"
-def outputFile = new File(outputPath)
+//def outputPath = "E:/AQUA/QuAQUA/AQUA-annotation-measurements.csv"
+def outputName = "515RarecyteTest1_QuAQUA-measurements.csv"
+def path = buildFilePath(PROJECT_BASE_DIR)
+def outputFile = new File(path, outputName)
 
 // Create the measurementExporter and start the export
 def exporter  = new MeasurementExporter()

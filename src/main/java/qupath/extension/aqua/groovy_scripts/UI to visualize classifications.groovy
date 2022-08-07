@@ -30,8 +30,8 @@ you can turn those on and off as well
 *****************************************/
 
 //def classifications = new ArrayList<>(  getCellObjects().collect {it?.getPathClass()} as Set)
-def classifications = new ArrayList<>(  getDetectionObjects().collect {it?.getPathClass()} as Set)
-//def classifications = new ArrayList<>(  getAnnotationObjects().collect {it?.getPathClass()} as Set)
+//def classifications = new ArrayList<>(  getDetectionObjects().collect {it?.getPathClass()} as Set)
+def classifications = new ArrayList<>(  getAnnotationObjects().collect {it?.getPathClass()} as Set)
 
 /////////////////////////////////////////////////////////////
 
