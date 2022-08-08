@@ -34,9 +34,9 @@ import java.util.stream.Collectors;
 import static qupath.lib.gui.scripting.QPEx.*;
 
 
-public class CompQuantBackend {
+public class CompQuantBackendBackup {
 
-	private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
+	private static final Logger logger = LoggerFactory.getLogger(CompQuantBackendBackup.class);
 
 	public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
 		ROI combinedROI = null;

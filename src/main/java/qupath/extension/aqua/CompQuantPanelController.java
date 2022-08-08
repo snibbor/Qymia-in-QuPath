@@ -6,19 +6,24 @@ import ij.gui.Roi;
 import ij.process.*;
 import javafx.beans.property.*;
 import javafx.beans.value.ObservableValue;
+import javafx.collections.*;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
+import javafx.scene.layout.HBox;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
+import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
+import org.bytedeco.opencv.opencv_core.Mat;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.extension.aqua.backend.CompQuantBackend;
@@ -29,11 +34,8 @@ import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.PathImage;
-import qupath.lib.images.servers.ColorTransforms;
+import qupath.lib.images.servers.*;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
-import qupath.lib.images.servers.ImageChannel;
-import qupath.lib.images.servers.ImageServer;
-import qupath.lib.images.servers.PixelCalibration;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.PathCellObject;
 import qupath.lib.objects.PathObject;
@@ -44,6 +46,9 @@ import qupath.lib.objects.hierarchy.TMAGrid;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
+import qupath.opencv.ops.ImageDataOp;
+import qupath.opencv.ops.ImageOps;
+import qupath.opencv.tools.OpenCVTools;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -61,18 +66,22 @@ public class CompQuantPanelController implements Initializable{
 	private static final Logger logger = LoggerFactory.getLogger(CompQuantPanelController.class);
 
 	// this bus is used application wide
-	private EventBus appEventBus = new EventBus();
+	private final EventBus appEventBus = new EventBus();
 
 	private final QuPathGUI qupath;
 
 	public LinkedHashMap<ColorTransform, Double> availableTransforms = new LinkedHashMap<ColorTransform, Double>();
 
 	//will be in settings menu
-	private String[] ignoreClasses = {"Ignore*, Necrosis", "Other"};
+	private final List<String> ignoreClasses = List.of(new String[]{"Ignore*, Necrosis", "Other"});
 
 	//default params
-	private int defaultGridSize = 512;
-	private ObjectProperty<Integer> gridSize = new SimpleObjectProperty(defaultGridSize);
+	private final int defaultGridSize = 512;
+	private final ObjectProperty<Integer> gridSize = new SimpleObjectProperty(defaultGridSize);
+
+	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
+	// target and exposure time if IF image
+	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<ColorTransform, Double>());
 
 	@FXML
 	Menu settingsMenu;
@@ -126,77 +135,7 @@ public class CompQuantPanelController implements Initializable{
 		appEventBus.register(this);
 		setupComboBoxes();
 		setupListViews();
-		setupTextFields();
-		startQuantButton.setOnAction(this::startQuant);
-		cancelButton.setOnAction(this::cancelQuant);
-		updateGUI();
-//		initObservables();
-	}
-
-	private void setupComboBoxes(){
-		slideTypeComboBox.getItems().addAll(slideTypes);
-		slideTypeComboBox.setOnAction(this::updateResultTypes);
-		selectedSlideType = slideTypeComboBox.getSelectionModel().selectedItemProperty();
-		selectedSlideType.addListener((v, o, n) -> updateGUI());
-
-		stainComboBox.getItems().addAll(stainTypes);
-		selectedStainType = stainComboBox.getSelectionModel().selectedItemProperty();
-		selectedStainType.addListener((v, o, n) -> updateGUI());
-
-		sourceComboBox.getItems().addAll(compartmentSources);
-		selectedSource = sourceComboBox.getSelectionModel().selectedItemProperty();
-		selectedSource.addListener((v, o, n) -> updateGUI());
-
-		selectedResultType = resultTypeComboBox.getSelectionModel().selectedItemProperty();
-		selectedResultType.addListener((v, o, n) -> updateGUI());
-	}
-
-	private void setupListViews() {
-		compartmentListView.setCellFactory(CheckBoxListCell.forListView(new Callback<PathClass, ObservableValue<Boolean>>() {
-			@Override
-			public ObservableValue<Boolean> call(PathClass item) {
-				BooleanProperty observable = new SimpleBooleanProperty();
-				observable.addListener((obs, wasSelected, isNowSelected) ->
-						System.out.println("Check box for " + item + " changed from " + wasSelected + " to " + isNowSelected)
-				);
-				return observable;
-			}
-		}));
-
-		targetListView.setCellFactory(CheckBoxListCell.forListView(new Callback<ColorTransform, ObservableValue<Boolean>>() {
-			@Override
-			public ObservableValue<Boolean> call(ColorTransform item) {
-				BooleanProperty observable = new SimpleBooleanProperty();
-				observable.addListener((obs, wasSelected, isNowSelected) ->
-						System.out.println("Check box for " + item + " changed from " + wasSelected + " to " + isNowSelected)
-				);
-				return observable;
-			}
-		}));
-	}
-
-	private void setupTextFields(){
-		UnaryOperator<TextFormatter.Change> intFilter = change -> {
-			String newText = change.getControlNewText();
-			if (newText.matches("^\\d{0,4}$|^$")) {
-				return change;
-			}
-			return null;
-		};
-
-		StringConverter<Integer> intConverter = new IntegerStringConverter() {
-			@Override
-			public Integer fromString(String s) {
-				if (s.isEmpty()) return 0 ;
-				else if(Integer.parseInt(s) == 0.0) return 0;
-				return super.fromString(s);
-			}
-		};
-
-		TextFormatter<Integer> textIntFormatter =
-				new TextFormatter<Integer>(intConverter, defaultGridSize, intFilter);
-
-		gridSizeTextField.setTextFormatter(textIntFormatter);
+		gridSizeTextField = formatTextFields(gridSizeTextField, "integer", String.valueOf(defaultGridSize));
 		gridSizeTextField.textProperty().bindBidirectional(gridSize, new IntegerStringConverter());
 		gridSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
 			@Override
@@ -213,6 +152,255 @@ public class CompQuantPanelController implements Initializable{
 				logger.info("textfield property: " + gridSizeTextField.getText());
 			}
 		});
+		startQuantButton.setOnAction(this::startQuant);
+		cancelButton.setOnAction(this::cancelQuant);
+		updateGUI(true);
+//		initObservables();
+	}
+
+	private void setupComboBoxes(){
+		slideTypeComboBox.getItems().addAll(slideTypes);
+		slideTypeComboBox.setOnAction(this::updateResultTypes);
+		selectedSlideType = slideTypeComboBox.getSelectionModel().selectedItemProperty();
+		selectedSlideType.addListener((v, o, n) -> updateGUI(false));
+
+		stainComboBox.getItems().addAll(stainTypes);
+		selectedStainType = stainComboBox.getSelectionModel().selectedItemProperty();
+		selectedStainType.addListener((v, o, n) -> updateGUI(true));
+
+		sourceComboBox.getItems().addAll(compartmentSources);
+		selectedSource = sourceComboBox.getSelectionModel().selectedItemProperty();
+		selectedSource.addListener((v, o, n) -> updateGUI(false));
+
+		selectedResultType = resultTypeComboBox.getSelectionModel().selectedItemProperty();
+		selectedResultType.addListener((v, o, n) -> updateGUI(false));
+	}
+
+//	https://stackoverflow.com/questions/44022381/keep-listview-with-checkboxes-synchronized-with-a-list-of-strings
+//	https://stackoverflow.com/questions/28843858/javafx-8-listview-with-checkboxes
+//	https://stackoverflow.com/questions/70058805/javafx-using-custom-listview-to-using-checkbox-with-setcellfactory
+	private void setupListViews() {
+		compartmentListView.setCellFactory(CheckBoxListCell.forListView(new Callback<PathClass, ObservableValue<Boolean>>() {
+			@Override
+			public ObservableValue<Boolean> call(PathClass item) {
+				BooleanProperty observable = new SimpleBooleanProperty();
+				observable.addListener((obs, wasSelected, isNowSelected) -> {
+					logger.info("Check box for " + item + " changed from " + wasSelected + " to " + isNowSelected);
+					if (isNowSelected) {
+						selectedCompartments.add(item);
+					} else {
+						selectedCompartments.remove(item);
+					}
+					logger.info(selectedCompartments.toString());
+					updateGUI(false);
+				});
+
+				observable.set(selectedCompartments.contains(item));
+				selectedCompartments.addListener((SetChangeListener.Change<? extends PathClass> c) ->
+						observable.set(selectedCompartments.contains(item)));
+
+				return observable;
+			}
+		}));
+
+//		targetListView.setCellFactory(CheckBoxListCell.forListView(new Callback<ColorTransform, ObservableValue<Boolean>>() {
+//			@Override
+//			public ObservableValue<Boolean> call(ColorTransform item) {
+//				BooleanProperty observable = new SimpleBooleanProperty();
+//				observable.addListener((obs, wasSelected, isNowSelected) -> {
+//					logger.info("Check box for " + item + " changed from " + wasSelected + " to " + isNowSelected);
+//					if (isNowSelected) {
+//						selectedTargets.put(item, 0.0);
+//					} else {
+//						selectedTargets.remove(item);
+//					}
+//					logger.info(selectedTargets.toString());
+//				});
+//
+//				observable.set(selectedTargets.containsKey(item));
+//				selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->
+//						observable.set(selectedTargets.containsKey(item)));
+//
+//				return observable;
+//			}
+//		}));
+
+		targetListView.setCellFactory((ListView<ColorTransform> param) -> new ListCell<ColorTransform>(){
+			private HBox container;
+			private CheckBox checkBox;
+			private TextField expTimeTextField;
+			private Label transformLabel = new Label();
+			private BooleanProperty booleanProperty = new SimpleBooleanProperty();
+
+			@Override
+			public void updateItem(ColorTransform item, boolean empty){
+				super.updateItem(item, empty);
+				if (!(empty || item == null)) {
+					transformLabel.setText(item.toString());
+//					container = new HBox(0, getCheckBox(), transformLabel, expTimeTextField);
+					if(selectedStainType.get()=="Fluorescence") {
+						container = new HBox(4, getCheckBox(), transformLabel, getExpTextField());
+					} else {
+						container = new HBox(4, getCheckBox(), transformLabel);
+					}
+					setGraphic(container);
+				} else {
+					setGraphic(null);
+					setText(null);
+				}
+
+			}
+
+			private TextField getExpTextField(){
+				if(expTimeTextField==null){
+					expTimeTextField = new TextField();
+					expTimeTextField = formatTextFields(expTimeTextField, "integer", null);
+					expTimeTextField.setPromptText("ms");
+					expTimeTextField.setPrefWidth(50);
+					expTimeTextField.setMaxWidth(60);
+					expTimeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+						@Override
+						public void handle(KeyEvent ke) {
+							if (ke.getCode().equals(KeyCode.ENTER)) {
+								if (expTimeTextField.getText().isEmpty() || expTimeTextField.getText() == null) {
+									selectedTargets.replace(getItem(), 0.0);
+								} else{
+									selectedTargets.replace(getItem(), Double.parseDouble(expTimeTextField.getText()));
+								}
+								logger.info(selectedTargets.toString());
+							}
+						}
+					});
+					expTimeTextField.focusedProperty().addListener((ov, oldV, newV) -> {
+						if (!newV) { // focus lost
+							if (expTimeTextField.getText().isEmpty() || expTimeTextField.getText() == null) {
+								selectedTargets.replace(getItem(), 0.0);
+							} else{
+								selectedTargets.replace(getItem(), Double.parseDouble(expTimeTextField.getText()));
+							}
+							logger.info(selectedTargets.toString());
+						}
+					});
+				}
+				return expTimeTextField;
+			}
+			private CheckBox getCheckBox(){
+				if(checkBox==null){
+					checkBox = new CheckBox();
+					checkBox.selectedProperty().addListener((obs, wasSelected, isNowSelected) -> {
+						logger.info("Check box for " + getItem() + " changed from " + wasSelected + " to " + isNowSelected);
+						if (isNowSelected) {
+							if(expTimeTextField == null || expTimeTextField.getText().isEmpty() || expTimeTextField.getText() == null) {
+//								could check and set as -1 for error catching downstream....
+								selectedTargets.put(getItem(), 0.0);
+							} else {
+								selectedTargets.put(getItem(), Double.parseDouble(expTimeTextField.getText()));
+							}
+						} else {
+							selectedTargets.remove(getItem());
+						}
+						logger.info(selectedTargets.toString());
+						updateGUI(false);
+					});
+					checkBox.selectedProperty().set(selectedTargets.containsKey(getItem()));
+					selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->
+							checkBox.selectedProperty().set(selectedTargets.containsKey(getItem())));
+				}
+				return checkBox;
+			}
+		});
+	}
+
+	private TextField formatTextFields(TextField textField, String format, String defaultValue) {
+		switch(format.toLowerCase()) {
+			case "string": {
+				break;
+			}
+			case "integer": {
+				UnaryOperator<TextFormatter.Change> filter = change -> {
+					String newText = change.getControlNewText();
+					if (newText.matches("^\\d{0,4}$|^$")) {
+						return change;
+					}
+					return null;
+				};
+
+				StringConverter<Integer> converter = new IntegerStringConverter() {
+					@Override
+					public Integer fromString(String s) {
+						if (s.isEmpty()) return null;
+						else if (Integer.parseInt(s) == 0.0) return 0;
+						return super.fromString(s);
+					}
+				};
+
+				TextFormatter<Integer> textFormatter;
+				if(defaultValue!=null) {
+					textFormatter = new TextFormatter<Integer>(converter, Integer.parseInt(defaultValue), filter);
+				} else{
+					textFormatter = new TextFormatter<Integer>(converter, null, filter);
+				}
+
+				textField.setTextFormatter(textFormatter);
+				break;
+			}
+			case "percent": {
+				UnaryOperator<TextFormatter.Change> filter = change -> {
+					String newText = change.getControlNewText();
+					if (newText.matches("^100(\\.0{0,2})?$|^\\d{0,2}(\\.\\d{0,2})?$")) {
+						return change;
+					}
+					return null;
+				};
+				StringConverter<Double> converter = new DoubleStringConverter() {
+					@Override
+					public Double fromString(String s) {
+						if (s.isEmpty()) return 0.0 ;
+//    		                else if(Double.parseDouble(s) == 0) return 0.0;
+						return super.fromString(s);
+					}
+				};
+
+				TextFormatter<Double> textFormatter;
+				if(defaultValue!=null) {
+					textFormatter = new TextFormatter<Double>(converter, Double.parseDouble(defaultValue), filter);
+				} else{
+					textFormatter = new TextFormatter<Double>(converter, null, filter);
+				}
+
+				textField.setTextFormatter(textFormatter);
+				break;
+			}
+			case "0-1": {
+				UnaryOperator<TextFormatter.Change> filter = change -> {
+					String newText = change.getControlNewText();
+					if (newText.matches("^0{0,1}(\\.\\d{0,3})?$|^1(\\.0{0,3})?$")) {
+						return change;
+					}
+					return null;
+				};
+
+				StringConverter<Double> converter = new DoubleStringConverter() {
+					@Override
+					public Double fromString(String s) {
+						if (s.isEmpty()) return 0.0 ;
+//    		                else if(Double.parseDouble(s) == 0) return 0.0;
+						return super.fromString(s);
+					}
+				};
+
+				TextFormatter<Double> textFormatter;
+				if(defaultValue!=null) {
+					textFormatter = new TextFormatter<Double>(converter, Double.parseDouble(defaultValue), filter);
+				} else{
+					textFormatter = new TextFormatter<Double>(converter, null, filter);
+				}
+
+				textField.setTextFormatter(textFormatter);
+				break;
+			}
+		}
+		return textField;
 	}
 
 //	private void initObservables() {
@@ -230,7 +418,7 @@ public class CompQuantPanelController implements Initializable{
 		}
 	}
 
-	public void updateGUI(){
+	public void updateGUI(Boolean forceUpdateTransforms) {
 		logger.info("updating GUI...");
 		var viewer = qupath.getViewer();
 		var imageData = viewer.getImageData();
@@ -245,19 +433,18 @@ public class CompQuantPanelController implements Initializable{
 		targetListView.setDisable(false);
 		// Set the transforms if we have to
 		var newTransforms = new ArrayList<>(getAvailableTransforms(imageData));
-		if (!newTransforms.equals(targetListView.getItems()))
+		if (forceUpdateTransforms) {
 			targetListView.getItems().setAll(newTransforms);
+		} else if (!newTransforms.equals(targetListView.getItems())){
+			targetListView.getItems().setAll(newTransforms);
+		}
 
 		String slide = selectedSlideType.get();
 		String stain = selectedStainType.get();
 		String source = selectedSource.get();
 		String result = selectedResultType.get();
 		//check if something is selected for compartments and targets....
-		if(slide == null || stain == null || source == null || result == null) {
-			startQuantButton.setDisable(true);
-		} else {
-			startQuantButton.setDisable(false);
-		}
+		startQuantButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 
 		if(result != null && result.toLowerCase().contains("grid")){
 			gridSizeTextField.setDisable(false);
@@ -303,6 +490,39 @@ public class CompQuantPanelController implements Initializable{
 	
 	//Main panel and button commands
 	public void startQuant(ActionEvent e){
+//		double check that all fields have values
+		String slide = selectedSlideType.get();
+		String stain = selectedStainType.get();
+		String source = selectedSource.get();
+		String result = selectedResultType.get();
+		//check if something is selected for compartments and targets....
+		if(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0) {
+//			throw new Exception("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
+			logger.warn("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
+			return;
+		}
+
+		ImageServer<BufferedImage> server = (ImageServer<BufferedImage>) getCurrentServer();
+		double downsample = 1.0;
+		int scaleBitDepth = 0;
+
+		if(result.toLowerCase().contains("grid")){
+			if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
+				logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
+			else if(gridSizeTextField.getText() != null && Double.parseDouble(gridSizeTextField.getText()) == 0.0)
+				logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
+			else
+				logger.warn("Grid scoring not implemented yet...");
+		}
+		if(result.toLowerCase().contains("tma") && slide == "TMA"){
+			logger.info(String.format("Beginning compartment quantification of TMA cores for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
+			CompQuantBackend.TMARecalcCompartmentsAndAQUA(server, ignoreClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample);
+
+		}
+		if(result.toLowerCase().contains("roi")){
+			logger.info(String.format("Beginning compartment quantification of ROIs for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
+			CompQuantBackend.getTargetAQUAScoresForROIs(server, ignoreClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample);
+		}
 
 	}
 
@@ -337,7 +557,7 @@ public class CompQuantPanelController implements Initializable{
 
 		private static final Logger logger = LoggerFactory.getLogger(qupath.extension.aqua.backend.CompQuantBackend.class);
 
-		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
+		public static ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
 			ROI combinedROI = null;
 			PathClass p_class = null;
 			for (PathObject annotation : annots) {
@@ -365,13 +585,11 @@ public class CompQuantPanelController implements Initializable{
 		//    Map<String, Integer> targets = new LinkedHashMap<>();
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
 		// How to flexibly find ROIs within TMA core hierarchy?
-		public void getTargetAQUAScoresForROIs(ImageServer<BufferedImage> server,
-											   List<String> rois,
-											   Map<String, Integer> targets,
-											   List<String> compartments,
-											   double downsample,
-											   Object metadata,
-											   int scaleBitDepthTo
+		public static void getTargetAQUAScoresForROIs(ImageServer<BufferedImage> server,
+													  List<String> rois,
+													  Map<ColorTransform, Double> targets,
+													  List<PathClass> compartments,
+													  double downsample
 		) {
 
 			List<CompQuantMeasurements.Measurements> measurements = Arrays.asList(CompQuantMeasurements.Measurements.values());
@@ -389,8 +607,8 @@ public class CompQuantPanelController implements Initializable{
 			AtomicInteger roiNumber = new AtomicInteger(1);
 
 			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
-			var compartmentObjs = pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass().toString()))
-					.collect(Collectors.toList());
+			var compartmentObjs = pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+																		.collect(Collectors.toList());
 			pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
 					.map(f -> {
 						// Record null/none values for compartments not within ROI
@@ -420,12 +638,16 @@ public class CompQuantPanelController implements Initializable{
 
 								// Quantify metrics/AQUA for each target in each intersecting compartment
 								// Calculate AQUA scoring metrics for new compartment detections for all targets
-								getTargetsAQUA(
-										server, compInterDet,
-										targets,
-										measurements, cellCompartments,
-										downsample, metadata, scaleBitDepthTo
-								);
+								try {
+									getTargetsAQUA(
+											server, compInterDet,
+											targets,
+											measurements, cellCompartments,
+											downsample
+									);
+								} catch (IOException e) {
+									logger.warn(e.toString());
+								}
 
 								// Put these target/compartment measurments on the measurement list of the ROI for export
 								//                    compInterObjs.add(compInterDet)
@@ -439,13 +661,11 @@ public class CompQuantPanelController implements Initializable{
 
 
 		// Exclude regions and add regions that weren't segmented well. Allows for manual adjustment of compartmentalization before AQUA.
-		public void TMARecalcCompartmentsAndAQUA(ImageServer<BufferedImage> server,
-												 List<String> ignoreClasses,
-												 Map<String, Integer> targets,
-												 List<String> compartments,
-												 double downsample,
-												 Object metadata,
-												 int scaleBitDepthTo
+		public static void TMARecalcCompartmentsAndAQUA(ImageServer<BufferedImage> server,
+														List<String> ignoreClasses,
+														Map<ColorTransform, Double> targets,
+														List<PathClass> compartments,
+														double downsample
 		) {
 
 			// Adjust each compartment by subtracting the exclude region and adding the corresponding compartment adjustments
@@ -473,7 +693,7 @@ public class CompQuantPanelController implements Initializable{
 			tmaCores.parallelStream().forEach(core -> {
 				// step thru all children items of TMA core object
 				core.getChildObjects().parallelStream().forEach(detection -> {
-					if (compartments.contains(detection.getPathClass().toString())) {
+					if (compartments.contains(detection.getPathClass())) {
 						PathObject adjDetection;
 						ROI adjDetectionROI = detection.getROI();
 						// is not very efficient as the excluded areas may only be in certain TMA spots....
@@ -495,12 +715,16 @@ public class CompQuantPanelController implements Initializable{
 						}
 
 						// Calculate AQUA scoring metrics for new compartment detections for all targets
-						getTargetsAQUA(
-								server, adjDetection,
-								targets,
-								measurements, cellCompartments,
-								downsample, metadata, scaleBitDepthTo
-						);
+						try {
+							getTargetsAQUA(
+									server, adjDetection,
+									targets,
+									measurements, cellCompartments,
+									downsample
+							);
+						} catch (IOException e) {
+							logger.warn(e.toString());
+						}
 					}
 				});
 			});
@@ -544,16 +768,14 @@ public class CompQuantPanelController implements Initializable{
 //			// pass to color transform compatible method
 //			getTargetsAQUA(server, pathObject, targets, measurements, cellCompartments, downsample, metaData, scaleBitDepthTo);
 //		}
-		public void getTargetsAQUA(ImageServer<BufferedImage> server,
-								   PathObject pathObject,
-								   Map<String, Integer> targets,
-								   Collection<CompQuantMeasurements.Measurements> measurements,
-								   Collection<CompQuantMeasurements.Compartments> cellCompartments,
-								   double downsample,
-								   Object metaData,
-								   int scaleBitDepthTo
-		) {
-
+		public static void getTargetsAQUA(ImageServer<BufferedImage> server,
+										  PathObject pathObject,
+										  Map<ColorTransform, Double> targets,
+										  Collection<CompQuantMeasurements.Measurements> measurements,
+										  Collection<CompQuantMeasurements.Compartments> cellCompartments,
+										  double downsample
+		) throws IOException {
+			// Convert to binary mask Mat
 			ROI roi = pathObject.getROI();
 			String className = pathObject.getPathClass().toString();
 
@@ -562,37 +784,12 @@ public class CompQuantPanelController implements Initializable{
 					.pad2D(pad, pad)
 					.intersect2D(0, 0, server.getWidth(), server.getHeight());
 
-			PathImage<ImagePlus> pathImage = null;
-			try {
-				pathImage = IJTools.convertToImagePlus(server, request);
-			} catch (IOException e) {
-				throw new RuntimeException(e);
-			}
-			ImagePlus imp = pathImage.getImage();
-
-			// Normalize/scale bit depth?
-			int bitDepth = imp.getBitDepth();
-			logger.info("Current bitdepth: " + bitDepth);
-			// Current built in scaling functions are not great. Uses the max & min value of the image to linearly scale the image down bitdepth size
-			// and does not offer a solution to scale up bitdepth size...
-			if (scaleBitDepthTo != 0) {
-				List<Integer> bitConversions = Arrays.asList(8, 16, 32);
-				if (bitConversions.contains(scaleBitDepthTo)) {
-					if (scaleBitDepthTo == 8) {
-						new ImageConverter(imp).convertToGray8();
-					} else if (scaleBitDepthTo == 16) {
-						new ImageConverter(imp).convertToGray16();
-					} else if (scaleBitDepthTo == 32) {
-						new ImageConverter(imp).convertToGray32();
-					}
-				} else {
-					logger.info(String.format("Converting to bitdepth %d not supported...", scaleBitDepthTo));
-					return;
-				}
-			}
-
+			var imageData = getCurrentImageData();
+			PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
+//			ImagePlus imp = pathImage.getImage();
 
 			PixelCalibration pc = server.getPixelCalibration();
+			int bitDepth = server.getPixelType().getBitsPerPixel();
 			double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
 			//    println 'Squarred MPP: ' + mppSq.toString();
 
@@ -605,40 +802,33 @@ public class CompQuantPanelController implements Initializable{
 			measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
 			measList.putMeasurement("MPP^2", mppSq);
 			measList.putMeasurement("Channel bitdepth", bitDepth);
-			int bitDepthVal = (int) Math.pow(2, bitDepth);
+//			int bitDepthVal = (int) Math.pow(2, bitDepth);
+			int bitDepthVal = (int) Math.pow(2, 16);
 
 			Map<String, ImageProcessor> channels = new LinkedHashMap<>();
 			Map<String, String> measNames = new LinkedHashMap<>();
-			List<ImageChannel> serverChannels = server.getMetadata().getChannels();
 
-			for (Map.Entry<String, Integer> tar : targets.entrySet()) {
-				String targetName = tar.getKey();
-				int targetChannel = tar.getValue();
-				if (server.isRGB() && imp.getStackSize() == 1 && imp.getProcessor() instanceof ColorProcessor) {
-					ColorProcessor cp = (ColorProcessor) imp.getProcessor();
-					//        measName = targetName + ' Intensity (' + serverChannels.get(targetChannel-1).getName() + ' channel)';
-					String measName = targetName + " Intensity in " + className;
-					measNames.put(targetName, measName);
-					channels.put(measName, cp.getChannel(targetChannel, null));
-					logger.info(String.format("AQUA of %s (channel %x) in %s", targetName, targetChannel, className));
-				} else {
-					assert imp.getStackSize() == serverChannels.size();
-					//        measName = targetName + ' Intensity (' + serverChannels.get(targetChannel-1).getName() + ' channel)';
-					String measName = targetName + " Intensity in " + className;
-					measNames.put(targetName, measName);
-					channels.put(measName, imp.getStack().getProcessor(targetChannel));
-					logger.info(String.format("AQUA of %s (channel %x) in %s", targetName, targetChannel, className));
-				}
-			}
-
-			ByteProcessor bpCell = new ByteProcessor(imp.getWidth(), imp.getHeight());
+			//Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
+			//Using ImageJ to create a binary mask [0,1] of ROI
+			ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
 			bpCell.setValue(1.0);
 			Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
 			bpCell.fill(roiIJ);
 
+			//Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
+			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+				ColorTransform targetTransform = tar.getKey();
+				String targetName = targetTransform.toString();
+				ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
+				String measName = targetName + " Intensity in " + className;
+				measNames.put(targetName, measName);
+				channels.put(measName, ipChannel);
+				logger.info(String.format("AQUA of %s in %s", targetName, className));
+			}
+
 			if (pathObject instanceof PathCellObject) {
 				PathCellObject cell = (PathCellObject) pathObject;
-				ByteProcessor bpNucleus = new ByteProcessor(imp.getWidth(), imp.getHeight());
+				ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
 				if (cell.getNucleusROI() != null) {
 					bpNucleus.setValue(1.0);
 					Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
@@ -660,23 +850,18 @@ public class CompQuantPanelController implements Initializable{
 			}
 
 
-			for (Map.Entry<String, Integer> tar : targets.entrySet()) {
-				String targetName = tar.getKey();
-				int targetChannel = tar.getValue();
+			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+				String targetName = tar.getKey().toString();
+				double exposure_time = tar.getValue();
 				String measName = measNames.get(targetName);
 				double targetMean = measList.getMeasurementValue(measName + ": Mean");
 				// double sumInt = targetMean*annotationArea;
 				// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
 				// Debugging, would load from available metadata
-				double exposure_time;
-				if (metaData == null) {
+				if (exposure_time == 0.0 || exposure_time < 0) {
 					exposure_time = 1000;
 					measList.putMeasurement(targetName + " exposure time (ms)", 0);
-				} else if (metaData instanceof Double) {
-					exposure_time = (double) metaData;
-					measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
 				} else {
-					exposure_time = Double.parseDouble(((String[]) metaData)[targetChannel - 1]);
 					measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
 				}
 
@@ -767,7 +952,7 @@ public class CompQuantPanelController implements Initializable{
 			/**
 			 * Cell boundary, with interior removed
 			 */
-			MEMBRANE;
+			MEMBRANE
 
 		}
 

@@ -50,7 +50,7 @@ public class CompQuantPanel implements Runnable{
 				Scene scene = new Scene(panel);
 				scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
 				stage.setScene(scene);
-				stage.setMinHeight(325);
+				stage.setMinHeight(350);
 				stage.setMinWidth(300);
 				stage.setMaxWidth(500);
 				
@@ -69,7 +69,7 @@ public class CompQuantPanel implements Runnable{
 			
 		} else {
 			// update GUI based on changes to color transforms, path classes, etc.
-			compQuantController.updateGUI();
+			compQuantController.updateGUI(true);
 			if (stage.isShowing())
 				stage.toFront();
 		}
