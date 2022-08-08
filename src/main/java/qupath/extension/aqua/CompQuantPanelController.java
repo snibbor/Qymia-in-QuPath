@@ -4,6 +4,7 @@ import com.google.common.eventbus.EventBus;
 import ij.ImagePlus;
 import ij.gui.Roi;
 import ij.process.*;
+import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.*;
@@ -11,7 +12,6 @@ import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
-import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.input.KeyCode;
@@ -23,42 +23,48 @@ import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
-import org.bytedeco.opencv.opencv_core.Mat;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.extension.aqua.backend.CompQuantBackend;
 import qupath.imagej.tools.IJTools;
 import qupath.imagej.tools.PixelImageIJ;
 //import qupath.lib.analysis.features.ObjectMeasurements;
 import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.PathImage;
 import qupath.lib.images.servers.*;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
 import qupath.lib.measurements.MeasurementList;
-import qupath.lib.objects.PathCellObject;
-import qupath.lib.objects.PathObject;
-import qupath.lib.objects.PathObjects;
-import qupath.lib.objects.TMACoreObject;
+import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
+import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.TMAGrid;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
-import qupath.opencv.ops.ImageDataOp;
 import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URL;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
-import static qupath.lib.scripting.QP.*;
+import static qupath.lib.common.Prefs.getNumThreads;
+import static qupath.lib.scripting.QP.clearMeasurements;
+
+//import static qupath.lib.scripting.QP.*;
 
 public class CompQuantPanelController implements Initializable{
 
@@ -69,11 +75,18 @@ public class CompQuantPanelController implements Initializable{
 	private final EventBus appEventBus = new EventBus();
 
 	private final QuPathGUI qupath;
+//	private QuPathViewerPlus viewer;
+//	private ImageData<BufferedImage> imageData;
+//	private ImageServer<BufferedImage> server;
+//	private PathObjectHierarchy hierarchy;
 
-	public LinkedHashMap<ColorTransform, Double> availableTransforms = new LinkedHashMap<ColorTransform, Double>();
+	private CompQuantBackend compQuant;
+
+	public LinkedHashMap<ColorTransform, Double> availableTransforms = new LinkedHashMap<>();
 
 	//will be in settings menu
-	private final List<String> ignoreClasses = List.of(new String[]{"Ignore*, Necrosis", "Other"});
+	private final List<String> ignoreClasses = List.of(new String[]{"Ignore*", "Necrosis", "Other"});
+	private final List<String> roiClasses = List.of(new String[]{"ROI"});
 
 	//default params
 	private final int defaultGridSize = 512;
@@ -81,7 +94,7 @@ public class CompQuantPanelController implements Initializable{
 
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
 	// target and exposure time if IF image
-	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<ColorTransform, Double>());
+	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<>());
 
 	@FXML
 	Menu settingsMenu;
@@ -97,7 +110,7 @@ public class CompQuantPanelController implements Initializable{
 	private ReadOnlyObjectProperty<String> selectedStainType;
 	@FXML
 	ComboBox<String> sourceComboBox;
-	private final String[] compartmentSources = {"Annotations", "Detections", "Cells"};
+	private final String[] compartmentSources = {"Annotations", "Cells"};
 	private ReadOnlyObjectProperty<String> selectedSource;
 	@FXML
 	ScrollPane compartmentScrollPane;
@@ -238,7 +251,7 @@ public class CompQuantPanelController implements Initializable{
 				if (!(empty || item == null)) {
 					transformLabel.setText(item.toString());
 //					container = new HBox(0, getCheckBox(), transformLabel, expTimeTextField);
-					if(selectedStainType.get()=="Fluorescence") {
+					if(Objects.equals(selectedStainType.get(), "Fluorescence")) {
 						container = new HBox(4, getCheckBox(), transformLabel, getExpTextField());
 					} else {
 						container = new HBox(4, getCheckBox(), transformLabel);
@@ -445,6 +458,7 @@ public class CompQuantPanelController implements Initializable{
 		String result = selectedResultType.get();
 		//check if something is selected for compartments and targets....
 		startQuantButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
+		cancelButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 
 		if(result != null && result.toLowerCase().contains("grid")){
 			gridSizeTextField.setDisable(false);
@@ -484,8 +498,9 @@ public class CompQuantPanelController implements Initializable{
 		return validChannels.keySet();
 	}
 
-	
+
 	//Utility methods
+	// https://stackoverflow.com/questions/8567596/how-to-make-updating-bigdecimal-within-concurrenthashmap-thread-safe
 
 	
 	//Main panel and button commands
@@ -501,10 +516,18 @@ public class CompQuantPanelController implements Initializable{
 			logger.warn("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
 			return;
 		}
-
-		ImageServer<BufferedImage> server = (ImageServer<BufferedImage>) getCurrentServer();
+		quantProgressBar.setProgress(-1);
+		progressLabel.setText("Starting Compartment Quantification...");
+		compQuant = new CompQuantBackend(qupath, quantProgressBar, progressLabel);
+		PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
 		double downsample = 1.0;
-		int scaleBitDepth = 0;
+
+		if(source.equals("Annotations")) {
+			hierarchy.removeObjects(hierarchy.getDetectionObjects(), true);
+			clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
+		} else if(source.equals("Cells")){
+			clearMeasurements(hierarchy, hierarchy.getCellObjects());
+		}
 
 		if(result.toLowerCase().contains("grid")){
 			if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
@@ -514,20 +537,45 @@ public class CompQuantPanelController implements Initializable{
 			else
 				logger.warn("Grid scoring not implemented yet...");
 		}
-		if(result.toLowerCase().contains("tma") && slide == "TMA"){
+		if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
 			logger.info(String.format("Beginning compartment quantification of TMA cores for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
-			CompQuantBackend.TMARecalcCompartmentsAndAQUA(server, ignoreClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample);
+			progressLabel.setText("Quantifying TMA core compartments...");
+			try {
+				compQuant.TMARecalcCompartmentsAndAQUA(ignoreClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
+			} catch (ExecutionException ex) {
+				throw new RuntimeException(ex);
+			} catch (InterruptedException ex) {
+				throw new RuntimeException(ex);
+			}
 
 		}
 		if(result.toLowerCase().contains("roi")){
 			logger.info(String.format("Beginning compartment quantification of ROIs for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
-			CompQuantBackend.getTargetAQUAScoresForROIs(server, ignoreClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample);
+			try {
+				compQuant.getTargetAQUAScoresForROIs(roiClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample, getNumThreads()-3);
+			} catch (ExecutionException ex) {
+				throw new RuntimeException(ex);
+			} catch (InterruptedException ex) {
+				throw new RuntimeException(ex);
+			}
 		}
 
 	}
 
 	public void cancelQuant(ActionEvent e){
-
+		if(compQuant != null && compQuant.isTaskRunning()) {
+			logger.warn("Trying to cancel running task...");
+			compQuant.cancelTasks();
+//			// garbage cleanup?
+			compQuant = null;
+			progressLabel.setText("Canceled task...");
+//			would be cool to make progress bar red
+			quantProgressBar.setProgress(0);
+		} else{
+			logger.info("No task is running...");
+			if(compQuant != null)
+				compQuant = null;
+		}
 	}
 	
 	public void advancedSettings(ActionEvent e) {
@@ -552,12 +600,81 @@ public class CompQuantPanelController implements Initializable{
 		
 	}
 
+	//	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
+	public class CompQuantBackend {
+//		private static QuPathGUI qupath;
+//		private static QuPathViewerPlus viewer;
+		private ImageData<BufferedImage> imageData;
+		private ImageServer<BufferedImage> server;
+		private PathObjectHierarchy hierarchy;
+		public ProgressBar quantProgressBar;
+		public Label progressLabel;
+		private ForkJoinPool forkJoinPool = null;
 
-	public static class CompQuantBackend {
+		private int estNumTasks;
 
-		private static final Logger logger = LoggerFactory.getLogger(qupath.extension.aqua.backend.CompQuantBackend.class);
+//		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
+		private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
+		CompQuantBackend(QuPathGUI qupath, ProgressBar progressBar, Label progressL){
+//			this.qupath = qupath;
+//			this.viewer = qupath.getViewer();
+			this.imageData = qupath.getViewer().getImageData();
+			this.server = imageData.getServer();
+			this.hierarchy = imageData.getHierarchy();
+			this.quantProgressBar = progressBar;
+			this.progressLabel = progressL;
+		}
 
-		public static ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
+		private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
+
+		public void setEstNumTasks(int newEst){
+			logger.info("Estimate # tasks: "  + newEst);
+			estNumTasks = newEst;
+		}
+		public int getEstNumTasks(){
+			return estNumTasks;
+		}
+//		public BigDecimal incrementAndGet(double amount) {
+//			for (;;) {
+//				BigDecimal current = progressValue.get();
+//				BigDecimal next = current.add(new BigDecimal(String.format("%.2f", amount)));
+//				if (progressValue.compareAndSet(current, next)) {
+//					return next;
+//				}
+//			}
+//		}
+
+		public BigInteger incrementAndGet(Integer amount) {
+			for (;;) {
+				BigInteger current = progressValue.get();
+				BigInteger next = current.add(new BigInteger(amount.toString()));
+				if (progressValue.compareAndSet(current, next)) {
+					return next;
+				}
+			}
+		}
+
+		//	https://stackoverflow.com/questions/21083945/how-to-avoid-not-on-fx-application-thread-currentthread-javafx-application-th
+		public void incrementProgress(Integer amount){
+			double prog = incrementAndGet(amount).doubleValue();
+			int newEst = getEstNumTasks();
+			logger.info(String.format("%f", prog/newEst));
+			Platform.runLater(()->{
+				quantProgressBar.setProgress(prog/newEst);
+			});
+		}
+
+		public void cancelTasks(){
+			logger.warn("Trying to shutdown running tasks!");
+			forkJoinPool.shutdownNow();
+			setEstNumTasks(0);
+		}
+
+		public boolean isTaskRunning(){
+			return !forkJoinPool.isTerminated();
+		}
+
+		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
 			ROI combinedROI = null;
 			PathClass p_class = null;
 			for (PathObject annotation : annots) {
@@ -573,9 +690,9 @@ public class CompQuantPanelController implements Initializable{
 			}
 
 			if (newAnnot) {
-				removeObjects(annots, true);
+				hierarchy.removeObjects(annots, true);
 				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
-				addObject(combinedAnnot);
+				hierarchy.addPathObject(combinedAnnot);
 			}
 
 			return combinedROI;
@@ -585,12 +702,12 @@ public class CompQuantPanelController implements Initializable{
 		//    Map<String, Integer> targets = new LinkedHashMap<>();
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
 		// How to flexibly find ROIs within TMA core hierarchy?
-		public static void getTargetAQUAScoresForROIs(ImageServer<BufferedImage> server,
-													  List<String> rois,
+		public void getTargetAQUAScoresForROIs(List<String> rois,
 													  Map<ColorTransform, Double> targets,
 													  List<PathClass> compartments,
-													  double downsample
-		) {
+													  double downsample,
+													  int numThreads
+		) throws ExecutionException, InterruptedException {
 
 			List<CompQuantMeasurements.Measurements> measurements = Arrays.asList(CompQuantMeasurements.Measurements.values());
 			List<CompQuantMeasurements.Compartments> cellCompartments = Arrays.asList(CompQuantMeasurements.Compartments.values());
@@ -601,15 +718,19 @@ public class CompQuantPanelController implements Initializable{
 			// Remove uninformative classes (Tissue)
 //			compartments.remove("Tissue");
 
+			if(numThreads<=0)
+				numThreads = 1;
+
+			forkJoinPool = new ForkJoinPool(numThreads);
+
 			// Used for placing child objects inside ROI
-			var imageData = getCurrentImageData();
 
 			AtomicInteger roiNumber = new AtomicInteger(1);
 
 			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
-			var compartmentObjs = pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-																		.collect(Collectors.toList());
-			pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
+			var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+																		.collect(Collectors.toList())).get();
+			forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
 					.map(f -> {
 						// Record null/none values for compartments not within ROI
 						logger.info(f.getName());
@@ -656,68 +777,85 @@ public class CompQuantPanelController implements Initializable{
 							}
 						}
 
-					});
+					}));
 		}
 
-
 		// Exclude regions and add regions that weren't segmented well. Allows for manual adjustment of compartmentalization before AQUA.
-		public static void TMARecalcCompartmentsAndAQUA(ImageServer<BufferedImage> server,
-														List<String> ignoreClasses,
+		public void TMARecalcCompartmentsAndAQUA(List<String> ignoreClasses,
 														Map<ColorTransform, Double> targets,
 														List<PathClass> compartments,
-														double downsample
-		) {
+														double downsample,
+														int numThreads
+		) throws ExecutionException, InterruptedException {
 
+//			progressBar.setProgress(-1);
+//			progressL.setText("Quantifying TMA compartments...");
 			// Adjust each compartment by subtracting the exclude region and adding the corresponding compartment adjustments
 			// Iterate through compartments/detections to recreate them if adjustments were made
 			// Calculate AQUA metrics for each target
-			final Boolean[] doAdjust = {false};
+			Boolean doAdjust = false;
 
 			List<CompQuantMeasurements.Measurements> measurements = Arrays.asList(CompQuantMeasurements.Measurements.values());
 			List<CompQuantMeasurements.Compartments> cellCompartments = Arrays.asList(CompQuantMeasurements.Compartments.values());
 			// Won't mean much if they aren't cells...
 			logger.info("Updating existing compartments with any new annotations, calcuating AQUA metrics...");
 
-			TMAGrid tmaGrid = getCurrentHierarchy().getTMAGrid();
+			TMAGrid tmaGrid = hierarchy.getTMAGrid();
 			List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
+			// an estimate if there are the same amount of compartments per TMA spot....
+			// could just try and use the amount of tasks queued
+			setEstNumTasks((int) tmaCores.size()*compartments.size());
+			Integer progAmount = 1;
 			// Combine exclude regions, but do not create a new merged object
 			ROI combinedExcludeROI = null;
+			if(numThreads<=0)
+				numThreads = 1;
 
-			List<PathObject> allIgnoreAnnotations = getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
-					.collect(Collectors.toList());
+			forkJoinPool = new ForkJoinPool(numThreads);
+			List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(()-> hierarchy.getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
+					.collect(Collectors.toList())).get();
+			//Just for the progress bar... assuming that all compartments == number of tasks
+			List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(()-> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+					.collect(Collectors.toList())).get();
+			setEstNumTasks(allCompartmentAnnotations.size());
+			logger.info(allIgnoreAnnotations.toString());
 			combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
 			if (combinedExcludeROI != null)
-				doAdjust[0] = true;
+				doAdjust = true;
 
 			ROI finalCombinedExcludeROI = combinedExcludeROI;
-			tmaCores.parallelStream().forEach(core -> {
+			Boolean finalDoAdjust = doAdjust;
+			// This code should be blocking to await result
+//			forkJoinPool.invoke(ForkJoinTask.adapt(() -> tmaCores.parallelStream().forEach(core -> {
+			forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
 				// step thru all children items of TMA core object
-				core.getChildObjects().parallelStream().forEach(detection -> {
-					if (compartments.contains(detection.getPathClass())) {
-						PathObject adjDetection;
-						ROI adjDetectionROI = detection.getROI();
+				forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
+					if (compartments.contains(pathObj.getPathClass())) {
+						PathObject adjpathObj;
+						ROI adjpathObjROI = pathObj.getROI();
 						// is not very efficient as the excluded areas may only be in certain TMA spots....
 						// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
-						if (doAdjust[0]) {
-							adjDetectionROI = RoiTools.combineROIs(adjDetectionROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+						if (finalDoAdjust) {
+							adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
 						}
-						if (adjDetectionROI.isEmpty()) {
-							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", detection.getPathClass().toString()));
-//						removeObject(detection, true);
+						if (adjpathObjROI.isEmpty()) {
+							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+	//						removeObject(detection, true);
 							return;
-						} else if (doAdjust[0]) {
-							logger.info(String.format("Adjusting %s compartment based on new annotations...", detection.getPathClass().toString()));
-							adjDetection = PathObjects.createDetectionObject(adjDetectionROI, detection.getPathClass());
-							addObject(adjDetection);
-							removeObject(detection, true);
+						} else if (finalDoAdjust) {
+							logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+							adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+							hierarchy.addPathObject(adjpathObj);
+							imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+							hierarchy.removeObject(pathObj, true);
 						} else {
-							adjDetection = detection;
+							adjpathObj = pathObj;
 						}
 
 						// Calculate AQUA scoring metrics for new compartment detections for all targets
 						try {
 							getTargetsAQUA(
-									server, adjDetection,
+									server, adjpathObj,
 									targets,
 									measurements, cellCompartments,
 									downsample
@@ -725,9 +863,16 @@ public class CompQuantPanelController implements Initializable{
 						} catch (IOException e) {
 							logger.warn(e.toString());
 						}
+					incrementProgress(progAmount);
 					}
-				});
-			});
+				}));
+			}));
+
+			if (forkJoinPool != null) {
+				forkJoinPool.shutdown();
+//				setEstNumTasks((int) (forkJoinPool.getQueuedSubmissionCount() + forkJoinPool.getQueuedTaskCount()));
+			}
+
 
 			// println 'Checking if any compartments were added by new annotations...';
 			// println missingCompartments;
@@ -768,7 +913,7 @@ public class CompQuantPanelController implements Initializable{
 //			// pass to color transform compatible method
 //			getTargetsAQUA(server, pathObject, targets, measurements, cellCompartments, downsample, metaData, scaleBitDepthTo);
 //		}
-		public static void getTargetsAQUA(ImageServer<BufferedImage> server,
+		public void getTargetsAQUA(ImageServer<BufferedImage> server,
 										  PathObject pathObject,
 										  Map<ColorTransform, Double> targets,
 										  Collection<CompQuantMeasurements.Measurements> measurements,
@@ -784,7 +929,6 @@ public class CompQuantPanelController implements Initializable{
 					.pad2D(pad, pad)
 					.intersect2D(0, 0, server.getWidth(), server.getHeight());
 
-			var imageData = getCurrentImageData();
 			PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
 //			ImagePlus imp = pathImage.getImage();
 
@@ -802,8 +946,8 @@ public class CompQuantPanelController implements Initializable{
 			measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
 			measList.putMeasurement("MPP^2", mppSq);
 			measList.putMeasurement("Channel bitdepth", bitDepth);
-//			int bitDepthVal = (int) Math.pow(2, bitDepth);
-			int bitDepthVal = (int) Math.pow(2, 16);
+			int bitDepthVal = (int) Math.pow(2, bitDepth);
+//			int bitDepthVal = (int) Math.pow(2, 16);
 
 			Map<String, ImageProcessor> channels = new LinkedHashMap<>();
 			Map<String, String> measNames = new LinkedHashMap<>();
@@ -843,7 +987,7 @@ public class CompQuantPanelController implements Initializable{
 				for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
 					var img = new PixelImageIJ(entry.getValue());
 					//For mean, median, stdev, etc.
-				CompQuantMeasurements.measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
+					CompQuantMeasurements.measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
 					//Calculate sum intensity in compartment
 					//            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
 				}
