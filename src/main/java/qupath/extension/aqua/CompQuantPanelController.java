@@ -13,10 +13,17 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.*;
+import javafx.scene.control.Button;
+import javafx.scene.control.Label;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
+import javafx.stage.FileChooser;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
@@ -31,6 +38,7 @@ import qupath.imagej.tools.PixelImageIJ;
 //import qupath.lib.analysis.features.ObjectMeasurements;
 import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.tools.MeasurementExporter;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.PathImage;
@@ -41,18 +49,31 @@ import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.TMAGrid;
+import qupath.lib.projects.Project;
+import qupath.lib.projects.ProjectImageEntry;
+import qupath.lib.projects.Projects;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
+import qupath.lib.scripting.QP;
+import static qupath.lib.common.Prefs.getNumThreads;
+import static qupath.lib.scripting.QP.buildFilePath;
+import static qupath.lib.scripting.QP.clearMeasurements;
 import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
 
+import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
@@ -60,11 +81,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-
-import static qupath.lib.common.Prefs.getNumThreads;
-import static qupath.lib.scripting.QP.clearMeasurements;
-
-//import static qupath.lib.scripting.QP.*;
 
 public class CompQuantPanelController implements Initializable{
 
@@ -137,6 +153,32 @@ public class CompQuantPanelController implements Initializable{
 	Label progressLabel;
 	@FXML
 	ProgressBar quantProgressBar;
+	@FXML
+	Button exportMeasButton;
+	@FXML
+	MenuItem exportMeasMenuItem;
+	@FXML
+	MenuItem exportMaskMenuItem;
+	@FXML
+	MenuItem importGridOverlayMenuItem;
+	@FXML
+	CheckMenuItem measEssentialMenuItem;
+	@FXML
+	CheckMenuItem measAllMenuItem;
+	@FXML
+	CheckMenuItem measAnnotMenuItem;
+	@FXML
+	CheckMenuItem measDetMenuItem;
+	@FXML
+	CheckMenuItem normalizeMenuItem;
+	@FXML
+	CheckMenuItem rescaleMenuItem;
+	// rescale scores using maxFloatValue and bitdepth
+	private double maxFloatValue = 1000.0/4.0;
+	private String exportMeasFields = "all";
+
+	FileChooser fileSelector = new FileChooser();
+	File initialFileDirectory;
 
 
 	public CompQuantPanelController(QuPathGUI qupath) {
@@ -146,8 +188,10 @@ public class CompQuantPanelController implements Initializable{
 	@Override
 	public void initialize(URL location, ResourceBundle resources) {
 		appEventBus.register(this);
+		setupMenu();
 		setupComboBoxes();
 		setupListViews();
+		exportMeasButton.setOnAction(this::exportImageMeasurementsButton);
 		gridSizeTextField = formatTextFields(gridSizeTextField, "integer", String.valueOf(defaultGridSize));
 		gridSizeTextField.textProperty().bindBidirectional(gridSize, new IntegerStringConverter());
 		gridSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
@@ -169,6 +213,25 @@ public class CompQuantPanelController implements Initializable{
 		cancelButton.setOnAction(this::cancelQuant);
 		updateGUI(true);
 //		initObservables();
+	}
+
+	private void setupMenu(){
+		exportMeasMenuItem.setOnAction(this::exportAllMeasurementsButton);
+		exportMaskMenuItem.setOnAction(this::exportMasksButton);
+		measAnnotMenuItem.selectedProperty().set(true);
+		measDetMenuItem.selectedProperty().set(true);
+		measAllMenuItem.selectedProperty().set(true);
+//		measAllMenuItem.selectedProperty().bindBidirectional(measEssentialMenuItem.selectedProperty().not());
+		measAllMenuItem.selectedProperty().addListener((obs,old,val)-> {
+			measEssentialMenuItem.selectedProperty().set(!val);
+			// only need to set once
+			if(val)
+				exportMeasFields = "all";
+			else
+				exportMeasFields = "essential";
+			logger.info(exportMeasFields);
+		});
+		measEssentialMenuItem.selectedProperty().addListener((obs,old,val)->measAllMenuItem.selectedProperty().set(!val));
 	}
 
 	private void setupComboBoxes(){
@@ -518,7 +581,10 @@ public class CompQuantPanelController implements Initializable{
 		}
 		quantProgressBar.setProgress(-1);
 		progressLabel.setText("Starting Compartment Quantification...");
-		compQuant = new CompQuantBackend(qupath, quantProgressBar, progressLabel);
+		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
+		boolean rescaleScore = rescaleMenuItem.selectedProperty().get();
+		compQuant = new CompQuantBackend(qupath, quantProgressBar, progressLabel,
+				normalizeScore, rescaleScore, maxFloatValue);
 		PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
 		double downsample = 1.0;
 
@@ -536,6 +602,7 @@ public class CompQuantPanelController implements Initializable{
 				logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
 			else
 				logger.warn("Grid scoring not implemented yet...");
+				progressLabel.setText("Grid scoring not implemented yet! Skipping...");
 		}
 		if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
 			logger.info(String.format("Beginning compartment quantification of TMA cores for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
@@ -551,8 +618,9 @@ public class CompQuantPanelController implements Initializable{
 		}
 		if(result.toLowerCase().contains("roi")){
 			logger.info(String.format("Beginning compartment quantification of ROIs for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
+			progressLabel.setText("Quantifying ROI compartments...");
 			try {
-				compQuant.getTargetAQUAScoresForROIs(roiClasses, selectedTargets, List.of((PathClass[]) selectedCompartments.toArray()), downsample, getNumThreads()-3);
+				compQuant.getTargetAQUAScoresForROIs(roiClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
 			} catch (ExecutionException ex) {
 				throw new RuntimeException(ex);
 			} catch (InterruptedException ex) {
@@ -586,17 +654,154 @@ public class CompQuantPanelController implements Initializable{
 		logger.info("Opening help dialog...");
 	}
 	
-	public void exportMeasurements(ActionEvent e) {
+	public void exportImageMeasurementsButton(ActionEvent e) {
 		logger.info("Opening dialog to export measurements for project...");
+//		fileSelector = new FileChooser();
+		Project<BufferedImage> project = qupath.getProject();
+		if(project!=null) {
+			initialFileDirectory = Projects.getBaseDirectory(project);
+			logger.info("starting at " + initialFileDirectory);
+		}else {
+			initialFileDirectory = Paths.get(".").toFile();
+		}
+		fileSelector.setInitialDirectory(initialFileDirectory);
+		fileSelector.getExtensionFilters().addAll(
+				new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"),
+				new FileChooser.ExtensionFilter("All files", "*.*"));
+		File outputFile = fileSelector.showSaveDialog(qupath.getStage());
+		if(outputFile!=null) {
+			progressLabel.setText("Exporting measurements for image...");
+			quantProgressBar.setProgress(-1);
+			exportMeasurements(outputFile, false);
+		} else{
+			logger.warn("Did not save measurements, file output path is null.");
+			progressLabel.setText("Didn't save measurements, file output is null");
+			quantProgressBar.setProgress(0.0);
+		}
 	}
-	//Overload these methods depending on input arguments. Export data dialog may just run these commands in isolation
 
+	public void exportAllMeasurementsButton(ActionEvent e) {
+		logger.info("Opening dialog to export measurements for project...");
+//		fileSelector = new FileChooser();
+		Project<BufferedImage> project = qupath.getProject();
+		if(project!=null) {
+			initialFileDirectory = Projects.getBaseDirectory(project);
+			logger.info("starting at " + initialFileDirectory);
+		}else {
+			initialFileDirectory = Paths.get(".").toFile();
+		}
+		fileSelector.setInitialDirectory(initialFileDirectory);
+		fileSelector.getExtensionFilters().addAll(
+				new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"),
+				new FileChooser.ExtensionFilter("All files", "*.*"));
+		File outputFile = fileSelector.showSaveDialog(qupath.getStage());
+		if(outputFile!=null) {
+			progressLabel.setText("Exporting measurements for all images in project...");
+			quantProgressBar.setProgress(-1);
+			exportMeasurements(outputFile, true);
+		} else{
+			logger.warn("Did not save measurements, file output path is null.");
+			progressLabel.setText("Didn't save measurements, file output is null");
+			quantProgressBar.setProgress(0.0);
+		}
+	}
+
+	public List<String> getMeasExcludeColumns(String excludeType) {
+		if (excludeType.equals("essential")) {
+			List<String> excludeColumns = new ArrayList<String>();
+			excludeColumns.add("ROI");
+			excludeColumns.add("Area Âµm^2");
+			excludeColumns.add("Perimeter Âµm");
+			excludeColumns.add("Missing");
+
+			for(Map.Entry<ColorTransform, Double> tar  : selectedTargets.entrySet()) {
+				//	removing double quotes....
+				String tarName = tar.getKey().toString().replaceAll("\"", "");
+				for(PathClass comp : selectedCompartments) {
+					String compName = comp.toString();
+					excludeColumns.add(String.format("%s Intensity in %s: Median",tarName, compName));
+					excludeColumns.add(String.format("%s Intensity in %s: Min",tarName, compName));
+					excludeColumns.add(String.format("%s Intensity in %s: Max",tarName, compName));
+					excludeColumns.add(String.format("%s Intensity in %s: Std.Dev.",tarName, compName));
+					excludeColumns.add(String.format("%s Intensity in %s: Variance",tarName, compName));
+					excludeColumns.add(String.format("%s area px", compName));
+				}
+
+			}
+			logger.info("Excluding columns: "+excludeColumns.toString());
+			return excludeColumns;
+		}else {
+			return Collections.<String>emptyList();
+		}
+	}
+	public void exportMeasurements(File outputFile, boolean exportAllImages){
+		// Get the list of all images in the current project
+		Project<BufferedImage> project = qupath.getProject();
+		if (project==null) {
+			logger.error("Cannot export measurements for null project!");
+			progressLabel.setText("Cannot export measurements for null project!");
+			quantProgressBar.setProgress(0.0);
+			return;
+		}
+		List<ProjectImageEntry<BufferedImage>> imagesToExport;
+		if(exportAllImages) {
+			imagesToExport = project.getImageList();
+		}else{
+			imagesToExport = List.of(project.getEntry(qupath.getImageData()));
+		}
+
+		// Separate each measurement value in the output file with a comma (",")
+		String separator = ",";
+
+		// Choose the columns that will be included in the export
+		// Note: if 'columnsToInclude' is empty, all columns will be included
+		//def columnsToInclude = new String[]{"Name", "Class", "Nucleus: Area"}
+		String[] excludeColumns = getMeasExcludeColumns(exportMeasFields).toArray(new String[0]);
+//		logger.info("Excluding columns: "+excludeColumns.toString());
+
+		// Choose the type of objects that the export will process
+		// Other possibilities include:
+		//    1. PathAnnotationObject
+		//    2. PathDetectionObject
+		//    3. PathRootObject
+		// Note: import statements should then be modified accordingly
+		Class<? extends PathObject> exportType;
+		if(measAnnotMenuItem.selectedProperty().get() && measDetMenuItem.selectedProperty().get() || !measAnnotMenuItem.selectedProperty().get() && !measDetMenuItem.selectedProperty().get()){
+			//	export all objects
+			//	If both of these menu items are deselected, assume it was a mistake and export all objects anyways
+			exportType = PathObject.class;
+		} else if(measDetMenuItem.selectedProperty().get() && !measAnnotMenuItem.selectedProperty().get()){
+			//	only export detections
+			exportType = PathDetectionObject.class;
+		} else{
+			//  last option, export annotations. Also is kinda the default
+			exportType = PathAnnotationObject.class;
+		}
+
+		// Create the measurementExporter and start the export
+		MeasurementExporter exporter = new MeasurementExporter()
+							.imageList(imagesToExport)            // Images from which measurements will be exported
+							.separator(separator)                 // Character that separates values
+			//                  .includeOnlyColumns()
+							.excludeColumns(excludeColumns)                     // Columns are case-sensitive
+							.exportType(exportType);               // Type of objects to export
+
+		// Start the export process
+		CompletableFuture.runAsync(()->exporter.exportMeasurements(outputFile))
+				.exceptionally(e -> { e.printStackTrace(); return null;})
+				.thenRun(()->{
+					Platform.runLater(()->{
+						progressLabel.setText("Completed exporting measurements");
+						quantProgressBar.setProgress(1.0);
+					});
+				});
+	}
 	public void exportMasksButton(ActionEvent e) {
 		logger.info("Opening dialog to export masks for project...");
 	}
 	
 	//Overload these methods depending on input arguments. Export data dialog may just run these commands in isolation
-	public void exportMasks(String outputFileDirectory) {
+	public void exportMasks(File outputFile) {
 		
 	}
 
@@ -610,12 +815,17 @@ public class CompQuantPanelController implements Initializable{
 		public ProgressBar quantProgressBar;
 		public Label progressLabel;
 		private ForkJoinPool forkJoinPool = null;
+		private ForkJoinTask mainTask = null;
 
 		private int estNumTasks;
+		public double maxFloatValue;
+		public boolean normalizeScore;
+		public boolean rescaleScore;
 
 //		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
 		private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
-		CompQuantBackend(QuPathGUI qupath, ProgressBar progressBar, Label progressL){
+		CompQuantBackend(QuPathGUI qupath, ProgressBar progressBar, Label progressL,
+						 boolean normalizeScore, boolean rescaleScore, double maxFloatValue){
 //			this.qupath = qupath;
 //			this.viewer = qupath.getViewer();
 			this.imageData = qupath.getViewer().getImageData();
@@ -623,6 +833,9 @@ public class CompQuantPanelController implements Initializable{
 			this.hierarchy = imageData.getHierarchy();
 			this.quantProgressBar = progressBar;
 			this.progressLabel = progressL;
+			this.normalizeScore = normalizeScore;
+			this.rescaleScore = rescaleScore;
+			this.maxFloatValue = maxFloatValue;
 		}
 
 		private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
@@ -667,6 +880,9 @@ public class CompQuantPanelController implements Initializable{
 		public void cancelTasks(){
 			logger.warn("Trying to shutdown running tasks!");
 			forkJoinPool.shutdownNow();
+			if(!mainTask.isDone()){
+				mainTask.cancel(true);
+			}
 			setEstNumTasks(0);
 		}
 
@@ -723,31 +939,36 @@ public class CompQuantPanelController implements Initializable{
 
 			forkJoinPool = new ForkJoinPool(numThreads);
 
-			// Used for placing child objects inside ROI
+			AtomicInteger totalROIs = new AtomicInteger(0);
+			Integer progAmount = 1;
 
+			// Used for placing child objects inside ROI
 			AtomicInteger roiNumber = new AtomicInteger(1);
 
 			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
 			var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
 																		.collect(Collectors.toList())).get();
-			forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
+			mainTask = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
 					.map(f -> {
 						// Record null/none values for compartments not within ROI
 						logger.info(f.getName());
-						if (f.getName() == null || f.getName().isBlank()) {
+						if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
 							f.setName("ROI_" + roiNumber.get());
 							roiNumber.incrementAndGet();
 						}
+						// this might work but does it scale for lots of ROIs?
+						totalROIs.incrementAndGet();
+						setEstNumTasks(totalROIs.get());
 						return f;
 					})
 					.forEach(r -> {
 						//Typically the number of compartments is small and these are all combined for a WSI.
-						//Not efficiient for TMA cores!
+						//Not efficiient for TMA cores! but should work...
 						for (PathObject compObj : compartmentObjs) {
 							ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
-							PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
 
 							if (!compInterROI.isEmpty()) {
+								PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
 								logger.info(String.format("ROI contains %s compartment! Calculating AQUA metrics within ROI.", compObj.getPathClass().toString()));
 								// For debugging, maybe helps with visualization
 								// Add object as a child of the ROI
@@ -769,15 +990,27 @@ public class CompQuantPanelController implements Initializable{
 								} catch (IOException e) {
 									logger.warn(e.toString());
 								}
-
-								// Put these target/compartment measurments on the measurement list of the ROI for export
-								//                    compInterObjs.add(compInterDet)
 							} else {
 								logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
 							}
 						}
+						incrementProgress(progAmount);
 
 					}));
+
+			if(forkJoinPool != null){
+				forkJoinPool.shutdown();
+			}
+			// I don't like how this depends on forkpooljoin blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
+//			Platform.runLater(()->{
+//				try {
+//					mainTask.get();
+//				} catch (InterruptedException | ExecutionException e) {
+//					throw new RuntimeException(e);
+//				}
+//				progressLabel.setText("Finished with ROIs!");
+//				quantProgressBar.setProgress(1.0);
+//			});
 		}
 
 		// Exclude regions and add regions that weren't segmented well. Allows for manual adjustment of compartmentalization before AQUA.
@@ -803,7 +1036,7 @@ public class CompQuantPanelController implements Initializable{
 			TMAGrid tmaGrid = hierarchy.getTMAGrid();
 			List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
 			// an estimate if there are the same amount of compartments per TMA spot....
-			// could just try and use the amount of tasks queued
+			// could just try and use the amount of tasks queued... doesn't work in time before forkJoinPool is done with submit/invoke
 			setEstNumTasks((int) tmaCores.size()*compartments.size());
 			Integer progAmount = 1;
 			// Combine exclude regions, but do not create a new merged object
@@ -812,6 +1045,7 @@ public class CompQuantPanelController implements Initializable{
 				numThreads = 1;
 
 			forkJoinPool = new ForkJoinPool(numThreads);
+			//These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
 			List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(()-> hierarchy.getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
 					.collect(Collectors.toList())).get();
 			//Just for the progress bar... assuming that all compartments == number of tasks
@@ -827,7 +1061,7 @@ public class CompQuantPanelController implements Initializable{
 			Boolean finalDoAdjust = doAdjust;
 			// This code should be blocking to await result
 //			forkJoinPool.invoke(ForkJoinTask.adapt(() -> tmaCores.parallelStream().forEach(core -> {
-			forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
+			mainTask = forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
 				// step thru all children items of TMA core object
 				forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
 					if (compartments.contains(pathObj.getPathClass())) {
@@ -870,9 +1104,18 @@ public class CompQuantPanelController implements Initializable{
 
 			if (forkJoinPool != null) {
 				forkJoinPool.shutdown();
-//				setEstNumTasks((int) (forkJoinPool.getQueuedSubmissionCount() + forkJoinPool.getQueuedTaskCount()));
 			}
 
+			// I don't like how this depends on forkpooljoin blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
+//			Platform.runLater(()->{
+//				try {
+//					mainTask.get();
+//				} catch (InterruptedException | ExecutionException e) {
+//					throw new RuntimeException(e);
+//				}
+//				progressLabel.setText("Finished with TMAs!");
+//				quantProgressBar.setProgress(1.0);
+//			});
 
 			// println 'Checking if any compartments were added by new annotations...';
 			// println missingCompartments;
@@ -933,6 +1176,7 @@ public class CompQuantPanelController implements Initializable{
 //			ImagePlus imp = pathImage.getImage();
 
 			PixelCalibration pc = server.getPixelCalibration();
+			PixelType pixType = server.getPixelType();
 			int bitDepth = server.getPixelType().getBitsPerPixel();
 			double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
 			//    println 'Squarred MPP: ' + mppSq.toString();
@@ -1014,9 +1258,25 @@ public class CompQuantPanelController implements Initializable{
 				// Intensity/(um^2*sec)
 				// double QIF_area = targetMean/mppSq;
 				// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
-				double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-				measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
-
+				//if pixelType float, skip [vetra Polaris data]
+				if(pixType.isFloatingPoint()) {
+					double QIF_areaS = (targetMean / mppSq);
+					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+				}else if(rescaleScore && !normalizeScore){
+					//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
+					//using bitdepth and maxFloatValue to rescale
+					double rescaleFactor = (maxFloatValue/bitDepthVal);
+					double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
+					measList.putMeasurement("Rescale factor", rescaleFactor);
+					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+				}else if(normalizeScore) {
+					double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+				}else{
+					// no normalization
+					double QIF_areaS = (targetMean / mppSq);
+					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+				}
 				//    double totalPx = server.getHeight()*server.getWidth();
 				//    println 'Total pixels: '+ totalPx.toString();
 				//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
