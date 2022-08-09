@@ -10,7 +10,7 @@ CompAnalysis is currently designed as a 2 part GUI extension where you make comp
   - Export masks as binary masks or segmentation masks for downstream applications
   - Improve "finished" asthetics/state of progress bar
   - Minimize ImageJ, OpenCV image/matrix datatype conversions
-  - Minimize RAM usage after ForkJoinPool termination for CompQuantBackend()
+  - Need to fix memory leak from ForkJoinPool termination 
   - Advanced settings
     - Change ignore classes
     - Simpler measurement export options
