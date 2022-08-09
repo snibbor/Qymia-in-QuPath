@@ -579,12 +579,13 @@ public class CompQuantPanelController implements Initializable{
 			logger.warn("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
 			return;
 		}
+		exportMeasButton.setDisable(true);
+		exportMeasMenuItem.setDisable(true);
 		quantProgressBar.setProgress(-1);
 		progressLabel.setText("Starting Compartment Quantification...");
 		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
 		boolean rescaleScore = rescaleMenuItem.selectedProperty().get();
-		compQuant = new CompQuantBackend(qupath, quantProgressBar, progressLabel,
-				normalizeScore, rescaleScore, maxFloatValue);
+		compQuant = new CompQuantBackend(normalizeScore, rescaleScore, maxFloatValue);
 		PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
 		double downsample = 1.0;
 
@@ -609,9 +610,9 @@ public class CompQuantPanelController implements Initializable{
 			progressLabel.setText("Quantifying TMA core compartments...");
 			try {
 				compQuant.TMARecalcCompartmentsAndAQUA(ignoreClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
-			} catch (ExecutionException ex) {
-				throw new RuntimeException(ex);
-			} catch (InterruptedException ex) {
+			} catch (ExecutionException | InterruptedException ex) {
+				exportMeasButton.setDisable(false);
+				exportMeasMenuItem.setDisable(false);
 				throw new RuntimeException(ex);
 			}
 
@@ -621,9 +622,9 @@ public class CompQuantPanelController implements Initializable{
 			progressLabel.setText("Quantifying ROI compartments...");
 			try {
 				compQuant.getTargetAQUAScoresForROIs(roiClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
-			} catch (ExecutionException ex) {
-				throw new RuntimeException(ex);
-			} catch (InterruptedException ex) {
+			} catch (ExecutionException | InterruptedException ex) {
+				exportMeasButton.setDisable(false);
+				exportMeasMenuItem.setDisable(false);
 				throw new RuntimeException(ex);
 			}
 		}
@@ -631,18 +632,21 @@ public class CompQuantPanelController implements Initializable{
 	}
 
 	public void cancelQuant(ActionEvent e){
+		exportMeasButton.setDisable(false);
+		exportMeasMenuItem.setDisable(false);
 		if(compQuant != null && compQuant.isTaskRunning()) {
 			logger.warn("Trying to cancel running task...");
 			compQuant.cancelTasks();
 //			// garbage cleanup?
-			compQuant = null;
+//			compQuant = null;
 			progressLabel.setText("Canceled task...");
 //			would be cool to make progress bar red
 			quantProgressBar.setProgress(0);
 		} else{
 			logger.info("No task is running...");
 			if(compQuant != null)
-				compQuant = null;
+				compQuant.cancelTasks();
+//				compQuant = null;
 		}
 	}
 	
@@ -672,7 +676,13 @@ public class CompQuantPanelController implements Initializable{
 		if(outputFile!=null) {
 			progressLabel.setText("Exporting measurements for image...");
 			quantProgressBar.setProgress(-1);
-			exportMeasurements(outputFile, false);
+			try {
+				exportMeasurements(outputFile, false);
+			} catch (IOException ex) {
+				progressLabel.setText("Didn't save measurements, exception encountered...");
+				quantProgressBar.setProgress(0.0);
+				throw new RuntimeException(ex);
+			}
 		} else{
 			logger.warn("Did not save measurements, file output path is null.");
 			progressLabel.setText("Didn't save measurements, file output is null");
@@ -698,7 +708,13 @@ public class CompQuantPanelController implements Initializable{
 		if(outputFile!=null) {
 			progressLabel.setText("Exporting measurements for all images in project...");
 			quantProgressBar.setProgress(-1);
-			exportMeasurements(outputFile, true);
+			try {
+				exportMeasurements(outputFile, true);
+			} catch (IOException ex) {
+				progressLabel.setText("Didn't save measurements, exception encountered...");
+				quantProgressBar.setProgress(0.0);
+				throw new RuntimeException(ex);
+			}
 		} else{
 			logger.warn("Did not save measurements, file output path is null.");
 			progressLabel.setText("Didn't save measurements, file output is null");
@@ -734,7 +750,7 @@ public class CompQuantPanelController implements Initializable{
 			return Collections.<String>emptyList();
 		}
 	}
-	public void exportMeasurements(File outputFile, boolean exportAllImages){
+	public void exportMeasurements(File outputFile, boolean exportAllImages) throws IOException {
 		// Get the list of all images in the current project
 		Project<BufferedImage> project = qupath.getProject();
 		if (project==null) {
@@ -743,11 +759,18 @@ public class CompQuantPanelController implements Initializable{
 			quantProgressBar.setProgress(0.0);
 			return;
 		}
+
+		exportMeasButton.setDisable(true);
+		exportMeasMenuItem.setDisable(true);
+
+		// save current image before exporting measurements
+		ImageData<BufferedImage> thisImageData = qupath.getImageData();
+		project.getEntry(thisImageData).saveImageData(thisImageData);
 		List<ProjectImageEntry<BufferedImage>> imagesToExport;
 		if(exportAllImages) {
 			imagesToExport = project.getImageList();
 		}else{
-			imagesToExport = List.of(project.getEntry(qupath.getImageData()));
+			imagesToExport = List.of(project.getEntry(thisImageData));
 		}
 
 		// Separate each measurement value in the output file with a comma (",")
@@ -793,6 +816,8 @@ public class CompQuantPanelController implements Initializable{
 					Platform.runLater(()->{
 						progressLabel.setText("Completed exporting measurements");
 						quantProgressBar.setProgress(1.0);
+						exportMeasButton.setDisable(false);
+						exportMeasMenuItem.setDisable(false);
 					});
 				});
 	}
@@ -809,11 +834,11 @@ public class CompQuantPanelController implements Initializable{
 	public class CompQuantBackend {
 //		private static QuPathGUI qupath;
 //		private static QuPathViewerPlus viewer;
-		private ImageData<BufferedImage> imageData;
-		private ImageServer<BufferedImage> server;
-		private PathObjectHierarchy hierarchy;
-		public ProgressBar quantProgressBar;
-		public Label progressLabel;
+//		private ImageData<BufferedImage> imageData;
+//		private ImageServer<BufferedImage> server;
+//		private PathObjectHierarchy hierarchy;
+//		public ProgressBar quantProgressBar;
+//		public Label progressLabel;
 		private ForkJoinPool forkJoinPool = null;
 		private ForkJoinTask mainTask = null;
 
@@ -824,15 +849,7 @@ public class CompQuantPanelController implements Initializable{
 
 //		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
 		private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
-		CompQuantBackend(QuPathGUI qupath, ProgressBar progressBar, Label progressL,
-						 boolean normalizeScore, boolean rescaleScore, double maxFloatValue){
-//			this.qupath = qupath;
-//			this.viewer = qupath.getViewer();
-			this.imageData = qupath.getViewer().getImageData();
-			this.server = imageData.getServer();
-			this.hierarchy = imageData.getHierarchy();
-			this.quantProgressBar = progressBar;
-			this.progressLabel = progressL;
+		CompQuantBackend(boolean normalizeScore, boolean rescaleScore, double maxFloatValue){
 			this.normalizeScore = normalizeScore;
 			this.rescaleScore = rescaleScore;
 			this.maxFloatValue = maxFloatValue;
@@ -873,6 +890,10 @@ public class CompQuantPanelController implements Initializable{
 			int newEst = getEstNumTasks();
 			logger.info(String.format("%f", prog/newEst));
 			Platform.runLater(()->{
+				if(prog/newEst+0.005>=1.0){
+					exportMeasButton.setDisable(false);
+					exportMeasMenuItem.setDisable(false);
+				}
 				quantProgressBar.setProgress(prog/newEst);
 			});
 		}
@@ -906,6 +927,7 @@ public class CompQuantPanelController implements Initializable{
 			}
 
 			if (newAnnot) {
+				PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
 				hierarchy.removeObjects(annots, true);
 				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
 				hierarchy.addPathObject(combinedAnnot);
@@ -944,6 +966,7 @@ public class CompQuantPanelController implements Initializable{
 
 			// Used for placing child objects inside ROI
 			AtomicInteger roiNumber = new AtomicInteger(1);
+			ImageData<BufferedImage> imageData = qupath.getImageData();
 
 			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
 			var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
@@ -982,7 +1005,7 @@ public class CompQuantPanelController implements Initializable{
 								// Calculate AQUA scoring metrics for new compartment detections for all targets
 								try {
 									getTargetsAQUA(
-											server, compInterDet,
+											imageData, compInterDet,
 											targets,
 											measurements, cellCompartments,
 											downsample
@@ -1032,6 +1055,9 @@ public class CompQuantPanelController implements Initializable{
 			List<CompQuantMeasurements.Compartments> cellCompartments = Arrays.asList(CompQuantMeasurements.Compartments.values());
 			// Won't mean much if they aren't cells...
 			logger.info("Updating existing compartments with any new annotations, calcuating AQUA metrics...");
+
+			ImageData<BufferedImage> imageData = qupath.getImageData();
+			PathObjectHierarchy hierarchy = imageData.getHierarchy();
 
 			TMAGrid tmaGrid = hierarchy.getTMAGrid();
 			List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
@@ -1089,7 +1115,7 @@ public class CompQuantPanelController implements Initializable{
 						// Calculate AQUA scoring metrics for new compartment detections for all targets
 						try {
 							getTargetsAQUA(
-									server, adjpathObj,
+									imageData, adjpathObj,
 									targets,
 									measurements, cellCompartments,
 									downsample
@@ -1156,7 +1182,7 @@ public class CompQuantPanelController implements Initializable{
 //			// pass to color transform compatible method
 //			getTargetsAQUA(server, pathObject, targets, measurements, cellCompartments, downsample, metaData, scaleBitDepthTo);
 //		}
-		public void getTargetsAQUA(ImageServer<BufferedImage> server,
+		public void getTargetsAQUA(ImageData<BufferedImage> imageData,
 										  PathObject pathObject,
 										  Map<ColorTransform, Double> targets,
 										  Collection<CompQuantMeasurements.Measurements> measurements,
@@ -1166,6 +1192,7 @@ public class CompQuantPanelController implements Initializable{
 			// Convert to binary mask Mat
 			ROI roi = pathObject.getROI();
 			String className = pathObject.getPathClass().toString();
+			ImageServer<BufferedImage> server = imageData.getServer();
 
 			int pad = (int) Math.ceil(downsample * 2);
 			RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
