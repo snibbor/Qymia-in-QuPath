@@ -1,4 +1,4 @@
-package qupath.extension.companalysis.groovy_scripts
+package qupath.extension.aqua.operations.groovy_scripts
 
 import javafx.application.Platform
 import javafx.geometry.Insets

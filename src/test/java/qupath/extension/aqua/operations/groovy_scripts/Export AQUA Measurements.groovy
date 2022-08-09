@@ -1,4 +1,4 @@
-package qupath.extension.companalysis.groovy_scripts
+package qupath.extension.aqua.operations.groovy_scripts
 
 import qupath.lib.gui.tools.MeasurementExporter
 import qupath.lib.objects.PathDetectionObject

@@ -41,7 +41,9 @@ configurations {
 }
 
 dependencies {
-	// https://mvnrepository.com/artifact/org.hildan.fxgson/fx-gson
+    def qupathVersion = "0.3.2" // For now
+
+    implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
 	implementation 'org.hildan.fxgson:fx-gson:4.0.1'
     implementation 'com.google.guava:guava:29.0-jre'
     implementation 'org.apache.commons:commons-math3:3.6.1'
