@@ -1,0 +1,24 @@
+Manifest-Version: 1.0
+Class-Path: jfxtras-common-11-r2.jar ikonli-javafx-12.3.1.jar javafx-bas
+ e-18.0.1-linux.jar javacpp-1.5.7-windows-x86_64.jar gson-2.9.0.jar anno
+ tations-18.0.0.jar j2objc-annotations-1.3.jar jfxtras-menu-11-r2.jar ja
+ vacpp-platform-1.5.7.jar commons-lang3-3.11.jar javafx-swing-18.0.1-lin
+ ux.jar controlsfx-11.1.1.jar ij-1.53s.jar javafx-base-18.0.1-win.jar ch
+ ecker-qual-3.12.0.jar picocli-4.6.3.jar error_prone_annotations-2.11.0.
+ jar commonmark-0.19.0.jar failureaccess-1.0.1.jar slf4j-api-1.7.36.jar 
+ javafx-graphics-18.0.1.jar qupath-gui-fx-0.3.2.jar qupath-core-processi
+ ng-0.3.2.jar javafx-media-18.0.1.jar commons-text-1.9.jar javafx-web-18
+ .0.1.jar ikonli-core-12.3.1.jar javafx-media-18.0.1-linux.jar openblas-
+ platform-0.3.19-1.5.7.jar commons-math3-3.6.1.jar javafx-graphics-18.0.
+ 1-win.jar logback-core-1.2.11.jar jsr305-3.0.2.jar javafx-media-18.0.1-
+ win.jar javafx-graphics-18.0.1-linux.jar javafx-controls-18.0.1-linux.j
+ ar javafx-web-18.0.1-linux.jar qupath-core-0.3.2.jar javafx-base-18.0.1
+ .jar javafx-swing-18.0.1-win.jar jts-core-1.19.0.jar opencv-4.5.5-1.5.7
+ .jar javafx-web-18.0.1-win.jar javafx-controls-18.0.1.jar openblas-0.3.
+ 19-1.5.7.jar listenablefuture-9999.0-empty-to-avoid-conflict-with-guava
+ .jar javafx-fxml-17.0.1-win.jar opencv-4.5.5-1.5.7-windows-x86_64.jar g
+ uava-31.1-jre.jar openblas-0.3.19-1.5.7-windows-x86_64.jar javacpp-1.5.
+ 7.jar javafx-swing-18.0.1.jar javafx-controls-18.0.1-win.jar fx-gson-4.
+ 0.1.jar opencv-platform-4.5.5-1.5.7.jar logback-classic-1.2.11.jar ikon
+ li-ionicons4-pack-12.3.1.jar
+

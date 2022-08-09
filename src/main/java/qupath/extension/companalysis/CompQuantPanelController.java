@@ -68,10 +68,7 @@ import java.net.URL;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
@@ -576,6 +573,7 @@ public class CompQuantPanelController implements Initializable{
 		}
 		exportMeasButton.setDisable(true);
 		exportMeasMenuItem.setDisable(true);
+		startQuantButton.setDisable(true);
 		quantProgressBar.setProgress(-1);
 		progressLabel.setText("Starting Compartment Quantification...");
 		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
@@ -605,9 +603,10 @@ public class CompQuantPanelController implements Initializable{
 			progressLabel.setText("Quantifying TMA core compartments...");
 			try {
 				compQuant.TMARecalcCompartmentsAndAQUA(ignoreClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
-			} catch (ExecutionException | InterruptedException ex) {
+			} catch (ExecutionException | InterruptedException | CancellationException ex) {
 				exportMeasButton.setDisable(false);
 				exportMeasMenuItem.setDisable(false);
+				startQuantButton.setDisable(false);
 				throw new RuntimeException(ex);
 			}
 
@@ -617,9 +616,10 @@ public class CompQuantPanelController implements Initializable{
 			progressLabel.setText("Quantifying ROI compartments...");
 			try {
 				compQuant.getTargetAQUAScoresForROIs(roiClasses, selectedTargets, List.of(selectedCompartments.toArray(new PathClass[0])), downsample, getNumThreads()-3);
-			} catch (ExecutionException | InterruptedException ex) {
+			} catch (ExecutionException | InterruptedException | CancellationException ex) {
 				exportMeasButton.setDisable(false);
 				exportMeasMenuItem.setDisable(false);
+				startQuantButton.setDisable(false);
 				throw new RuntimeException(ex);
 			}
 		}
@@ -629,6 +629,7 @@ public class CompQuantPanelController implements Initializable{
 	public void cancelQuant(ActionEvent e){
 		exportMeasButton.setDisable(false);
 		exportMeasMenuItem.setDisable(false);
+		startQuantButton.setDisable(false);
 		if(compQuant != null && compQuant.isTaskRunning()) {
 			logger.warn("Trying to cancel running task...");
 			compQuant.cancelTasks();
@@ -639,9 +640,11 @@ public class CompQuantPanelController implements Initializable{
 			quantProgressBar.setProgress(0);
 		} else{
 			logger.info("No task is running...");
-			if(compQuant != null)
+			if(compQuant != null) {
+//				trying to cancel the tasks anyways
 				compQuant.cancelTasks();
 //				compQuant = null;
+			}
 		}
 	}
 	
@@ -834,8 +837,8 @@ public class CompQuantPanelController implements Initializable{
 //		private PathObjectHierarchy hierarchy;
 //		public ProgressBar quantProgressBar;
 //		public Label progressLabel;
-		private ForkJoinPool forkJoinPool = null;
-		private ForkJoinTask mainTask = null;
+		private static ForkJoinPool forkJoinPool;
+//		private ForkJoinTask mainTask;
 
 		private int estNumTasks;
 		public double maxFloatValue;
@@ -851,6 +854,24 @@ public class CompQuantPanelController implements Initializable{
 		}
 
 		private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
+
+		public void setupNewForkJoinPool(int numThreads){
+			if(forkJoinPool == null) {
+				logger.info("creating new forkJoinPool");
+				forkJoinPool = new ForkJoinPool(numThreads);
+			}else if(forkJoinPool.isTerminated()){
+				forkJoinPool = null;
+				System.gc();
+				System.gc();
+				logger.info("creating new forkJoinPool");
+				forkJoinPool = new ForkJoinPool(numThreads);
+			}else {
+				logger.warn("forkJoinPool already exists and is not terminated yet!");
+				cancelTasks();
+				logger.warn("trying to create new forkJoinPool...");
+				forkJoinPool = new ForkJoinPool(numThreads);
+			}
+		}
 
 		public void setEstNumTasks(int newEst){
 			logger.info("Estimate # tasks: "  + newEst);
@@ -888,6 +909,11 @@ public class CompQuantPanelController implements Initializable{
 				if(prog/newEst+0.005>=1.0){
 					exportMeasButton.setDisable(false);
 					exportMeasMenuItem.setDisable(false);
+					startQuantButton.setDisable(false);
+//					should you force the cancel?
+//					cancelTasks();
+					System.gc();
+					System.gc();
 				}
 				quantProgressBar.setProgress(prog/newEst);
 			});
@@ -895,15 +921,35 @@ public class CompQuantPanelController implements Initializable{
 
 		public void cancelTasks(){
 			logger.warn("Trying to shutdown running tasks!");
-			forkJoinPool.shutdownNow();
-			if(!mainTask.isDone()){
-				mainTask.cancel(true);
+			if(forkJoinPool!=null) {
+				forkJoinPool.shutdownNow();
+				try {
+					logger.info("awaiting forkJoinPool termination...");
+					if(forkJoinPool.awaitTermination(5, TimeUnit.SECONDS)) {
+						logger.info("forkJoinPool termination finished...");
+					} else{
+						logger.warn("forkJoinPool termination timed-out...!");
+					}
+				} catch (InterruptedException e) {
+					logger.warn(String.valueOf(e));
+					logger.warn("interrupted before termination of forkJoinPool?...");
+				}
 			}
+			forkJoinPool = null;
+			System.gc();
+			System.gc();
+//			if(!mainTask.isDone()){
+//				mainTask.cancel(true);
+//			}
 			setEstNumTasks(0);
 		}
 
 		public boolean isTaskRunning(){
-			return !forkJoinPool.isTerminated();
+			if(forkJoinPool!=null) {
+				return !forkJoinPool.isTerminated();
+			}else{
+				return false;
+			}
 		}
 
 		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
@@ -940,7 +986,7 @@ public class CompQuantPanelController implements Initializable{
 													  List<PathClass> compartments,
 													  double downsample,
 													  int numThreads
-		) throws ExecutionException, InterruptedException {
+		) throws ExecutionException, InterruptedException, CancellationException {
 
 			List<CompQuantMeasurements.Measurements> measurements = Arrays.asList(CompQuantMeasurements.Measurements.values());
 			List<CompQuantMeasurements.Compartments> cellCompartments = Arrays.asList(CompQuantMeasurements.Compartments.values());
@@ -954,7 +1000,7 @@ public class CompQuantPanelController implements Initializable{
 			if(numThreads<=0)
 				numThreads = 1;
 
-			forkJoinPool = new ForkJoinPool(numThreads);
+			setupNewForkJoinPool(numThreads);
 
 			AtomicInteger totalROIs = new AtomicInteger(0);
 			Integer progAmount = 1;
@@ -964,62 +1010,64 @@ public class CompQuantPanelController implements Initializable{
 			ImageData<BufferedImage> imageData = qupath.getImageData();
 
 			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
-			var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-																		.collect(Collectors.toList())).get();
-			mainTask = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
-					.map(f -> {
-						// Record null/none values for compartments not within ROI
-						logger.info(f.getName());
-						if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
-							f.setName("ROI_" + roiNumber.get());
-							roiNumber.incrementAndGet();
-						}
-						// this might work but does it scale for lots of ROIs?
-						totalROIs.incrementAndGet();
-						setEstNumTasks(totalROIs.get());
-						return f;
-					})
-					.forEach(r -> {
-						//Typically the number of compartments is small and these are all combined for a WSI.
-						//Not efficiient for TMA cores! but should work...
-						for (PathObject compObj : compartmentObjs) {
-							ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
-
-							if (!compInterROI.isEmpty()) {
-								PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
-								logger.info(String.format("ROI contains %s compartment! Calculating AQUA metrics within ROI.", compObj.getPathClass().toString()));
-								// For debugging, maybe helps with visualization
-								// Add object as a child of the ROI
-								//                        addObject(compInterDet);
-								compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-								imageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
-
-								logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
-
-								// Quantify metrics/AQUA for each target in each intersecting compartment
-								// Calculate AQUA scoring metrics for new compartment detections for all targets
-								try {
-									getTargetsAQUA(
-											imageData, compInterDet,
-											targets,
-											measurements, cellCompartments,
-											downsample
-									);
-								} catch (IOException e) {
-									logger.warn(e.toString());
-								}
-							} else {
-								logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
+			try {
+				var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+																										.collect(Collectors.toList())).get();
+				forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> rois.contains(p.getPathClass().toString()) && p.hasROI())
+						.map(f -> {
+							// Record null/none values for compartments not within ROI
+							logger.info(f.getName());
+							if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+								f.setName("ROI_" + roiNumber.get());
+								roiNumber.incrementAndGet();
 							}
-						}
-						incrementProgress(progAmount);
+							// this might work but does it scale for lots of ROIs?
+							totalROIs.incrementAndGet();
+							setEstNumTasks(totalROIs.get());
+							return f;
+						})
+						.forEach(r -> {
+							//Typically the number of compartments is small and these are all combined for a WSI.
+							//Not efficient for TMA cores! but should work...
+							for (PathObject compObj : compartmentObjs) {
+								ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
 
-					}));
+								if (!compInterROI.isEmpty()) {
+									PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
+									logger.info(String.format("ROI contains %s compartment! Calculating AQUA metrics within ROI.", compObj.getPathClass().toString()));
+									// For debugging, maybe helps with visualization
+									// Add object as a child of the ROI
+									//                        addObject(compInterDet);
+									compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
+									imageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
 
-			if(forkJoinPool != null){
+									logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
+
+									// Quantify metrics/AQUA for each target in each intersecting compartment
+									// Calculate AQUA scoring metrics for new compartment detections for all targets
+									try {
+										CompQuantMeasurements.getTargetsAQUA(
+												imageData, compInterDet,
+												targets,
+												measurements, cellCompartments,
+												downsample, rescaleScore, normalizeScore,
+												maxFloatValue
+										);
+									} catch (IOException e) {
+										logger.warn(e.toString());
+									}
+								} else {
+									logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
+								}
+							}
+							incrementProgress(progAmount);
+
+						}));
+			} finally {
 				forkJoinPool.shutdown();
 			}
-			// I don't like how this depends on forkpooljoin blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
+
+			// I don't like how this depends on forkjoinpool blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
 //			Platform.runLater(()->{
 //				try {
 //					mainTask.get();
@@ -1037,7 +1085,7 @@ public class CompQuantPanelController implements Initializable{
 														List<PathClass> compartments,
 														double downsample,
 														int numThreads
-		) throws ExecutionException, InterruptedException {
+		) throws ExecutionException, InterruptedException, CancellationException {
 
 //			progressBar.setProgress(-1);
 //			progressL.setText("Quantifying TMA compartments...");
@@ -1065,69 +1113,70 @@ public class CompQuantPanelController implements Initializable{
 			if(numThreads<=0)
 				numThreads = 1;
 
-			forkJoinPool = new ForkJoinPool(numThreads);
-			//These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
-			List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(()-> hierarchy.getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
-					.collect(Collectors.toList())).get();
-			//Just for the progress bar... assuming that all compartments == number of tasks
-			List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(()-> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-					.collect(Collectors.toList())).get();
-			setEstNumTasks(allCompartmentAnnotations.size());
-			logger.info(allIgnoreAnnotations.toString());
-			combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
-			if (combinedExcludeROI != null)
-				doAdjust = true;
+			setupNewForkJoinPool(numThreads);
+			try {
+				//These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
+				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
+						.collect(Collectors.toList())).get();
+				//Just for the progress bar... assuming that all compartments == number of tasks
+				List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+						.collect(Collectors.toList())).get();
+				setEstNumTasks(allCompartmentAnnotations.size());
+				logger.info(allIgnoreAnnotations.toString());
+				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
+				if (combinedExcludeROI != null)
+					doAdjust = true;
 
-			ROI finalCombinedExcludeROI = combinedExcludeROI;
-			Boolean finalDoAdjust = doAdjust;
-			// This code should be blocking to await result
-//			forkJoinPool.invoke(ForkJoinTask.adapt(() -> tmaCores.parallelStream().forEach(core -> {
-			mainTask = forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
-				// step thru all children items of TMA core object
-				forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
-					if (compartments.contains(pathObj.getPathClass())) {
-						PathObject adjpathObj;
-						ROI adjpathObjROI = pathObj.getROI();
-						// is not very efficient as the excluded areas may only be in certain TMA spots....
-						// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
-						if (finalDoAdjust) {
-							adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-						}
-						if (adjpathObjROI.isEmpty()) {
-							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
-	//						removeObject(detection, true);
-							return;
-						} else if (finalDoAdjust) {
-							logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
-							adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
-							hierarchy.addPathObject(adjpathObj);
-							imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-							hierarchy.removeObject(pathObj, true);
-						} else {
-							adjpathObj = pathObj;
-						}
+				ROI finalCombinedExcludeROI = combinedExcludeROI;
+				Boolean finalDoAdjust = doAdjust;
+				// This code should be blocking to await result
+				//			forkJoinPool.invoke(ForkJoinTask.adapt(() -> tmaCores.parallelStream().forEach(core -> {
+				forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
+					// step thru all children items of TMA core object
+					forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
+						if (compartments.contains(pathObj.getPathClass())) {
+							PathObject adjpathObj;
+							ROI adjpathObjROI = pathObj.getROI();
+							// is not very efficient as the excluded areas may only be in certain TMA spots....
+							// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
+							if (finalDoAdjust) {
+								adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+							}
+							if (adjpathObjROI.isEmpty()) {
+								logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+								//						removeObject(detection, true);
+								return;
+							} else if (finalDoAdjust) {
+								logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+								adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+								hierarchy.addPathObject(adjpathObj);
+								imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+								hierarchy.removeObject(pathObj, true);
+							} else {
+								adjpathObj = pathObj;
+							}
 
-						// Calculate AQUA scoring metrics for new compartment detections for all targets
-						try {
-							getTargetsAQUA(
-									imageData, adjpathObj,
-									targets,
-									measurements, cellCompartments,
-									downsample
-							);
-						} catch (IOException e) {
-							logger.warn(e.toString());
+							// Calculate AQUA scoring metrics for new compartment detections for all targets
+							try {
+								CompQuantMeasurements.getTargetsAQUA(
+										imageData, adjpathObj,
+										targets,
+										measurements, cellCompartments,
+										downsample, rescaleScore, normalizeScore,
+										maxFloatValue
+								);
+							} catch (IOException e) {
+								logger.warn(e.toString());
+							}
+							incrementProgress(progAmount);
 						}
-					incrementProgress(progAmount);
-					}
+					}));
 				}));
-			}));
-
-			if (forkJoinPool != null) {
+			} finally{
 				forkJoinPool.shutdown();
 			}
 
-			// I don't like how this depends on forkpooljoin blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
+			// I don't like how this depends on forkjoinpool blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
 //			Platform.runLater(()->{
 //				try {
 //					mainTask.get();
@@ -1177,12 +1226,64 @@ public class CompQuantPanelController implements Initializable{
 //			// pass to color transform compatible method
 //			getTargetsAQUA(server, pathObject, targets, measurements, cellCompartments, downsample, metaData, scaleBitDepthTo);
 //		}
-		public void getTargetsAQUA(ImageData<BufferedImage> imageData,
-										  PathObject pathObject,
-										  Map<ColorTransform, Double> targets,
-										  Collection<CompQuantMeasurements.Measurements> measurements,
-										  Collection<CompQuantMeasurements.Compartments> cellCompartments,
-										  double downsample
+
+
+//	import java.io.BufferedReader;
+//	import java.io.FileReader;
+//
+//	def readCSVtoDF(String csvpath, String indexName) {
+//		// Create BufferedReader
+//		BufferedReader csvReader = new BufferedReader(new FileReader(csvpath));
+//		Map<String, ArrayList<String>> dataframe = new LinkedHashMap<String, ArrayList<String>>();
+//		header = csvReader.readLine();
+//		//    header = "test,test1,test2";
+//		ArrayList<String> headerContent = new ArrayList<String>(header.split(",").toList());
+//		//    println headerContent
+//		int index = headerContent.indexOf(indexName);
+//		//    println index
+//		//    println headerContent[index]
+//		int r = 0;
+//		useRowNumbers = false;
+//		if (index == -1) {
+//			prinln String.format('Header does not contain %s! Defaulting to using row numbers...', indexName)
+//			useRowNumbers = true;
+//		}
+//		dataframe.put('Header', headerContent);
+//		while ((row = csvReader.readLine()) != null) {
+//			//        println row
+//			ArrayList<String> rowContent = new ArrayList<String>(row.split(",").toList());
+//			if (useRowNumbers) {
+//				dataframe.put(r, rowContent);
+//				r += 1;
+//			} else {
+//				rowName = rowContent[index];
+//				int j = 1;
+//				while (true) {
+//					if (dataframe.containsKey(rowName)) {
+//						println String.format('rowName %s is duplicated! Resolving by appending integer...', rowName);
+//						rowName = String.format('%1$s_%2$x', rowContent[index], j);
+//						j += 1;
+//					} else {
+//						break;
+//					}
+//				}
+//				dataframe.put(rowName, rowContent);
+//			}
+//		}
+//		//    println dataframe;
+//		return dataframe;
+//	}
+	}
+
+	public static class CompQuantMeasurements {
+		private final static Logger logger = LoggerFactory.getLogger(CompQuantMeasurements.class);
+
+		public static void getTargetsAQUA(ImageData<BufferedImage> imageData,
+								   PathObject pathObject,
+								   Map<ColorTransform, Double> targets,
+								   Collection<CompQuantMeasurements.Measurements> measurements,
+								   Collection<CompQuantMeasurements.Compartments> cellCompartments,
+								   double downsample, boolean rescaleScore, boolean normalizeScore, double maxFloatValue
 		) throws IOException {
 			// Convert to binary mask Mat
 			ROI roi = pathObject.getROI();
@@ -1245,7 +1346,7 @@ public class CompQuantPanelController implements Initializable{
 					bpNucleus.fill(roiNucleusIJ);
 				}
 				//For mean, median, stdev, etc.
-				CompQuantMeasurements.measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
+				measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
 				//Calculate sum intensity in compartment
 				//        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
 			} else {
@@ -1253,7 +1354,7 @@ public class CompQuantPanelController implements Initializable{
 				for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
 					var img = new PixelImageIJ(entry.getValue());
 					//For mean, median, stdev, etc.
-					CompQuantMeasurements.measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
+					measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
 					//Calculate sum intensity in compartment
 					//            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
 				}
@@ -1306,58 +1407,15 @@ public class CompQuantPanelController implements Initializable{
 				//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
 				//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
 			}
+
+//			clean up vars?
+//			imageData = null;
+//			server = null;
+//			pathImage = null;
+//			channels = null;
+//			request = null;
+//			measList = null;
 		}
-
-
-//	import java.io.BufferedReader;
-//	import java.io.FileReader;
-//
-//	def readCSVtoDF(String csvpath, String indexName) {
-//		// Create BufferedReader
-//		BufferedReader csvReader = new BufferedReader(new FileReader(csvpath));
-//		Map<String, ArrayList<String>> dataframe = new LinkedHashMap<String, ArrayList<String>>();
-//		header = csvReader.readLine();
-//		//    header = "test,test1,test2";
-//		ArrayList<String> headerContent = new ArrayList<String>(header.split(",").toList());
-//		//    println headerContent
-//		int index = headerContent.indexOf(indexName);
-//		//    println index
-//		//    println headerContent[index]
-//		int r = 0;
-//		useRowNumbers = false;
-//		if (index == -1) {
-//			prinln String.format('Header does not contain %s! Defaulting to using row numbers...', indexName)
-//			useRowNumbers = true;
-//		}
-//		dataframe.put('Header', headerContent);
-//		while ((row = csvReader.readLine()) != null) {
-//			//        println row
-//			ArrayList<String> rowContent = new ArrayList<String>(row.split(",").toList());
-//			if (useRowNumbers) {
-//				dataframe.put(r, rowContent);
-//				r += 1;
-//			} else {
-//				rowName = rowContent[index];
-//				int j = 1;
-//				while (true) {
-//					if (dataframe.containsKey(rowName)) {
-//						println String.format('rowName %s is duplicated! Resolving by appending integer...', rowName);
-//						rowName = String.format('%1$s_%2$x', rowContent[index], j);
-//						j += 1;
-//					} else {
-//						break;
-//					}
-//				}
-//				dataframe.put(rowName, rowContent);
-//			}
-//		}
-//		//    println dataframe;
-//		return dataframe;
-//	}
-	}
-
-	public static class CompQuantMeasurements {
-		private final static Logger logger = LoggerFactory.getLogger(CompQuantMeasurements.class);
 
 		/**
 		 * Cell compartments.
