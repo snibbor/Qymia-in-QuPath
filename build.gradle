@@ -23,9 +23,9 @@ repositories {
   
 }
 
-ext.moduleName = 'qupath.extension.aqua'
-archivesBaseName = 'qupath-extension-aqua'
-description = 'AQUAnalysis in QuPath'
+ext.moduleName = 'qupath.extension.companalysis'
+archivesBaseName = 'qupath-extension-companalysis'
+description = 'Molecular Compartment Analysis in QuPath'
 
 //version = "0.3.0"
 

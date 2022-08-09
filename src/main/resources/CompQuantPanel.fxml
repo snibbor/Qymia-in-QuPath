@@ -21,7 +21,7 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<AnchorPane maxWidth="500.0" minHeight="300.0" prefHeight="600.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.aqua.CompQuantPanelController">
+<AnchorPane maxWidth="500.0" minHeight="300.0" prefHeight="600.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.companalysis.CompQuantPanelController">
    <children>
       <MenuBar layoutY="-36.0" prefHeight="25.0" prefWidth="323.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
         <menus>

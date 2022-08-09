@@ -1,19 +1,15 @@
 package qupath.extension.aqua.operations;
 
-import static org.junit.jupiter.api.Assertions.*;
-
 import java.util.LinkedHashMap;
 
 import org.hildan.fxgson.FxGson;
 import org.junit.jupiter.api.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.google.gson.Gson;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableMap;
-import qupath.extension.aqua.AQUAPanelController;
+import qupath.extension.companalysis.operations.CombineOperation;
 
 class CombineOperationTest {
 	private String maskID = "1";
