@@ -1,0 +1,199 @@
+{
+  "version": "0.4.0-SNAPSHOT",
+  "createTimestamp": 1659646343170,
+  "modifyTimestamp": 1659646343170,
+  "uri": "file:/F:/AQUA/RareCyte/Test1-515_qupath/project.qpproj",
+  "lastID": 2,
+  "images": [
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:/F:/AQUA/RareCyte/Test1%20515%20array/Test1@20220804_185225_161578.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "Test1@20220804_185225_161578.ome.tiff",
+          "width": 49668,
+          "height": 18742,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 49668,
+              "height": 18742
+            },
+            {
+              "downsample": 2.0,
+              "width": 24834,
+              "height": 9371
+            },
+            {
+              "downsample": 4.0,
+              "width": 12417,
+              "height": 4685
+            },
+            {
+              "downsample": 8.0,
+              "width": 6208,
+              "height": 2342
+            },
+            {
+              "downsample": 16.0,
+              "width": 3104,
+              "height": 1171
+            },
+            {
+              "downsample": 32.0,
+              "width": 1552,
+              "height": 585
+            },
+            {
+              "downsample": 64.0,
+              "width": 776,
+              "height": 292
+            }
+          ],
+          "channels": [
+            {
+              "name": "\"DAPI\"",
+              "color": -16776961
+            },
+            {
+              "name": "\"CK\"",
+              "color": -16711936
+            },
+            {
+              "name": "\"HER2\"",
+              "color": -65536
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.325,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.325,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "magnification": 20.0,
+          "preferredTileWidth": 1024,
+          "preferredTileHeight": 1024
+        }
+      },
+      "entryID": 1,
+      "randomizedName": "65644f9b-b499-432d-94f7-f28d44448cb8",
+      "imageName": "Test1@20220804_185225_161578.ome.tiff",
+      "metadata": {}
+    },
+    {
+      "serverBuilder": {
+        "builderType": "uri",
+        "providerClassName": "qupath.lib.images.servers.bioformats.BioFormatsServerBuilder",
+        "uri": "file:/F:/AQUA/RareCyte/Test1%20515%20array/Test1@20220804_185225_161578.ome.tiff",
+        "args": [
+          "--series",
+          "0"
+        ],
+        "metadata": {
+          "name": "CQ_Test1@20220804_185225_161578.ome.tiff",
+          "width": 49668,
+          "height": 18742,
+          "sizeZ": 1,
+          "sizeT": 1,
+          "channelType": "DEFAULT",
+          "isRGB": false,
+          "pixelType": "UINT16",
+          "levels": [
+            {
+              "downsample": 1.0,
+              "width": 49668,
+              "height": 18742
+            },
+            {
+              "downsample": 2.0,
+              "width": 24834,
+              "height": 9371
+            },
+            {
+              "downsample": 4.0,
+              "width": 12417,
+              "height": 4685
+            },
+            {
+              "downsample": 8.0,
+              "width": 6208,
+              "height": 2342
+            },
+            {
+              "downsample": 16.0,
+              "width": 3104,
+              "height": 1171
+            },
+            {
+              "downsample": 32.0,
+              "width": 1552,
+              "height": 585
+            },
+            {
+              "downsample": 64.0,
+              "width": 776,
+              "height": 292
+            }
+          ],
+          "channels": [
+            {
+              "name": "\"DAPI\"",
+              "color": -16776961
+            },
+            {
+              "name": "\"CK\"",
+              "color": -16711936
+            },
+            {
+              "name": "\"HER2\"",
+              "color": -65536
+            }
+          ],
+          "pixelCalibration": {
+            "pixelWidth": {
+              "value": 0.325,
+              "unit": "µm"
+            },
+            "pixelHeight": {
+              "value": 0.325,
+              "unit": "µm"
+            },
+            "zSpacing": {
+              "value": 1.0,
+              "unit": "z-slice"
+            },
+            "timeUnit": "SECONDS",
+            "timepoints": []
+          },
+          "magnification": 20.0,
+          "preferredTileWidth": 1024,
+          "preferredTileHeight": 1024
+        }
+      },
+      "entryID": 2,
+      "randomizedName": "b62851eb-c55f-4d1c-bdab-5fff77b30f34",
+      "imageName": "CQ_Test1@20220804_185225_161578.ome.tiff",
+      "metadata": {}
+    }
+  ]
+}

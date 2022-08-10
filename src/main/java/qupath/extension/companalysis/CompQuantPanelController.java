@@ -502,8 +502,10 @@ public class CompQuantPanelController implements Initializable{
 		// Set the transforms if we have to
 		var newTransforms = new ArrayList<>(getAvailableTransforms(imageData));
 		if (forceUpdateTransforms) {
+			targetListView.getItems().clear();
 			targetListView.getItems().setAll(newTransforms);
 		} else if (!newTransforms.equals(targetListView.getItems())){
+			targetListView.getItems().clear();
 			targetListView.getItems().setAll(newTransforms);
 		}
 
@@ -904,8 +906,9 @@ public class CompQuantPanelController implements Initializable{
 		public void incrementProgress(Integer amount){
 			double prog = incrementAndGet(amount).doubleValue();
 			int newEst = getEstNumTasks();
-			logger.info(String.format("%f", prog/newEst));
+//			logger.info(String.format("%f", prog/newEst));
 			Platform.runLater(()->{
+//				just to make sure that GUI resets and GC happens
 				if(prog/newEst+0.005>=1.0){
 					exportMeasButton.setDisable(false);
 					exportMeasMenuItem.setDisable(false);
@@ -1118,10 +1121,12 @@ public class CompQuantPanelController implements Initializable{
 				//These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
 				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> ignoreClasses.contains(p.getPathClass().toString()))
 						.collect(Collectors.toList())).get();
+				List<PathObject> tmaCoreChildren = forkJoinPool.submit(() -> tmaCores.parallelStream().flatMap(core -> core.getChildObjects().stream())
+																									.collect(Collectors.toList())).get();
 				//Just for the progress bar... assuming that all compartments == number of tasks
-				List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-						.collect(Collectors.toList())).get();
-				setEstNumTasks(allCompartmentAnnotations.size());
+//				List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
+//						.collect(Collectors.toList())).get();
+				setEstNumTasks(tmaCoreChildren.size());
 				logger.info(allIgnoreAnnotations.toString());
 				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
 				if (combinedExcludeROI != null)
@@ -1131,61 +1136,105 @@ public class CompQuantPanelController implements Initializable{
 				Boolean finalDoAdjust = doAdjust;
 				// This code should be blocking to await result
 				//			forkJoinPool.invoke(ForkJoinTask.adapt(() -> tmaCores.parallelStream().forEach(core -> {
-				forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
+//				forkJoinPool.submit(() -> tmaCores.parallelStream().forEach(core -> {
 					// step thru all children items of TMA core object
-					forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
-						if (compartments.contains(pathObj.getPathClass())) {
-							PathObject adjpathObj;
-							ROI adjpathObjROI = pathObj.getROI();
-							// is not very efficient as the excluded areas may only be in certain TMA spots....
-							// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
-							if (finalDoAdjust) {
-								adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-							}
-							if (adjpathObjROI.isEmpty()) {
-								logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
-								//						removeObject(detection, true);
-								return;
-							} else if (finalDoAdjust) {
-								logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
-								adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
-								hierarchy.addPathObject(adjpathObj);
-								imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-								hierarchy.removeObject(pathObj, true);
-							} else {
-								adjpathObj = pathObj;
-							}
+//					forkJoinPool.submit(() -> core.getChildObjects().parallelStream().forEach(pathObj -> {
 
-							// Calculate AQUA scoring metrics for new compartment detections for all targets
-							try {
-								CompQuantMeasurements.getTargetsAQUA(
-										imageData, adjpathObj,
-										targets,
-										measurements, cellCompartments,
-										downsample, rescaleScore, normalizeScore,
-										maxFloatValue
-								);
-							} catch (IOException e) {
-								logger.warn(e.toString());
-							}
-							incrementProgress(progAmount);
+//				Ugly, better to make this a forkJoinTask or runnable without lambda?
+				CompletableFuture.runAsync(() -> tmaCoreChildren.parallelStream().forEach(pathObj -> {
+					if (compartments.contains(pathObj.getPathClass())) {
+						PathObject adjpathObj;
+						ROI adjpathObjROI = pathObj.getROI();
+						// is not very efficient as the excluded areas may only be in certain TMA spots....
+						// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
+						if (finalDoAdjust) {
+							adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
 						}
-					}));
-				}));
+						if (adjpathObjROI.isEmpty()) {
+							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+							//						removeObject(detection, true);
+							return;
+						} else if (finalDoAdjust) {
+							logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+							adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+							hierarchy.addPathObject(adjpathObj);
+							imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+							hierarchy.removeObject(pathObj, true);
+						} else {
+							adjpathObj = pathObj;
+						}
+
+						// Calculate AQUA scoring metrics for new compartment detections for all targets
+						try {
+							CompQuantMeasurements.getTargetsAQUA(
+									imageData, adjpathObj,
+									targets,
+									measurements, cellCompartments,
+									downsample, rescaleScore, normalizeScore,
+									maxFloatValue
+							);
+						} catch (IOException e) {
+							logger.warn(e.toString());
+						}
+					}
+					incrementProgress(progAmount);
+				}),
+				forkJoinPool)
+				.thenRun(()->{
+					Platform.runLater(()->{
+						progressLabel.setText("Completed scoring TMA compartments!");
+						quantProgressBar.setProgress(1.0);
+						exportMeasButton.setDisable(false);
+						exportMeasMenuItem.setDisable(false);
+						startQuantButton.setDisable(false);
+					});
+				})
+				.exceptionally(e -> { logger.warn(Arrays.toString(e.getStackTrace())); return null;});
+
+
+//				forkJoinPool.submit(() -> tmaCoreChildren.parallelStream().forEach(pathObj -> {
+//					if (compartments.contains(pathObj.getPathClass())) {
+//						PathObject adjpathObj;
+//						ROI adjpathObjROI = pathObj.getROI();
+//						// is not very efficient as the excluded areas may only be in certain TMA spots....
+//						// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
+//						if (finalDoAdjust) {
+//							adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+//						}
+//						if (adjpathObjROI.isEmpty()) {
+//							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+//							//						removeObject(detection, true);
+//							return;
+//						} else if (finalDoAdjust) {
+//							logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+//							adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+//							hierarchy.addPathObject(adjpathObj);
+//							imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+//							hierarchy.removeObject(pathObj, true);
+//						} else {
+//							adjpathObj = pathObj;
+//						}
+//
+//						// Calculate AQUA scoring metrics for new compartment detections for all targets
+//						try {
+//							CompQuantMeasurements.getTargetsAQUA(
+//									imageData, adjpathObj,
+//									targets,
+//									measurements, cellCompartments,
+//									downsample, rescaleScore, normalizeScore,
+//									maxFloatValue
+//							);
+//						} catch (IOException e) {
+//							logger.warn(e.toString());
+//						}
+//						incrementProgress(progAmount);
+//					}
+//				}));
+//				}));
 			} finally{
+//				no effect on commonPool
 				forkJoinPool.shutdown();
 			}
-
-			// I don't like how this depends on forkjoinpool blocking with get(). Would rather make a completablefuture or use the forkjointask somehow...
-//			Platform.runLater(()->{
-//				try {
-//					mainTask.get();
-//				} catch (InterruptedException | ExecutionException e) {
-//					throw new RuntimeException(e);
-//				}
-//				progressLabel.setText("Finished with TMAs!");
-//				quantProgressBar.setProgress(1.0);
-//			});
 
 			// println 'Checking if any compartments were added by new annotations...';
 			// println missingCompartments;
@@ -1334,7 +1383,7 @@ public class CompQuantPanelController implements Initializable{
 				String measName = targetName + " Intensity in " + className;
 				measNames.put(targetName, measName);
 				channels.put(measName, ipChannel);
-				logger.info(String.format("AQUA of %s in %s", targetName, className));
+				logger.info(String.format("Scoring %s in %s", targetName, className));
 			}
 
 			if (pathObject instanceof PathCellObject) {
@@ -1409,12 +1458,12 @@ public class CompQuantPanelController implements Initializable{
 			}
 
 //			clean up vars?
-//			imageData = null;
-//			server = null;
-//			pathImage = null;
-//			channels = null;
-//			request = null;
-//			measList = null;
+			imageData = null;
+			server = null;
+			pathImage = null;
+			channels = null;
+			request = null;
+			measList = null;
 		}
 
 		/**

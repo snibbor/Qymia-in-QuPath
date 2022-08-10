@@ -1,0 +1,55 @@
+{
+  "pathClasses": [
+    {
+      "name": "Unclassified"
+    },
+    {
+      "name": "Other",
+      "color": -6710887
+    },
+    {
+      "name": "Ignore*",
+      "color": -5026534
+    },
+    {
+      "name": "Tumor",
+      "color": -16744448
+    },
+    {
+      "name": "Nuclear",
+      "color": -16363872
+    },
+    {
+      "name": "B cells",
+      "color": -1671091
+    },
+    {
+      "name": "CD8 T cells",
+      "color": -16711681
+    },
+    {
+      "name": "Tumor Nuclei",
+      "color": -3972741
+    },
+    {
+      "name": "Stroma Nuclei",
+      "color": -16711936
+    },
+    {
+      "name": "Stroma",
+      "color": -8745193
+    },
+    {
+      "name": "ROI",
+      "color": -8388480
+    },
+    {
+      "name": "Tissue",
+      "color": -11325665
+    },
+    {
+      "name": "Tumor Nuc Expanded",
+      "color": -8925935
+    }
+  ]
+}

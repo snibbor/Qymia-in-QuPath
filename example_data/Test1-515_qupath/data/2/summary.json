@@ -1,0 +1,1 @@
+{"timestamp":1660074334444,"imageType":"FLUORESCENCE","server":{"width":49668,"height":18742,"sizeC":3,"sizeZ":1,"sizeT":1},"hierarchy":{"nObjects":46,"objectTypeCounts":{"Root objects":1,"Annotations":31,"TMA cores":14},"annotationClassificationCounts":{"Ignore*":1,"Nuclear":14,"Tumor":14,"Tumor Nuc Expanded":2},"detectionClassificationCounts":{}}}
