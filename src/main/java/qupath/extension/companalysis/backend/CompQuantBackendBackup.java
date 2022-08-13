@@ -488,7 +488,7 @@ public class CompQuantBackendBackup {
 
 // Recalculate for entire mask - exclude
     
-//TMARecalcCompartmentsAndAQUA(server,
+//TMARecalcCompartmentsAndScores(server,
 //                        ignoreClasses,
 //                        targets,
 //                        compartments,
@@ -502,7 +502,7 @@ public class CompQuantBackendBackup {
 
 // Clear objects inside ROIs?
 
-// getTargetAQUAScoresForROIs(server,
+// getTargetScoresForROIs(server,
 //                        rois, 
 //                        targets,
 //                        compartments,

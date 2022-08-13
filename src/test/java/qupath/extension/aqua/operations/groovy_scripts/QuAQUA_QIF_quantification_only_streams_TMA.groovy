@@ -543,7 +543,7 @@ TMARecalcCompartmentsAndAQUA(server,
 
 // Clear objects inside ROIs?
 
-// getTargetAQUAScoresForROIs(server,
+// getTargetScoresForROIs(server,
 //                        rois, 
 //                        targets,
 //                        compartments,
