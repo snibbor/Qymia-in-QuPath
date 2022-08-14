@@ -36,7 +36,12 @@ import org.slf4j.LoggerFactory;
 import qupath.imagej.tools.IJTools;
 import qupath.imagej.tools.PixelImageIJ;
 //import qupath.lib.analysis.features.ObjectMeasurements;
+//import qupath.lib.algorithms.IntensityFeaturesPlugin;
 import qupath.lib.analysis.images.SimpleImage;
+import qupath.lib.analysis.images.SimpleImages;
+import qupath.lib.analysis.images.SimpleModifiableImage;
+import qupath.lib.awt.common.BufferedImageTools;
+import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.tools.MeasurementExporter;
 import qupath.lib.images.ImageData;
@@ -64,6 +69,8 @@ import qupath.opencv.tools.OpenCVTools;
 //import java.awt.*;
 import java.awt.image.BufferedImage;
 //import java.io.BufferedReader;
+import java.awt.image.DataBufferByte;
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -92,9 +99,9 @@ public class CompQuantPanelController implements Initializable{
 //	private ImageServer<BufferedImage> server;
 //	private PathObjectHierarchy hierarchy;
 
-	private CompQuantBackend compQuant;
+//	private CompQuantBackend compQuant;
 
-	private final ForkJoinPool startRunFJP = new ForkJoinPool(1);
+	private final ForkJoinPool startRunFJP = new ForkJoinPool(2);
 
 	private final AtomicReference<Boolean> runCancelled = new AtomicReference<Boolean>(false);
 
@@ -595,39 +602,60 @@ public class CompQuantPanelController implements Initializable{
 
 		PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
 		double downsample = 1.0;
-		compQuant = new CompQuantBackend(qupath.getImageData(),
+		Class<? extends PathObject> sourceType;
+		if(source.equals("Cells")){
+			sourceType = PathCellObject.class;
+		} else{
+			sourceType = PathAnnotationObject.class;
+		}
+		CompQuantBackend compQuant = new CompQuantBackend(qupath.getImageData(),
 										selectedTargets,
 										selectedCompartments,
 										ignoreClasses,
 										roiClasses,
+										runCancelled,
 										downsample,
+										sourceType,
 										rescaleScore,
 										normalizeScore,
 										maxFloatValue,
 										getNumThreads()-3);
 
+//		Remove detection objects that are not cells, clear source measurements
 		if(source.equals("Annotations")) {
-			hierarchy.removeObjects(hierarchy.getDetectionObjects(), true);
+			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell())
+																						.collect(Collectors.toList());
+			hierarchy.removeObjects(notCells, true);
 			clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
 		} else if(source.equals("Cells")){
+			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell())
+					.collect(Collectors.toList());
+			hierarchy.removeObjects(notCells, true);
 			clearMeasurements(hierarchy, hierarchy.getCellObjects());
 		}
-
 		CompletableFuture.runAsync(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
 			}
 			if(result.toLowerCase().contains("grid")){
-				if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
+				if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
-				else if(gridSizeTextField.getText() != null && Double.parseDouble(gridSizeTextField.getText()) == 0.0)
+//						return false;
+				}else if(gridSizeTextField.getText() != null && Double.parseDouble(gridSizeTextField.getText()) == 0.0) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
-				else
+//						return false;
+				}else {
 					logger.warn("Grid scoring not implemented yet...");
-				progressLabel.setText("Grid scoring not implemented yet! Skipping...");
+					Platform.runLater(()->{
+						progressLabel.setText("Grid scoring not implemented yet! Skipping...");
+					});
+//						return true;
+				}
+
 			}
+//				return false;
 		}, startRunFJP)
-		.thenRunAsync(()->{
+		.thenRun(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
 			}
@@ -637,16 +665,18 @@ public class CompQuantPanelController implements Initializable{
 					progressLabel.setText("Quantifying TMA core compartments...");
 				});
 				try {
-					compQuant.TMARecalcCompartmentsAndScores();
+					compQuant.TMARecalcCompartmentsAndScores().get();
 				} catch (ExecutionException | InterruptedException | CancellationException ex) {
-					exportMeasButton.setDisable(false);
-					exportMeasMenuItem.setDisable(false);
-					startQuantButton.setDisable(false);
+					Platform.runLater(()-> {
+						exportMeasButton.setDisable(false);
+						exportMeasMenuItem.setDisable(false);
+						startQuantButton.setDisable(false);
+					});
 					throw new RuntimeException(ex);
 				}
 			}
-		}, startRunFJP)
-		.thenRunAsync(()->{
+		})
+		.thenRun(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
 			}
@@ -656,29 +686,36 @@ public class CompQuantPanelController implements Initializable{
 					progressLabel.setText("Quantifying ROI compartments...");
 				});
 				try {
-					compQuant.getTargetScoresForROIs();
+					compQuant.getTargetScoresForROIs().get();
 				} catch (ExecutionException | InterruptedException | CancellationException ex) {
-					exportMeasButton.setDisable(false);
-					exportMeasMenuItem.setDisable(false);
-					startQuantButton.setDisable(false);
+					Platform.runLater(()-> {
+						exportMeasButton.setDisable(false);
+						exportMeasMenuItem.setDisable(false);
+						startQuantButton.setDisable(false);
+					});
 					throw new RuntimeException(ex);
 				}
 			}
-		}, startRunFJP)
+		})
 		.exceptionally(ex -> {
 //			ex.printStackTrace();
-			logger.warn(Arrays.toString(ex.getStackTrace()));
+//			logger.warn(Arrays.toString(ex.getStackTrace()));
+			try {
+				compQuant.cancelTasks().get();
+			} catch (InterruptedException | ExecutionException exc) {
+				throw new RuntimeException(exc);
+			}
+			logger.warn(ex.toString());
 			return null;
-		});
-//		.thenRun(()->{
-////		cleanup vars
-//			compQuant.close();
+		})
+		.thenRun(()->{
+//			cleanup vars
+			compQuant.close();
 //			compQuant = null;
-//			System.gc();
-//			logger.info("Completed with all tasks...");
-////		update progress bar again.....?
-//		});
-
+			System.gc();
+			logger.info("Completed with all tasks...");
+//			update progress bar again.....?
+		});
 	}
 
 	public void cancelQuant(ActionEvent e){
@@ -686,27 +723,30 @@ public class CompQuantPanelController implements Initializable{
 		exportMeasMenuItem.setDisable(false);
 		startQuantButton.setDisable(false);
 		runCancelled.set(true);
-		if(compQuant != null && compQuant.isTaskRunning()) {
-			logger.warn("Trying to cancel running task...");
-			compQuant.cancelTasks();
-//			// garbage cleanup?
-			compQuant.close();
-//			compQuant = null;
-			System.gc();
-			progressLabel.setText("Canceled task...");
-//			would be cool to make progress bar red
-			quantProgressBar.setProgress(0);
-
-		} else{
-			logger.info("No task is running...");
-			if(compQuant != null) {
-//				trying to cancel the tasks anyways
-				compQuant.cancelTasks();
-				compQuant.close();
-//				compQuant = null;
-				System.gc();
-			}
-		}
+		progressLabel.setText("Canceled task...");
+//		would be cool to make progress bar red
+		quantProgressBar.setProgress(0);
+//		if(compQuant != null && compQuant.isTaskRunning()) {
+//			logger.warn("Trying to cancel running task...");
+//			compQuant.cancelTasks();
+////			// garbage cleanup?
+//			compQuant.close();
+////			compQuant = null;
+//			System.gc();
+//			progressLabel.setText("Canceled task...");
+////			would be cool to make progress bar red
+//			quantProgressBar.setProgress(0);
+//
+//		} else{
+//			logger.info("No task is running...");
+//			if(compQuant != null) {
+////				trying to cancel the tasks anyways
+//				compQuant.cancelTasks();
+//				compQuant.close();
+////				compQuant = null;
+//				System.gc();
+//			}
+//		}
 	}
 	
 	public void advancedSettings(ActionEvent e) {
@@ -900,37 +940,46 @@ public class CompQuantPanelController implements Initializable{
 
 		private Collection<Compartments> cellCompartments = Collections.synchronizedList(Arrays.asList(Compartments.values()));
 		private Set<Measurements> measurements = Collections.synchronizedSet(new HashSet<>(Arrays.asList(Measurements.values())));
-//		public final double maxFloatValue;
+		//		public final double maxFloatValue;
 //		public final boolean normalizeScore;
 //		public final boolean rescaleScore;
 		private Map<String, Object> params = new ConcurrentHashMap<>();
 
-		private ImageData<BufferedImage> imageData;
+//		private QuPathGUI qupath;
+		private ImageData<BufferedImage> bImageData;
+//		private Map<Thread, ImageServer<BufferedImage>> threadImageServerMap = new ConcurrentHashMap<>();
 		private ConcurrentHashMap<ColorTransform, Double> targets;
 		private Set<PathClass> compartments;
 		private Set<PathClass> ignoreClasses;
 		private Set<PathClass> roiClasses;
 
-//		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
+		//		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
 		private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
-		private final AtomicReference<Boolean> isCancelled = new AtomicReference<Boolean>(false);
-		CompQuantBackend(ImageData<BufferedImage> imageData,
+		private final AtomicReference<Boolean> isCancelled;
+
+		CompQuantBackend(ImageData<BufferedImage> bImageData,
+//						 QuPathGUI qupath,
 						 Map<ColorTransform, Double> targets,
 						 Set<PathClass> compartments,
 						 Set<PathClass> ignoreClasses,
 						 Set<PathClass> roiClasses,
+						 AtomicReference<Boolean> runCancelled,
 						 double downsample,
+						 Class<? extends PathObject> sourceType,
 						 boolean rescaleScore,
 						 boolean normalizeScore,
 						 double maxFloatValue,
-						 int numThreads){
-			this.imageData = imageData;
+						 int numThreads) {
+			this.bImageData = bImageData;
+//			this.qupath = qupath;
 			this.targets = new ConcurrentHashMap<>(targets);
 			this.compartments = Collections.synchronizedSet(compartments);
 			this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
 			this.roiClasses = Collections.synchronizedSet(roiClasses);
+			this.isCancelled = runCancelled;
 			this.params = new ConcurrentHashMap<>(Map.ofEntries(
 					Map.entry("downsample", downsample),
+					Map.entry("sourceType", sourceType),
 					Map.entry("rescaleScore", rescaleScore),
 					Map.entry("normalizeScore", normalizeScore),
 					Map.entry("maxFloatValue", maxFloatValue)
@@ -938,25 +987,31 @@ public class CompQuantPanelController implements Initializable{
 			this.numThreads = numThreads;
 		}
 
-		CompQuantBackend(ImageData<BufferedImage> imageData,
+		CompQuantBackend(ImageData<BufferedImage> bImageData,
+//						 QuPathGUI qupath,
 						 Map<ColorTransform, Double> targets,
 						 Set<PathClass> compartments,
 						 Set<PathClass> ignoreClasses,
 						 Set<PathClass> roiClasses,
+						 AtomicReference<Boolean> runCancelled,
 						 double downsample,
+						 Class<? extends PathObject> sourceType,
 						 boolean rescaleScore,
 						 boolean normalizeScore,
 						 double maxFloatValue,
 						 int numThreads,
 						 List<Compartments> cellCompartments,
-						 HashSet<Measurements> measurements){
-			this.imageData = imageData;
+						 HashSet<Measurements> measurements) {
+//			this.qupath = qupath;
+			this.bImageData = bImageData;
 			this.targets = new ConcurrentHashMap<>(targets);
 			this.compartments = Collections.synchronizedSet(compartments);
 			this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
 			this.roiClasses = Collections.synchronizedSet(roiClasses);
+			this.isCancelled = runCancelled;
 			this.params = new ConcurrentHashMap<>(Map.ofEntries(
 					Map.entry("downsample", downsample),
+					Map.entry("sourceType", sourceType),
 					Map.entry("rescaleScore", rescaleScore),
 					Map.entry("normalizeScore", normalizeScore),
 					Map.entry("maxFloatValue", maxFloatValue)
@@ -966,26 +1021,62 @@ public class CompQuantPanelController implements Initializable{
 			this.measurements = Collections.synchronizedSet(measurements);
 		}
 
-		public void setupNewForkJoinPool(int numThreads){
+		public void setupNewForkJoinPool(int numThreads) {
 			isCancelled.set(false);
-			if(forkJoinPool == null) {
+			if (forkJoinPool == null) {
 				logger.info("creating new forkJoinPool");
 				forkJoinPool = new ForkJoinPool(numThreads);
-			}else if(forkJoinPool.isTerminated()){
+			} else if (forkJoinPool.isTerminated()) {
 				forkJoinPool = null;
 				System.gc();
 				System.gc();
 				logger.info("creating new forkJoinPool");
 				forkJoinPool = new ForkJoinPool(numThreads);
-			}else {
+			} else {
 				logger.warn("forkJoinPool already exists and is not terminated yet!");
-				cancelTasks();
+				try {
+					cancelTasks().get();
+				} catch (InterruptedException | ExecutionException e) {
+					throw new RuntimeException(e);
+				}
 				logger.warn("trying to create new forkJoinPool...");
 				forkJoinPool = new ForkJoinPool(numThreads);
 			}
 		}
-		public void close(){
-			this.imageData = null;
+
+		public static void closeQuietly(AutoCloseable c){
+			if (c != null) {
+				logger.info("closing...");
+				try {
+					c.close();
+				} catch (Exception ex) {
+					// ignore or trace log it
+					logger.warn(ex.toString());
+//					throw new RuntimeException(e);
+				}
+			}
+
+		}
+
+		public void close() {
+//			this.qupath = null;
+//			if(!threadImageServerMap.isEmpty()){
+//				threadImageServerMap.forEach((k, c)->{
+//					logger.info("trying to close image server on thread... " + k.toString());
+//					closeQuietly(c);
+//				});
+//				threadImageServerMap.clear();
+//			}
+//			This shuts down the main server for the current image and causes problems....
+//			else {
+//				try {
+//					bImageData.getServer().close();
+//				} catch (Exception ex) {
+////				ex.printStackTrace();
+//					logger.error(ex.toString());
+//				}
+//			}
+//			this.bImageData = null;
 			this.targets = null;
 			this.compartments = null;
 			this.ignoreClasses = null;
@@ -993,16 +1084,21 @@ public class CompQuantPanelController implements Initializable{
 			this.params = null;
 			this.cellCompartments = null;
 			this.measurements = null;
-			cancelTasks();
+			try {
+				cancelTasks().get();
+			} catch (InterruptedException | ExecutionException e) {
+				throw new RuntimeException(e);
+			}
 			System.gc();
 			System.gc();
 		}
 
-		public void setEstNumTasks(int newEst){
-			logger.info("Estimate # tasks: "  + newEst);
+		public void setEstNumTasks(int newEst) {
+			logger.info("Estimate # tasks: " + newEst);
 			estNumTasks = newEst;
 		}
-		public int getEstNumTasks(){
+
+		public int getEstNumTasks() {
 			return estNumTasks;
 		}
 //		public BigDecimal incrementAndGet(double amount) {
@@ -1016,7 +1112,7 @@ public class CompQuantPanelController implements Initializable{
 //		}
 
 		public BigInteger incrementAndGet(Integer amount) {
-			for (;;) {
+			for (; ; ) {
 				BigInteger current = progressValue.get();
 				BigInteger next = current.add(new BigInteger(amount.toString()));
 				if (progressValue.compareAndSet(current, next)) {
@@ -1026,13 +1122,13 @@ public class CompQuantPanelController implements Initializable{
 		}
 
 		//	https://stackoverflow.com/questions/21083945/how-to-avoid-not-on-fx-application-thread-currentthread-javafx-application-th
-		public void incrementProgress(Integer amount){
+		public void incrementProgress(Integer amount) {
 			double prog = incrementAndGet(amount).doubleValue();
 			int newEst = getEstNumTasks();
-			logger.info(String.format("%f", prog/newEst));
-			Platform.runLater(()->{
+			logger.info(String.format("%f", prog / newEst));
+			Platform.runLater(() -> {
 //				just to make sure that GUI resets and GC happens
-				if(prog/newEst+0.005>=1.0){
+				if (prog / newEst + 0.005 >= 1.0) {
 					exportMeasButton.setDisable(false);
 					exportMeasMenuItem.setDisable(false);
 					startQuantButton.setDisable(false);
@@ -1041,43 +1137,43 @@ public class CompQuantPanelController implements Initializable{
 					System.gc();
 					System.gc();
 				}
-				quantProgressBar.setProgress(prog/newEst);
+				quantProgressBar.setProgress(prog / newEst);
 			});
 		}
 
-		public void cancelTasks(){
+		public CompletableFuture<Void> cancelTasks() {
 			logger.warn("Trying to shutdown running tasks!");
 			isCancelled.set(true);
-			if(forkJoinPool!=null) {
-				forkJoinPool.shutdownNow();
-				try {
-					logger.info("awaiting forkJoinPool termination...");
-					if(forkJoinPool.awaitTermination(30, TimeUnit.SECONDS)) {
-						logger.info("forkJoinPool termination finished...");
-						forkJoinPool = null;
-						System.gc();
-						System.gc();
-					} else{
-						logger.warn("forkJoinPool termination timed-out...!");
-						forkJoinPool.shutdownNow();
-						System.gc();
-						System.gc();
+			CompletableFuture<Void> result = CompletableFuture.runAsync (()-> {
+				if (forkJoinPool != null) {
+					forkJoinPool.shutdownNow();
+					try {
+						logger.info("awaiting forkJoinPool termination...");
+						if (forkJoinPool.awaitTermination(30, TimeUnit.SECONDS)) {
+							logger.info("forkJoinPool termination finished...");
+							forkJoinPool = null;
+							System.gc();
+							System.gc();
+						} else {
+							logger.warn("forkJoinPool termination timed-out...!");
+							forkJoinPool.shutdownNow();
+							System.gc();
+							System.gc();
+						}
+					} catch (InterruptedException ex) {
+						logger.warn(String.valueOf(ex));
+						logger.warn("interrupted before termination of forkJoinPool?...");
 					}
-				} catch (InterruptedException ex) {
-					logger.warn(String.valueOf(ex));
-					logger.warn("interrupted before termination of forkJoinPool?...");
 				}
-			}
-//			if(!mainTask.isDone()){
-//				mainTask.cancel(true);
-//			}
+			});
 			setEstNumTasks(0);
+			return result;
 		}
 
-		public boolean isTaskRunning(){
-			if(forkJoinPool!=null) {
+		public boolean isTaskRunning() {
+			if (forkJoinPool != null) {
 				return !forkJoinPool.isTerminated();
-			}else{
+			} else {
 				return false;
 			}
 		}
@@ -1098,7 +1194,7 @@ public class CompQuantPanelController implements Initializable{
 			}
 
 			if (newAnnot) {
-				PathObjectHierarchy hierarchy = imageData.getHierarchy();
+				PathObjectHierarchy hierarchy = bImageData.getHierarchy();
 				hierarchy.removeObjects(annots, true);
 				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
 				hierarchy.addPathObject(combinedAnnot);
@@ -1111,24 +1207,26 @@ public class CompQuantPanelController implements Initializable{
 		//    Map<String, Integer> targets = new LinkedHashMap<>();
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
 		// How to flexibly find ROIs within TMA core hierarchy?
-		public void getTargetScoresForROIs() throws ExecutionException, InterruptedException {
-			getTargetScoresForROIs(roiClasses, targets, compartments, (double) params.get("downsample"), numThreads);
+		public CompletableFuture<Void> getTargetScoresForROIs() throws RuntimeException {
+			return getTargetScoresForROIs(roiClasses, targets, compartments,(Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
 		}
-//		It would be nice to set this up so that there is a static method that can be used from scripting if you didn't want to use the GUI
+
+		//		It would be nice to set this up so that there is a static method that can be used from scripting if you didn't want to use the GUI
 //		but then you would have to remove all the non-static GUI progress bar elements and use the commonPool, so the code would be different....
-		public void getTargetScoresForROIs(Set<PathClass> rois,
+		public CompletableFuture<Void> getTargetScoresForROIs(Set<PathClass> rois,
 										   Map<ColorTransform, Double> targets,
 										   Set<PathClass> compartments,
+										   Class<? extends PathObject> sourceType,
 										   double downsample,
 										   int numThreads
-		) throws ExecutionException, InterruptedException, CancellationException {
+		) throws RuntimeException {
 
 			// Add annotations to heirarchy connected to ROI
 
 			// Remove uninformative classes (Tissue)
 //			compartments.remove("Tissue");
 
-			if(numThreads<=0)
+			if (numThreads <= 0)
 				numThreads = 1;
 
 			setupNewForkJoinPool(numThreads);
@@ -1138,106 +1236,122 @@ public class CompQuantPanelController implements Initializable{
 
 			// Used for placing child objects inside ROI
 			AtomicInteger roiNumber = new AtomicInteger(1);
-//			ImageData<BufferedImage> imageData = qupath.getImageData();
-
-//			Init with all measurements and cell compartments, but can be changed later
-//			params for scoring compartments. could change depending on the CompQuantMeasurement function desired in the future...
-//			Map<String, Object> params = new HashMap<>(Map.ofEntries(
-//					Map.entry("rescaleScore", rescaleScore),
-//					Map.entry("normalizeScore", normalizeScore),
-//					Map.entry("downsample", downsample),
-//					Map.entry("maxFloatValue", maxFloatValue)
-//			));
-////			init a CompQuantMeasurements class instead of passing duplicates of these variables into the methods. maybe this will help with the memory leak/java GC?
-//			CompQuantMeasurements compQuantMeas = new CompQuantMeasurements(targets, imageData, params);
 
 //			Check if ignore annotations were already excluded from annotation masks?
 
-			var pathObjs = imageData.getHierarchy().getObjects(null, PathObject.class);
+			var pathObjs = bImageData.getHierarchy().getObjects(null, PathObject.class);
+//			https://stackoverflow.com/questions/53558753/how-do-i-close-a-thread-local-autocloseable-used-in-parallel-stream
+//			if(threadImageServerMap.isEmpty()) {
+//				threadImageServerMap = new ConcurrentHashMap<>();
+//			}else{
+//				threadImageServerMap.forEach((k, c)->{
+//					logger.info("trying to close image server on thread... " + k.toString());
+//					closeQuietly(c);
+//				});
+//				threadImageServerMap.clear();
+//			}
+			ImageServer<BufferedImage> server = bImageData.getServer();
+			CompletableFuture<Void> result = null;
 			try {
-				var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-																										.collect(Collectors.toList())).get();
+				var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
+						.collect(Collectors.toList())).get();
 //				https://stackoverflow.com/questions/23320407/how-to-cancel-java-8-completable-future
 //				ROI cannot be unclassified/null or else contains() throws a NullPointerException
-				CompletableFuture.runAsync(() -> pathObjs.parallelStream().filter(p -> p.getPathClass()!=null && rois.contains(p.getPathClass()) && p.hasROI())
-						.map(f -> {
-							// Record null/none values for compartments not within ROI
+				result = CompletableFuture.runAsync(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
+										.map(f -> {
+											// Record null/none values for compartments not within ROI
 //							logger.info(f.getName());
-							if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
-								f.setName("ROI_" + roiNumber.get());
-								roiNumber.incrementAndGet();
-							}
-							// this might work but does it scale for lots of ROIs?
-							totalROIs.incrementAndGet();
-							setEstNumTasks(totalROIs.get());
-							return f;
+											if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+												f.setName("ROI_" + roiNumber.get());
+												roiNumber.incrementAndGet();
+											}
+											// this might work but does it scale for lots of ROIs?
+											totalROIs.incrementAndGet();
+											setEstNumTasks(totalROIs.get());
+											return f;
+										})
+										.forEach(r -> {
+											//Typically the number of compartments is small and these are all combined for a WSI.
+											//Not efficient for TMA cores! but should work...
+											if (isCancelled.get()) {
+												throw new CancellationException();
+											}
+
+//											ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
+
+											for (PathObject compObj : compartmentObjs) {
+
+												ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
+
+												if (!compInterROI.isEmpty()) {
+													PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
+													logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
+													// For debugging, maybe helps with visualization
+													// Add object as a child of the ROI
+													//                        addObject(compInterDet);
+													compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
+													bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
+
+													logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
+
+													// Quantify metrics/AQUA for each target in each intersecting compartment
+													// Calculate AQUA scoring metrics for new compartment detections for all targets
+													try {
+														getTargetsIntensityScores_OpenCV(server, compInterDet);
+													} catch (IOException ex) {
+														logger.warn(ex.toString());
+													}
+												} else {
+													logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
+												}
+											}
+											incrementProgress(progAmount);
+
+										}),
+								forkJoinPool)
+						.thenRun(() -> {
+							Platform.runLater(() -> {
+								progressLabel.setText("Completed scoring ROI compartments!");
+								quantProgressBar.setProgress(1.0);
+								exportMeasButton.setDisable(false);
+								exportMeasMenuItem.setDisable(false);
+								startQuantButton.setDisable(false);
+							});
+//							threadImageServerMap.forEach((k, c)->{
+//								logger.info("trying to close image server on thread... " + k.toString());
+//								closeQuietly(c);
+//							});
+//							threadImageServerMap.clear();
 						})
-						.forEach(r -> {
-							//Typically the number of compartments is small and these are all combined for a WSI.
-							//Not efficient for TMA cores! but should work...
-							if(isCancelled.get()){
-								throw new CancellationException();
-							}
-							for (PathObject compObj : compartmentObjs) {
-								ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
+						.exceptionally(ex -> {
+							ex.printStackTrace();
+//							logger.warn(Arrays.toString(ex.getStackTrace()));
+							logger.warn("getTargetScoresForROIs: " + ex);
+							logger.warn(ex.toString());
+							return null;
+						});
 
-								if (!compInterROI.isEmpty()) {
-									PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
-									logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
-									// For debugging, maybe helps with visualization
-									// Add object as a child of the ROI
-									//                        addObject(compInterDet);
-									compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-									imageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
-
-									logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
-
-									// Quantify metrics/AQUA for each target in each intersecting compartment
-									// Calculate AQUA scoring metrics for new compartment detections for all targets
-									try {
-										getTargetsIntensityScores(compInterDet);
-									} catch (IOException ex) {
-										logger.warn(ex.toString());
-									}
-								} else {
-									logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
-								}
-							}
-							incrementProgress(progAmount);
-
-						}),
-				forkJoinPool)
-				.thenRun(()->{
-					Platform.runLater(()->{
-						progressLabel.setText("Completed scoring ROI compartments!");
-						quantProgressBar.setProgress(1.0);
-						exportMeasButton.setDisable(false);
-						exportMeasMenuItem.setDisable(false);
-						startQuantButton.setDisable(false);
-					});
-				})
-				.exceptionally(ex -> {
-//					e.printStackTrace();
-					logger.warn(Arrays.toString(ex.getStackTrace()));
-					return null;
-				});
-
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
 			} finally {
 				forkJoinPool.shutdown();
 			}
+			return result;
 		}
 
 
-		public void TMARecalcCompartmentsAndScores() throws ExecutionException, InterruptedException, CancellationException {
-			TMARecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (double) params.get("downsample"), numThreads);
+		public CompletableFuture<Void>  TMARecalcCompartmentsAndScores() throws RuntimeException {
+			return TMARecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
 		}
+
 		// Exclude regions and add regions that weren't segmented well. Allows for manual adjustment of compartmentalization before scoring targets.
-		public void TMARecalcCompartmentsAndScores(Set<PathClass> ignoreClasses,
-												   Map<ColorTransform, Double> targets,
-												   Set<PathClass> compartments,
-												   double downsample,
-												   int numThreads
-		) throws ExecutionException, InterruptedException, CancellationException {
+		public CompletableFuture<Void> TMARecalcCompartmentsAndScores(Set<PathClass> ignoreClasses,
+																Map<ColorTransform, Double> targets,
+																Set<PathClass> compartments,
+																Class<? extends PathObject> sourceType,
+																double downsample,
+																int numThreads
+		) throws RuntimeException {
 
 //			progressBar.setProgress(-1);
 //			progressL.setText("Quantifying TMA compartments...");
@@ -1249,28 +1363,30 @@ public class CompQuantPanelController implements Initializable{
 			logger.info("Updating existing compartments with any new annotations, calcuating AQUA metrics...");
 
 //			ImageData<BufferedImage> imageData = qupath.getImageData();
-			PathObjectHierarchy hierarchy = imageData.getHierarchy();
+			PathObjectHierarchy hierarchy = bImageData.getHierarchy();
 
 			TMAGrid tmaGrid = hierarchy.getTMAGrid();
 			List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
 			// an estimate if there are the same amount of compartments per TMA spot....
 			// could just try and use the amount of tasks queued... doesn't work in time before forkJoinPool is done with submit/invoke
-			setEstNumTasks((int) tmaCores.size()*compartments.size());
+			setEstNumTasks((int) tmaCores.size() * compartments.size());
 			Integer progAmount = 1;
 			// Combine exclude regions, but do not create a new merged object
 			ROI combinedExcludeROI = null;
-			if(numThreads<=0)
+			if (numThreads <= 0)
 				numThreads = 1;
 
 			setupNewForkJoinPool(numThreads);
 
+			CompletableFuture<Void> result = null;
+			ImageServer<BufferedImage> server = bImageData.getServer();
 			try {
 				// These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
 				// maybe can rewrite this whole block as a sequential task to submit to the pool?
-				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> p.getPathClass()!=null && ignoreClasses.contains(p.getPathClass()))
+				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
 						.collect(Collectors.toList())).get();
 				List<PathObject> tmaCoreChildren = Collections.synchronizedList(forkJoinPool.submit(() -> tmaCores.parallelStream().flatMap(core -> core.getChildObjects().stream())
-																									.collect(Collectors.toList())).get());
+						.collect(Collectors.toList())).get());
 
 				// Need to make sure that all TMA cores have their annotations inserted into the hierarchy or else the getChildObjects() will miss annotations...
 				// insertHierarchy can miss annotations that are outside of TMA core parent. Maybe there is a way to use the missing annotations
@@ -1287,64 +1403,84 @@ public class CompQuantPanelController implements Initializable{
 
 				ROI finalCombinedExcludeROI = combinedExcludeROI;
 				boolean finalDoAdjust = doAdjust;
+//				https://stackoverflow.com/questions/53558753/how-do-i-close-a-thread-local-autocloseable-used-in-parallel-stream
+//				if (threadImageServerMap.isEmpty()) {
+//					threadImageServerMap = new ConcurrentHashMap<>();
+//				} else {
+//					threadImageServerMap.forEach((k, c) -> {
+//						logger.info("trying to close image server on thread... " + k.toString());
+//						closeQuietly(c);
+//					});
+//					threadImageServerMap.clear();
+//				}
 
 //				Ugly, better to make this a forkJoinTask or runnable without lambda?
 //				https://stackoverflow.com/questions/23320407/how-to-cancel-java-8-completable-future
-				CompletableFuture.runAsync(() -> tmaCoreChildren.parallelStream().forEach(pathObj -> {
-					if(isCancelled.get()){
-						throw new CancellationException();
-					}
+				result = CompletableFuture.runAsync(() -> tmaCoreChildren.parallelStream().forEach(pathObj -> {
+									if (isCancelled.get()) {
+										throw new CancellationException();
+									}
 //					ignore the objects that are unclassified/PathClass == null
-					if (pathObj.getPathClass()!=null && compartments.contains(pathObj.getPathClass())) {
-						PathObject adjpathObj;
-						ROI adjpathObjROI = pathObj.getROI();
-						// is not very efficient as the excluded areas may only be in certain TMA spots....
-						// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
-						if (finalDoAdjust) {
-							adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-						}
-						if (adjpathObjROI.isEmpty()) {
-							logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
-							//						removeObject(detection, true);
-							return;
-						} else if (finalDoAdjust) {
-							logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
-							adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
-							hierarchy.addPathObject(adjpathObj);
-							imageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-							hierarchy.removeObject(pathObj, true);
-						} else {
-							adjpathObj = pathObj;
-						}
-						// Calculate AQUA scoring metrics for new compartment detections for all targets
-						try {
-							getTargetsIntensityScores(adjpathObj);
-						} catch (IOException ex) {
-							logger.warn(ex.toString());
-						}
-					}
-					incrementProgress(progAmount);
-				}),
-				forkJoinPool)
-				.thenRun(()->{
-					Platform.runLater(()->{
-						progressLabel.setText("Completed scoring TMA compartments!");
-						quantProgressBar.setProgress(1.0);
-						exportMeasButton.setDisable(false);
-						exportMeasMenuItem.setDisable(false);
-						startQuantButton.setDisable(false);
-					});
-				})
-				.exceptionally(ex -> {
-//					e.printStackTrace();
-					logger.warn(Arrays.toString(ex.getStackTrace()));
-					return null;
-				});
-
-			} finally{
+									if (pathObj.getPathClass() != null && compartments.contains(pathObj.getPathClass()) && pathObj.getClass() == sourceType) {
+//										ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
+										PathObject adjpathObj;
+										ROI adjpathObjROI = pathObj.getROI();
+										// is not very efficient as the excluded areas may only be in certain TMA spots....
+										// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
+										if (finalDoAdjust) {
+											adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+										}
+										if (adjpathObjROI.isEmpty()) {
+											logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+											//						removeObject(detection, true);
+											return;
+										} else if (finalDoAdjust) {
+											logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+											adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+											hierarchy.addPathObject(adjpathObj);
+											bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+											hierarchy.removeObject(pathObj, true);
+										} else {
+											adjpathObj = pathObj;
+										}
+										// Calculate AQUA scoring metrics for new compartment detections for all targets
+										try {
+											getTargetsIntensityScores_OpenCV(server, adjpathObj);
+//											getTargetsIntensityScores(adjpathObj);
+										} catch (IOException ex) {
+											logger.warn(ex.toString());
+										}
+									}
+									incrementProgress(progAmount);
+								}),
+								forkJoinPool)
+						.thenRun(() -> {
+							Platform.runLater(() -> {
+								progressLabel.setText("Completed scoring TMA compartments!");
+								quantProgressBar.setProgress(1.0);
+								exportMeasButton.setDisable(false);
+								exportMeasMenuItem.setDisable(false);
+								startQuantButton.setDisable(false);
+							});
+//							threadImageServerMap.forEach((k, c) -> {
+//								logger.info("trying to close image server on thread... " + k.toString());
+//								closeQuietly(c);
+//							});
+//							threadImageServerMap.clear();
+						})
+						.exceptionally(ex -> {
+							ex.printStackTrace();
+//							logger.warn(Arrays.toString(ex.getStackTrace()));
+							logger.warn("TMARecalcCompartmentsAndScores: " + ex);
+							return null;
+						});
+			} catch (Exception ex) {
+				throw new RuntimeException(ex);
+			} finally {
 //				no effect on commonPool
 				forkJoinPool.shutdown();
 			}
+			return result;
 		}
 
 		public enum Compartments {
@@ -1423,7 +1559,7 @@ public class CompQuantPanelController implements Initializable{
 						return stats.getMean();
 					case MEDIAN:
 						if (stats instanceof DescriptiveStatistics)
-							return ((DescriptiveStatistics)stats).getPercentile(50.0);
+							return ((DescriptiveStatistics) stats).getPercentile(50.0);
 						else
 							return Double.NaN;
 					case MIN:
@@ -1436,6 +1572,361 @@ public class CompQuantPanelController implements Initializable{
 						throw new IllegalArgumentException("Unknown measurement " + this);
 				}
 			}
+		}
+
+		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject pathObject) throws IOException {
+			//get params required
+			double downsample;
+			boolean rescaleScore;
+			boolean normalizeScore;
+			double maxFloatValue;
+			try {
+				downsample = (double) params.get("downsample");
+				rescaleScore = (boolean) params.get("rescaleScore");
+				normalizeScore = (boolean) params.get("normalizeScore");
+				maxFloatValue = (double) params.get("maxFloatValue");
+			} catch (Exception ex) {
+//				ex.printStackTrace();
+				throw new RuntimeException(ex);
+			}
+			return getTargetsIntensityScores_OpenCV(server, pathObject, targets, cellCompartments, measurements,
+					downsample, rescaleScore, normalizeScore, maxFloatValue);
+
+		}
+
+		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject pathObject,
+															Map<ColorTransform, Double> targets,
+															Collection<Compartments> cellCompartments,
+															Collection<Measurements> measurements,
+															double downsample, boolean rescaleScore, boolean normalizeScore,
+															double maxFloatValue) throws IOException {
+//			It would be nice to close the server after use, but doing this also closes the main server across all threads....
+			try {
+				// Determine amount to downsample
+//				var server = imageData.getServer();
+				String className = pathObject.getPathClass().toString();
+				PixelCalibration pc = server.getPixelCalibration();
+				PixelType pixType = server.getPixelType();
+				int bitDepth = server.getPixelType().getBitsPerPixel();
+				double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
+				//    println 'Squarred MPP: ' + mppSq.toString();
+
+				// Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
+				MeasurementList measList = pathObject.getMeasurementList();
+
+				// Add shape measurements
+				double annotationArea = pathObject.getROI().getArea();
+				measList.putMeasurement(className + " area px", annotationArea);
+				measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+				measList.putMeasurement("MPP^2", mppSq);
+				measList.putMeasurement("Channel bitdepth", bitDepth);
+				int bitDepthVal = (int) Math.pow(2, bitDepth);
+
+				if (downsample <= 0) {
+					logger.warn("Effective downsample must be > 0 (requested value {})", downsample);
+					downsample = 1.0;
+				}
+
+				measList.putMeasurement("downsample", downsample);
+
+				Map<String, DescriptiveStatistics> allStats = new ConcurrentHashMap<>();
+				Map<String, String> measNames = new ConcurrentHashMap<>();
+				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+					String targetName = tar.getKey().toString();
+					allStats.put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
+					String measName = targetName + " Intensity in " + className;
+					measNames.put(targetName, measName);
+					logger.info(String.format("Scoring %s in %s", targetName, className));
+				}
+
+				if (pathObject instanceof PathCellObject) {
+					PathCellObject cell = (PathCellObject) pathObject;
+					if (cell.getROI() == null) {
+						logger.warn("ROI is null, cannot get intensity scores...");
+						return false;
+					}
+
+					// Get bounds
+					RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, cell.getROI());
+					BufferedImage img = server.readBufferedImage(region);
+					if (img == null) {
+						logger.error("Could not read image - unable to compute intensity features for {}", pathObject);
+						return false;
+					}
+
+					// Create mask ROIs for cell and nucleus
+					// If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
+					byte[] cellBytes = null;
+					if (img.getWidth() * img.getHeight() > 1) {
+						BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), cell.getROI(), region);
+						cellBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+					}
+					byte[] nucBytes = null;
+					if (cell.getNucleusROI() != null) {
+						if (img.getWidth() * img.getHeight() > 1) {
+							BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), cell.getNucleusROI(), region);
+							nucBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+						}
+					}
+
+					//				not implemented yet
+					return false;
+
+					//For mean, median, stdev, etc.
+					//				measureCells_OpenCV(nucBytes, cellBytes, Map.of(1.0, cell), channels, cellCompartments, measurements);
+				} else {
+					ROI roi = pathObject.getROI();
+					if (roi == null) {
+						logger.warn("ROI is null, cannot get intensity scores...");
+						return false;
+					}
+					// Create tiled ROIs, if required
+					ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
+					Collection<? extends ROI> rois = RoiTools.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
+					if (rois.size() > 1)
+						logger.info("Splitting {} into {} tiles for intensity measurements", roi, rois.size());
+
+					for (ROI pathROI : rois) {
+
+						if (Thread.currentThread().isInterrupted()) {
+							logger.warn("Measurement skipped - thread interrupted!");
+							return false;
+						}
+
+						// Get bounds
+//						int pad = (int) Math.ceil(downsample * 2);
+						RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
+//								.pad2D(pad, pad)
+//								.intersect2D(0, 0, server.getWidth(), server.getHeight());
+						BufferedImage img = server.readBufferedImage(region);
+						if (img == null) {
+							logger.error("Could not read image - unable to compute intensity features for {}", pathObject);
+							return false;
+						}
+
+						// Create mask ROI if necessary
+						// If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
+						byte[] maskBytes = null;
+						if (img.getWidth() * img.getHeight() > 1) {
+							BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), pathROI, region);
+							maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+						}
+
+						int w = img.getWidth();
+						int h = img.getHeight();
+						float[] pixels = null;
+
+						for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+							ColorTransform transform = tar.getKey();
+							//						double expTime = tar.getValue();
+							DescriptiveStatistics thisStats = allStats.get(transform.toString());
+
+							// Transform the pixels
+							pixels = transform.extractChannel(server, img, pixels);
+
+							// Create the simple image
+							SimpleModifiableImage pixelImage = SimpleImages.createFloatImage(pixels, w, h);
+
+//							assert pixelImage.getHeight() * pixelImage.getWidth() == pixels.length;
+
+							// Apply any arbitrary mask and add values to stats
+							if (maskBytes != null) {
+								for (int i = 0; i < pixels.length; i++) {
+									if (maskBytes[i] == (byte) 0) {
+//										pixelImage.setValue(i % w, i / w, Float.NaN);
+										continue;
+									}
+									thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
+								}
+								allStats.put(transform.toString(), thisStats);
+							}
+						}
+					}
+					addMeasurements_OpenCV(allStats, measNames, pathObject, measurements);
+				}
+
+				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+					String targetName = tar.getKey().toString();
+					double exposure_time = tar.getValue();
+					String measName = measNames.get(targetName);
+					double targetMean = measList.getMeasurementValue(measName + ": Mean");
+					// double sumInt = targetMean*annotationArea;
+					// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
+					// Debugging, would load from available metadata
+					if (exposure_time == 0.0 || exposure_time < 0) {
+						exposure_time = 1000;
+						measList.putMeasurement(targetName + " exposure time (ms)", 0);
+					} else {
+						measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+					}
+
+					// double MeanI_S = targetMean/(exposure_time/1000)
+					// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
+					// Intensity/(um^2*sec)
+					// double QIF_area = targetMean/mppSq;
+					// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
+					//if pixelType float, skip [vetra Polaris data]
+					if (pixType.isFloatingPoint()) {
+						double QIF_areaS = (targetMean / mppSq);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					} else if (rescaleScore && !normalizeScore) {
+						//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
+						//using bitdepth and maxFloatValue to rescale
+						double rescaleFactor = (maxFloatValue / bitDepthVal);
+						double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
+						measList.putMeasurement("Rescale factor", rescaleFactor);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					} else if (normalizeScore) {
+						double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+					} else {
+						// no normalization
+						double QIF_areaS = (targetMean / mppSq);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					}
+					//    double totalPx = server.getHeight()*server.getWidth();
+					//    println 'Total pixels: '+ totalPx.toString();
+					//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
+					//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
+					//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
+					//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
+				}
+
+				// Lock any measurements that require it
+//				if (pathObject instanceof PathAnnotationObject)
+//					((PathAnnotationObject) pathObject).setLocked(true);
+//				else if (pathObject instanceof TMACoreObject)
+//					((TMACoreObject) pathObject).setLocked(true);
+//			clean up vars?
+//			server.close();
+//			pathObject.getMeasurementList().close();
+			measList.close();
+//			server = null;
+			pathObject = null;
+			measList = null;
+			measNames = null;
+			System.gc();
+
+		} catch (Exception e) {
+			throw new RuntimeException(e);
+		} finally {
+//			clean up vars?
+//			targets = null;
+//			measurements = null;
+//			cellCompartments = null;
+			System.gc();
+		}
+			return true;
+		}
+
+//		private static void measureCells_OpenCV(
+//				byte[] nucBytes, byte[] cellBytes,
+//				Map<? extends Number, ? extends PathObject> pathObjects,
+//				Map<String, ColorTransform> channels,
+//				Collection<Compartments> cellCompartments,
+//				Collection<Measurements> measurements) {
+//
+//			var array = mapToArray(pathObjects);
+//			int width = ipNuclei.getWidth();
+//			int height = ipNuclei.getHeight();
+//			ImageProcessor ipMembrane = new FloatProcessor(width, height);
+//			ImageProcessor ipCytoplasm = ipCells.duplicate();
+//			for (int y = 0; y < height; y++) {
+//				for (int x = 0; x < width; x++) {
+//					float cell = ipCells.getf(x, y);
+//					float nuc = ipNuclei.getf(x, y);
+//					if (nuc != 0f)
+//						ipCytoplasm.setf(x, y, 0f);
+//					if (cell == 0f)
+//						continue;
+//					// Check 4-neighbours to decide if we're at the membrane
+//					if ((y >= 1 && ipCells.getf(x, y-1) != cell) ||
+//							(y < height-1 && ipCells.getf(x, y+1) != cell) ||
+//							(x >= 1 && ipCells.getf(x-1, y) != cell) ||
+//							(x < width-1 && ipCells.getf(x+1, y) != cell))
+//						ipMembrane.setf(x, y, cell);
+//				}
+//			}
+//
+//			var imgNuclei = new PixelImageIJ(ipNuclei);
+//			var imgCells = new PixelImageIJ(ipCells);
+//			var imgCytoplasm = new PixelImageIJ(ipCytoplasm);
+//			var imgMembrane = new PixelImageIJ(ipMembrane);
+//
+//			for (var entry : channels.entrySet()) {
+//				var img = new PixelImageIJ(entry.getValue());
+//				if (cellCompartments.contains(Compartments.NUCLEUS))
+//					measureObjects(img, imgNuclei, array, entry.getKey().trim() + ": " + "Nucleus", measurements);
+//				if (cellCompartments.contains(Compartments.CYTOPLASM))
+//					measureObjects(img, imgCytoplasm, array, entry.getKey().trim() + ": " + "Cytoplasm", measurements);
+//				if (cellCompartments.contains(Compartments.MEMBRANE))
+//					measureObjects(img, imgMembrane, array, entry.getKey().trim() + ": " + "Membrane", measurements);
+//				if (cellCompartments.contains(Compartments.CELL))
+//					measureObjects(img, imgCells, array, entry.getKey().trim() + ": " + "Cell", measurements);
+//			}
+//
+//		}
+
+		public void addMeasurements_OpenCV(DescriptiveStatistics allStats,
+												  String allMeasNames,
+												  PathObject pathObject,
+												  Collection<Measurements> measurements){
+			// Add measurements
+			if (pathObject == null)
+				return;
+			try (var ml = pathObject.getMeasurementList()) {
+				for (var m : measurements) {
+					ml.putMeasurement(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
+				}
+			}
+		}
+
+
+		public void addMeasurements_OpenCV(Map<String, DescriptiveStatistics> allStats,
+												  Map<String, String> allMeasNames,
+												  PathObject pathObject,
+												  Collection<Measurements> measurements){
+			// Add measurements
+			if (pathObject == null)
+				return;
+			for (Map.Entry<String, DescriptiveStatistics> stats : allStats.entrySet()) {
+				try (var ml = pathObject.getMeasurementList()) {
+					for (var m : measurements) {
+						ml.putMeasurement(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
+					}
+				}
+			}
+		}
+
+		private void measureObject_OpenCV(SimpleModifiableImage img,  byte[] maskBytes,
+												 PathObject pathObject, String baseName,
+												 Collection<Measurements> measurements){
+			DescriptiveStatistics stats = null;
+			stats = measureObject_OpenCV(img, maskBytes, stats);
+			addMeasurements_OpenCV(stats, baseName, pathObject, measurements);
+		}
+		private DescriptiveStatistics measureObject_OpenCV(SimpleModifiableImage img,
+																  byte[] maskBytes,
+																  DescriptiveStatistics stats) {
+
+			// Initialize stats
+			if(stats == null) {
+				stats = new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW);
+			}
+
+			int w = img.getWidth();
+			int h = img.getHeight();
+			// Apply any arbitrary mask and compute stats
+			if (maskBytes != null) {
+				for (int i = 0; i < w * h; i++) {
+					if (maskBytes[i] == (byte) 0) {
+//						img.setValue(i % w, i / w, Float.NaN);
+						continue;
+					}
+					stats.addValue((double) img.getValue(i % w, i / w));
+				}
+			}
+			return stats;
 		}
 
 
@@ -1454,153 +1945,166 @@ public class CompQuantPanelController implements Initializable{
 //				ex.printStackTrace();
 				throw new RuntimeException(ex);
 			}
-			getTargetsIntensityScores(imageData, pathObject, targets, cellCompartments, measurements, downsample, rescaleScore, normalizeScore, maxFloatValue);
+			getTargetsIntensityScores(qupath.getImageData(), pathObject, targets, cellCompartments, measurements, downsample, rescaleScore, normalizeScore, maxFloatValue);
 		}
-		public static void getTargetsIntensityScores(ImageData<BufferedImage> imageData, PathObject pathObject,
+
+		public void getTargetsIntensityScores(ImageData<BufferedImage> imageData, PathObject pathObject,
 													 Map<ColorTransform, Double> targets,
 													 Collection<Compartments> cellCompartments,
 													 Collection<Measurements> measurements,
 													 double downsample, boolean rescaleScore, boolean normalizeScore,
 													 double maxFloatValue) throws IOException {
 
-			// Convert to binary mask Mat
-			ROI roi = pathObject.getROI();
-			String className = pathObject.getPathClass().toString();
-			ImageServer<BufferedImage> server = imageData.getServer();
+			try {
+				// Convert to binary mask Mat
+				ROI roi = pathObject.getROI();
+				String className = pathObject.getPathClass().toString();
+				ImageServer<BufferedImage> server = imageData.getServer();
 
-			int pad = (int) Math.ceil(downsample * 2);
-			RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
-					.pad2D(pad, pad)
-					.intersect2D(0, 0, server.getWidth(), server.getHeight());
+				int pad = (int) Math.ceil(downsample * 2);
+				RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
+						.pad2D(pad, pad)
+						.intersect2D(0, 0, server.getWidth(), server.getHeight());
 
-			PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
-//			ImagePlus imp = pathImage.getImage();
+				PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
+				//			ImagePlus imp = pathImage.getImage();
 
-			PixelCalibration pc = server.getPixelCalibration();
-			PixelType pixType = server.getPixelType();
-			int bitDepth = server.getPixelType().getBitsPerPixel();
-			double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
-			//    println 'Squarred MPP: ' + mppSq.toString();
+				PixelCalibration pc = server.getPixelCalibration();
+				PixelType pixType = server.getPixelType();
+				int bitDepth = server.getPixelType().getBitsPerPixel();
+				double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
+				//    println 'Squarred MPP: ' + mppSq.toString();
 
-			// Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
-			MeasurementList measList = pathObject.getMeasurementList();
+				// Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
+				MeasurementList measList = pathObject.getMeasurementList();
 
-			// Add shape measurements
-			double annotationArea = pathObject.getROI().getArea();
-			measList.putMeasurement(className + " area px", annotationArea);
-			measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
-			measList.putMeasurement("MPP^2", mppSq);
-			measList.putMeasurement("Channel bitdepth", bitDepth);
-			int bitDepthVal = (int) Math.pow(2, bitDepth);
-//			int bitDepthVal = (int) Math.pow(2, 16);
+				// Add shape measurements
+				double annotationArea = pathObject.getROI().getArea();
+				measList.putMeasurement(className + " area px", annotationArea);
+				measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+				measList.putMeasurement("MPP^2", mppSq);
+				measList.putMeasurement("Channel bitdepth", bitDepth);
+				int bitDepthVal = (int) Math.pow(2, bitDepth);
+				//			int bitDepthVal = (int) Math.pow(2, 16);
 
-			Map<String, ImageProcessor> channels = new LinkedHashMap<>();
-			Map<String, String> measNames = new LinkedHashMap<>();
+				Map<String, ImageProcessor> channels = new LinkedHashMap<>();
+				Map<String, String> measNames = new LinkedHashMap<>();
 
-			//Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
-			//Using ImageJ to create a binary mask [0,1] of ROI
-			ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
-			bpCell.setValue(1.0);
-			Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
-			bpCell.fill(roiIJ);
+				//Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
+				//Using ImageJ to create a binary mask [0,1] of ROI
+				ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
+				bpCell.setValue(1.0);
+				Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
+				bpCell.fill(roiIJ);
 
-			//Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
-			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-				ColorTransform targetTransform = tar.getKey();
-				String targetName = targetTransform.toString();
-				ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
-				String measName = targetName + " Intensity in " + className;
-				measNames.put(targetName, measName);
-				channels.put(measName, ipChannel);
-				logger.info(String.format("Scoring %s in %s", targetName, className));
-			}
-
-			if (pathObject instanceof PathCellObject) {
-				PathCellObject cell = (PathCellObject) pathObject;
-				ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
-				if (cell.getNucleusROI() != null) {
-					bpNucleus.setValue(1.0);
-					Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
-					bpNucleus.fill(roiNucleusIJ);
+				//Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
+				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+					ColorTransform targetTransform = tar.getKey();
+					String targetName = targetTransform.toString();
+					ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
+					String measName = targetName + " Intensity in " + className;
+					measNames.put(targetName, measName);
+					channels.put(measName, ipChannel);
+					logger.info(String.format("Scoring %s in %s", targetName, className));
 				}
-				//For mean, median, stdev, etc.
-				measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
-				//Calculate sum intensity in compartment
-				//        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-			} else {
-				var imgLabels = new PixelImageIJ(bpCell);
-				for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
-					var img = new PixelImageIJ(entry.getValue());
+
+				if (pathObject instanceof PathCellObject) {
+					PathCellObject cell = (PathCellObject) pathObject;
+					ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
+					if (cell.getNucleusROI() != null) {
+						bpNucleus.setValue(1.0);
+						Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
+						bpNucleus.fill(roiNucleusIJ);
+					}
 					//For mean, median, stdev, etc.
-					measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
+					measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
 					//Calculate sum intensity in compartment
-					//            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-				}
-			}
-
-
-			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-				String targetName = tar.getKey().toString();
-				double exposure_time = tar.getValue();
-				String measName = measNames.get(targetName);
-				double targetMean = measList.getMeasurementValue(measName + ": Mean");
-				// double sumInt = targetMean*annotationArea;
-				// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
-				// Debugging, would load from available metadata
-				if (exposure_time == 0.0 || exposure_time < 0) {
-					exposure_time = 1000;
-					measList.putMeasurement(targetName + " exposure time (ms)", 0);
+					//        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
 				} else {
-					measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+					var imgLabels = new PixelImageIJ(bpCell);
+					for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
+						var img = new PixelImageIJ(entry.getValue());
+						//For mean, median, stdev, etc.
+						measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
+						//Calculate sum intensity in compartment
+						//            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
+					}
 				}
 
-				// double MeanI_S = targetMean/(exposure_time/1000)
-				// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
-				// Intensity/(um^2*sec)
-				// double QIF_area = targetMean/mppSq;
-				// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
-				//if pixelType float, skip [vetra Polaris data]
-				if(pixType.isFloatingPoint()) {
-					double QIF_areaS = (targetMean / mppSq);
-					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-				}else if(rescaleScore && !normalizeScore){
-					//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
-					//using bitdepth and maxFloatValue to rescale
-					double rescaleFactor = (maxFloatValue/bitDepthVal);
-					double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
-					measList.putMeasurement("Rescale factor", rescaleFactor);
-					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-				}else if(normalizeScore) {
-					double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
-				}else{
-					// no normalization
-					double QIF_areaS = (targetMean / mppSq);
-					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+
+				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+					String targetName = tar.getKey().toString();
+					double exposure_time = tar.getValue();
+					String measName = measNames.get(targetName);
+					double targetMean = measList.getMeasurementValue(measName + ": Mean");
+					// double sumInt = targetMean*annotationArea;
+					// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
+					// Debugging, would load from available metadata
+					if (exposure_time == 0.0 || exposure_time < 0) {
+						exposure_time = 1000;
+						measList.putMeasurement(targetName + " exposure time (ms)", 0);
+					} else {
+						measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+					}
+
+					// double MeanI_S = targetMean/(exposure_time/1000)
+					// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
+					// Intensity/(um^2*sec)
+					// double QIF_area = targetMean/mppSq;
+					// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
+					//if pixelType float, skip [vetra Polaris data]
+					if (pixType.isFloatingPoint()) {
+						double QIF_areaS = (targetMean / mppSq);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					} else if (rescaleScore && !normalizeScore) {
+						//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
+						//using bitdepth and maxFloatValue to rescale
+						double rescaleFactor = (maxFloatValue / bitDepthVal);
+						double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
+						measList.putMeasurement("Rescale factor", rescaleFactor);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					} else if (normalizeScore) {
+						double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+					} else {
+						// no normalization
+						double QIF_areaS = (targetMean / mppSq);
+						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+					}
+					//    double totalPx = server.getHeight()*server.getWidth();
+					//    println 'Total pixels: '+ totalPx.toString();
+					//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
+					//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
+					//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
+					//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
 				}
-				//    double totalPx = server.getHeight()*server.getWidth();
-				//    println 'Total pixels: '+ totalPx.toString();
-				//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
-				//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
-				//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
-				//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
+
+//				clean up vars?
+//				server.close();
+				measList.close();
+				server = null;
+				pathImage = null;
+				channels = null;
+				request = null;
+				measList = null;
+				measNames = null;
+				roiIJ = null;
+				bpCell = null;
+				roi = null;
+				System.gc();
+
+			} catch (Exception e) {
+				throw new RuntimeException(e);
+			} finally {
+
+//				clean up vars?
+				imageData = null;
+				targets = null;
+				measurements = null;
+				cellCompartments = null;
+				System.gc();
+
 			}
-
-//			clean up vars?
-			imageData = null;
-			targets = null;
-			server = null;
-			pathImage = null;
-			channels = null;
-			request = null;
-			measList = null;
-			measNames = null;
-			measurements = null;
-			cellCompartments = null;
-			roiIJ = null;
-			bpCell = null;
-			roi = null;
-			System.gc();
 		}
 
 
