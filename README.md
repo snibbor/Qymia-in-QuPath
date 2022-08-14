@@ -5,16 +5,19 @@ CompAnalysis is currently designed as a 2 part GUI extension where you make comp
 
 ## TODO:
 - CompQuant
-  - Grid/Tile calculation of compartment scores + overlay image (measurement map?)
-    - Export measurements to tab delim .csv or .json?
-  - Export masks as binary masks or segmentation masks for downstream applications
-  - Improve "finished" asthetics/state of progress bar
-  - Minimize ImageJ, OpenCV image/matrix datatype conversions
-  - Need to fix memory leak from ForkJoinPool termination 
+  - [ ] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
+    - [ ] Export measurements to tab delim .csv or .json?
+  - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
+    - OpenCV implementation reduced memory consumption ~ same speed
+  - [ ] Need to fix memory leak from ForkJoinPool
+    - ~~[x] Clean up resources (e.g. ImageServer)?~~ --> doesn't completely dereference memory in thread, can't close() ImageServer because it can close the main ImageServer
+    - [ ] Custom thread pool/executor? qupath.lib.common.ThreadTools?
   - Advanced settings
-    - Change ignore classes
-    - Simpler measurement export options
-    - Change rescale value (if image data was already normalized but rescaled to an unsigned integer)
+    - [ ] Change ignore classes
+    - [ ] Simpler measurement export options
+    - [ ] Change rescale value (if image data was already normalized but rescaled to an unsigned integer)
+  - [ ] Export masks as binary masks or segmentation masks for downstream applications
+  - [ ] Improve "finished" asthetics/state of progress bar
   - Test for bugs
 
 - CompMaker
