@@ -31,6 +31,7 @@ import javafx.util.converter.IntegerStringConverter;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 
+import org.locationtech.jts.geom.Geometry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.imagej.tools.IJTools;
@@ -40,6 +41,7 @@ import qupath.imagej.tools.PixelImageIJ;
 import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.analysis.images.SimpleImages;
 import qupath.lib.analysis.images.SimpleModifiableImage;
+import qupath.lib.awt.common.AwtTools;
 import qupath.lib.awt.common.BufferedImageTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
@@ -57,6 +59,7 @@ import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
 
@@ -67,6 +70,9 @@ import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
 
 //import java.awt.*;
+import java.awt.*;
+import java.awt.geom.Area;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 //import java.io.BufferedReader;
 import java.awt.image.DataBufferByte;
@@ -84,6 +90,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class CompQuantPanelController implements Initializable{
 
@@ -932,7 +939,7 @@ public class CompQuantPanelController implements Initializable{
 	//	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
 	public class CompQuantBackend {
 		private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
-		private static ForkJoinPool forkJoinPool;
+		private ForkJoinPool forkJoinPool;
 //		private ForkJoinTask mainTask;
 
 		private int estNumTasks;
@@ -1208,23 +1215,19 @@ public class CompQuantPanelController implements Initializable{
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
 		// How to flexibly find ROIs within TMA core hierarchy?
 		public CompletableFuture<Void> getTargetScoresForROIs() throws RuntimeException {
-			return getTargetScoresForROIs(roiClasses, targets, compartments,(Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
+			return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments,(Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
 		}
 
 		//		It would be nice to set this up so that there is a static method that can be used from scripting if you didn't want to use the GUI
 //		but then you would have to remove all the non-static GUI progress bar elements and use the commonPool, so the code would be different....
-		public CompletableFuture<Void> getTargetScoresForROIs(Set<PathClass> rois,
-										   Map<ColorTransform, Double> targets,
-										   Set<PathClass> compartments,
-										   Class<? extends PathObject> sourceType,
-										   double downsample,
-										   int numThreads
+		public CompletableFuture<Void> getTargetScoresForROIs(Set<PathClass> ignoreClasses,
+															  Set<PathClass> rois,
+															  Map<ColorTransform, Double> targets,
+															  Set<PathClass> compartments,
+															  Class<? extends PathObject> sourceType,
+															  double downsample,
+															  int numThreads
 		) throws RuntimeException {
-
-			// Add annotations to heirarchy connected to ROI
-
-			// Remove uninformative classes (Tissue)
-//			compartments.remove("Tissue");
 
 			if (numThreads <= 0)
 				numThreads = 1;
@@ -1236,10 +1239,12 @@ public class CompQuantPanelController implements Initializable{
 
 			// Used for placing child objects inside ROI
 			AtomicInteger roiNumber = new AtomicInteger(1);
+			AtomicReference<Boolean> doAdjust = new AtomicReference<>(false);
+			ROI combinedExcludeROI;
+			Geometry combinedExcludeGeom;
 
-//			Check if ignore annotations were already excluded from annotation masks?
-
-			var pathObjs = bImageData.getHierarchy().getObjects(null, PathObject.class);
+			PathObjectHierarchy hierarchy = bImageData.getHierarchy();
+			var pathObjs = hierarchy.getObjects(null, PathObject.class);
 //			https://stackoverflow.com/questions/53558753/how-do-i-close-a-thread-local-autocloseable-used-in-parallel-stream
 //			if(threadImageServerMap.isEmpty()) {
 //				threadImageServerMap = new ConcurrentHashMap<>();
@@ -1253,22 +1258,57 @@ public class CompQuantPanelController implements Initializable{
 			ImageServer<BufferedImage> server = bImageData.getServer();
 			CompletableFuture<Void> result = null;
 			try {
-				var compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
+				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
 						.collect(Collectors.toList())).get();
+				List<PathObject> compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
+						.collect(Collectors.toList())).get();
+
+				logger.info(allIgnoreAnnotations.toString());
+				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
+				if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
+					doAdjust.set(true);
+					combinedExcludeGeom = combinedExcludeROI.getGeometry();
+				}else{
+					doAdjust.set(false);
+					combinedExcludeGeom = null;
+				}
+
 //				https://stackoverflow.com/questions/23320407/how-to-cancel-java-8-completable-future
 //				ROI cannot be unclassified/null or else contains() throws a NullPointerException
 				result = CompletableFuture.runAsync(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
 										.map(f -> {
 											// Record null/none values for compartments not within ROI
-//							logger.info(f.getName());
+//											logger.info(f.getName());
 											if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
 												f.setName("ROI_" + roiNumber.get());
 												roiNumber.incrementAndGet();
 											}
+
+											PathObject adjpathObj = null;
+											ROI adjpathObjROI = f.getROI();
+											boolean intersectsExclude = false;
+											if (doAdjust.get() && combinedExcludeGeom != null) {
+												intersectsExclude = adjpathObjROI.getGeometry().intersects(combinedExcludeGeom);
+												if (intersectsExclude) {
+													adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+												}
+											}
+											if (adjpathObjROI.isEmpty()) {
+												logger.info(String.format("ROI %s is now empty, skipping AQUA metrics...", f.getName()));
+											} else if (doAdjust.get() && intersectsExclude) {
+												logger.info(String.format("Adjusting ROI %s based on ignore annotations...", f.getName()));
+												adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+												hierarchy.addPathObject(adjpathObj);
+//												bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+												hierarchy.removeObject(f, true);
+											} else {
+												adjpathObj = f;
+											}
+
 											// this might work but does it scale for lots of ROIs?
 											totalROIs.incrementAndGet();
 											setEstNumTasks(totalROIs.get());
-											return f;
+											return adjpathObj;
 										})
 										.forEach(r -> {
 											//Typically the number of compartments is small and these are all combined for a WSI.
@@ -1277,36 +1317,36 @@ public class CompQuantPanelController implements Initializable{
 												throw new CancellationException();
 											}
 
-//											ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
+											if(r != null) {
+//												ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
+												for (PathObject compObj : compartmentObjs) {
 
-											for (PathObject compObj : compartmentObjs) {
+													ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
 
-												ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
+													if (!compInterROI.isEmpty()) {
+														PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
+														logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
+														// For debugging, maybe helps with visualization
+														// Add object as a child of the ROI
+														//                        addObject(compInterDet);
+														compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
+														bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
 
-												if (!compInterROI.isEmpty()) {
-													PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
-													logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
-													// For debugging, maybe helps with visualization
-													// Add object as a child of the ROI
-													//                        addObject(compInterDet);
-													compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-													bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
+														logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
 
-													logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
-
-													// Quantify metrics/AQUA for each target in each intersecting compartment
-													// Calculate AQUA scoring metrics for new compartment detections for all targets
-													try {
-														getTargetsIntensityScores_OpenCV(server, compInterDet);
-													} catch (IOException ex) {
-														logger.warn(ex.toString());
+														// Quantify metrics/AQUA for each target in each intersecting compartment
+														// Calculate AQUA scoring metrics for new compartment detections for all targets
+														try {
+															getTargetsIntensityScores_OpenCV(server, compInterDet);
+														} catch (IOException ex) {
+															logger.warn(ex.toString());
+														}
+													} else {
+														logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
 													}
-												} else {
-													logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
 												}
 											}
 											incrementProgress(progAmount);
-
 										}),
 								forkJoinPool)
 						.thenRun(() -> {
@@ -1339,6 +1379,88 @@ public class CompQuantPanelController implements Initializable{
 			return result;
 		}
 
+		public static List<ROI> makeTiles(ROI roi, int tileWidth, int tileHeight, boolean trimToROI, boolean createTileObjects) {
+			// TODO: Convert to use JTS Geometries rather than AWT Areas.
+			// TODO: Convert to parallelStreams
+			// Create a collection of tiles
+			Rectangle bounds = AwtTools.getBounds(roi);
+			Area area = RoiTools.getArea(roi);
+			List<ROI> tiles = new ArrayList<>();
+			int indY = 0;
+			int indX = 0;
+			for (int y = bounds.y; y < bounds.y + bounds.height; y += tileHeight) {
+				for (int x = bounds.x; x < bounds.x + bounds.width; x += tileWidth) {
+					//				int width = Math.min(x + tileWidth, bounds.x + bounds.width) - x;
+					//				int height = Math.min(y + tileHeight, bounds.y + bounds.height) - y;
+					int width = tileWidth;
+					int height = tileHeight;
+					Rectangle tileBounds = new Rectangle(x, y, width, height);
+					ROI tile;
+					// If the tile is completely contained by the ROI, it's straightforward
+					if (area.contains(x, y, width, height))
+						tile = ROIs.createRectangleROI(x, y, width, height, roi.getImagePlane());
+					else if (!trimToROI) {
+						// If we aren't trimming, then check if the centroid is contained
+						if (area.contains(x+0.5*width, y+0.5*height))
+							tile = ROIs.createRectangleROI(x, y, width, height, roi.getImagePlane());
+						else
+							continue;
+					}
+					else {
+						// Check if we are actually within the object
+						if (!area.intersects(x, y, width, height))
+							continue;
+						// Shrink the tile if that is sensible
+						// TODO: Avoid converting tiles to Areas where not essential
+						Area tileArea = new Area(tileBounds);
+						tileArea.intersect(area);
+						if (tileArea.isEmpty())
+							continue;
+						if (tileArea.isRectangular()) {
+							Rectangle2D bounds2 = tileArea.getBounds2D();
+							tile = ROIs.createRectangleROI(bounds2.getX(), bounds2.getY(), bounds2.getWidth(), bounds2.getHeight(), roi.getImagePlane());
+						}
+						else
+							tile = ROIs.createAreaROI(tileArea, roi.getImagePlane());
+					}
+					if(createTileObjects) {
+						PathObject tileObj = PathObjects.createTileObject(tile);
+						tileObj.setName(String.format("Tile (%d, %d)", indY, indX));
+					}
+					tiles.add(tile);
+					++indX;
+				}
+				++indY;
+			}
+			return tiles;
+		}
+		public CompletableFuture<Void> TileRecalcCompartmentsAndScores(Set<PathClass> ignoreClasses,
+																	   Map<ColorTransform, Double> targets,
+																	   Set<PathClass> compartments,
+																	   Class<? extends PathObject> sourceType,
+																	   double downsample,
+																	   int tileSize,
+																	   int numThreads
+		) throws RuntimeException{
+
+			ROI rootImageROI = bImageData.getHierarchy().getRootObject().getROI();
+			List<ROI> tiles = makeTiles(rootImageROI, tileSize, tileSize, false, true);
+			
+
+			return null;
+
+			// Make tiles for entire image of tileSize x tileSize
+				// label tiles "Tile_(row, col)"
+				// get empty tiles?
+				// get intersections with compartments here?
+			// for each tile, get intersection with each compartment
+				// add compartment intersection as detection to parent tile hierarchy?
+				// get intensity measurements, add to detection object AND parent tile
+
+
+
+		}
+
 
 		public CompletableFuture<Void>  TMARecalcCompartmentsAndScores() throws RuntimeException {
 			return TMARecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
@@ -1358,7 +1480,11 @@ public class CompQuantPanelController implements Initializable{
 			// Adjust each compartment by subtracting the exclude region and adding the corresponding compartment adjustments
 			// Iterate through compartments/detections to recreate them if adjustments were made
 			// Calculate AQUA metrics for each target
-			boolean doAdjust = false;
+			CompletableFuture<Void> result = null;
+			AtomicReference<Boolean> doAdjust = new AtomicReference<>(false);
+			// Combine exclude regions, but do not create a new merged object
+			ROI combinedExcludeROI;
+			Geometry combinedExcludeGeom;
 
 			logger.info("Updating existing compartments with any new annotations, calcuating AQUA metrics...");
 
@@ -1366,20 +1492,23 @@ public class CompQuantPanelController implements Initializable{
 			PathObjectHierarchy hierarchy = bImageData.getHierarchy();
 
 			TMAGrid tmaGrid = hierarchy.getTMAGrid();
+			if(tmaGrid==null){
+				logger.error("TMA grid is null, de-array TMA before scoring!");
+//				throw new RuntimeException();
+				return result;
+			}
 			List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
 			// an estimate if there are the same amount of compartments per TMA spot....
 			// could just try and use the amount of tasks queued... doesn't work in time before forkJoinPool is done with submit/invoke
-			setEstNumTasks((int) tmaCores.size() * compartments.size());
+//			setEstNumTasks((int) tmaCores.size() * compartments.size());
 			Integer progAmount = 1;
-			// Combine exclude regions, but do not create a new merged object
-			ROI combinedExcludeROI = null;
 			if (numThreads <= 0)
 				numThreads = 1;
 
 			setupNewForkJoinPool(numThreads);
 
-			CompletableFuture<Void> result = null;
 			ImageServer<BufferedImage> server = bImageData.getServer();
+
 			try {
 				// These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
 				// maybe can rewrite this whole block as a sequential task to submit to the pool?
@@ -1388,21 +1517,27 @@ public class CompQuantPanelController implements Initializable{
 				List<PathObject> tmaCoreChildren = Collections.synchronizedList(forkJoinPool.submit(() -> tmaCores.parallelStream().flatMap(core -> core.getChildObjects().stream())
 						.collect(Collectors.toList())).get());
 
+				if(tmaCoreChildren.size() < 1){
+					logger.error("Compartments and annotations must be inserted into TMA hierarchy before scoring!");
+					return result;
+				}
+
+//				Would be faster to associate each ignore annotation into the TMACore hierarchy, and then just subtract the ignore annotation for each core.
+//				But the insert hierarchy doesn't work unless there is a sufficient overlap exists between children and parent objects...
 				// Need to make sure that all TMA cores have their annotations inserted into the hierarchy or else the getChildObjects() will miss annotations...
 				// insertHierarchy can miss annotations that are outside of TMA core parent. Maybe there is a way to use the missing annotations
 				// and check if any TMA cores x,y contain that annotation (or vice versa).
-
-				//Just for the progress bar... assuming that all compartment annotations == number of tasks
-//				List<PathObject> allCompartmentAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> compartments.contains(p.getPathClass()))
-//						.collect(Collectors.toList())).get();
 				setEstNumTasks(tmaCoreChildren.size());
 				logger.info(allIgnoreAnnotations.toString());
 				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
-				if (combinedExcludeROI != null)
-					doAdjust = true;
+				if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
+					doAdjust.set(true);
+					combinedExcludeGeom = combinedExcludeROI.getGeometry();
+				} else{
+					doAdjust.set(false);
+					combinedExcludeGeom = null;
+				}
 
-				ROI finalCombinedExcludeROI = combinedExcludeROI;
-				boolean finalDoAdjust = doAdjust;
 //				https://stackoverflow.com/questions/53558753/how-do-i-close-a-thread-local-autocloseable-used-in-parallel-stream
 //				if (threadImageServerMap.isEmpty()) {
 //					threadImageServerMap = new ConcurrentHashMap<>();
@@ -1425,16 +1560,22 @@ public class CompQuantPanelController implements Initializable{
 //										ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
 										PathObject adjpathObj;
 										ROI adjpathObjROI = pathObj.getROI();
+										boolean intersectsExclude = false;
 										// is not very efficient as the excluded areas may only be in certain TMA spots....
 										// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
-										if (finalDoAdjust) {
-											adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, finalCombinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+										// not very efficient use of if statements when these variables are set before the parallelStream starts
+										// case switch inside parallelStream? does this work?
+										if (doAdjust.get() && combinedExcludeGeom != null) {
+											intersectsExclude = adjpathObjROI.getGeometry().intersects(combinedExcludeGeom);
+											if (intersectsExclude) {
+												adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+											}
 										}
 										if (adjpathObjROI.isEmpty()) {
 											logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
 											//						removeObject(detection, true);
 											return;
-										} else if (finalDoAdjust) {
+										} else if (doAdjust.get() && intersectsExclude) {
 											logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
 											adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
 											hierarchy.addPathObject(adjpathObj);
