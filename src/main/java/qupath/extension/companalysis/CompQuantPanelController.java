@@ -31,7 +31,10 @@ import javafx.util.converter.IntegerStringConverter;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.prep.PreparedGeometry;
+import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.imagej.tools.IJTools;
@@ -58,7 +61,9 @@ import qupath.lib.objects.hierarchy.TMAGrid;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
+import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
+import qupath.lib.roi.GeometryTools;
 import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
@@ -66,17 +71,17 @@ import qupath.lib.roi.interfaces.ROI;
 import static qupath.lib.common.Prefs.getNumThreads;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.clearMeasurements;
+import static qupath.lib.scripting.QP.getCurrentHierarchy;
+
 import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
 
 //import java.awt.*;
 import java.awt.*;
-import java.awt.geom.Area;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 //import java.io.BufferedReader;
 import java.awt.image.DataBufferByte;
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.math.BigInteger;
@@ -615,6 +620,13 @@ public class CompQuantPanelController implements Initializable{
 		} else{
 			sourceType = PathAnnotationObject.class;
 		}
+
+		int inputGridSize;
+		if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
+			inputGridSize = defaultGridSize;
+		else
+			inputGridSize = Integer.parseInt(gridSizeTextField.getText());
+
 		CompQuantBackend compQuant = new CompQuantBackend(qupath.getImageData(),
 										selectedTargets,
 										selectedCompartments,
@@ -622,6 +634,7 @@ public class CompQuantPanelController implements Initializable{
 										roiClasses,
 										runCancelled,
 										downsample,
+										inputGridSize,
 										sourceType,
 										rescaleScore,
 										normalizeScore,
@@ -648,15 +661,24 @@ public class CompQuantPanelController implements Initializable{
 				if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
 //						return false;
-				}else if(gridSizeTextField.getText() != null && Double.parseDouble(gridSizeTextField.getText()) == 0.0) {
+				}else if(gridSizeTextField.getText() != null && Integer.parseInt(gridSizeTextField.getText()) == 0) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
 //						return false;
 				}else {
-					logger.warn("Grid scoring not implemented yet...");
+//					logger.warn("Grid scoring not implemented yet...");
 					Platform.runLater(()->{
-						progressLabel.setText("Grid scoring not implemented yet! Skipping...");
+						progressLabel.setText("Quantifying Grid Tiles...");
 					});
-//						return true;
+					try{
+						compQuant.TileRecalcCompartmentsAndScores();
+					}catch (CancellationException ex){
+						Platform.runLater(()-> {
+							exportMeasButton.setDisable(false);
+							exportMeasMenuItem.setDisable(false);
+							startQuantButton.setDisable(false);
+						});
+						throw new RuntimeException(ex);
+					}
 				}
 
 			}
@@ -952,9 +974,9 @@ public class CompQuantPanelController implements Initializable{
 //		public final boolean rescaleScore;
 		private Map<String, Object> params = new ConcurrentHashMap<>();
 
-//		private QuPathGUI qupath;
+		//		private QuPathGUI qupath;
 		private ImageData<BufferedImage> bImageData;
-//		private Map<Thread, ImageServer<BufferedImage>> threadImageServerMap = new ConcurrentHashMap<>();
+		//		private Map<Thread, ImageServer<BufferedImage>> threadImageServerMap = new ConcurrentHashMap<>();
 		private ConcurrentHashMap<ColorTransform, Double> targets;
 		private Set<PathClass> compartments;
 		private Set<PathClass> ignoreClasses;
@@ -972,6 +994,7 @@ public class CompQuantPanelController implements Initializable{
 						 Set<PathClass> roiClasses,
 						 AtomicReference<Boolean> runCancelled,
 						 double downsample,
+						 int tileSize,
 						 Class<? extends PathObject> sourceType,
 						 boolean rescaleScore,
 						 boolean normalizeScore,
@@ -986,6 +1009,7 @@ public class CompQuantPanelController implements Initializable{
 			this.isCancelled = runCancelled;
 			this.params = new ConcurrentHashMap<>(Map.ofEntries(
 					Map.entry("downsample", downsample),
+					Map.entry("tileSize", tileSize),
 					Map.entry("sourceType", sourceType),
 					Map.entry("rescaleScore", rescaleScore),
 					Map.entry("normalizeScore", normalizeScore),
@@ -1002,6 +1026,7 @@ public class CompQuantPanelController implements Initializable{
 						 Set<PathClass> roiClasses,
 						 AtomicReference<Boolean> runCancelled,
 						 double downsample,
+						 int tileSize,
 						 Class<? extends PathObject> sourceType,
 						 boolean rescaleScore,
 						 boolean normalizeScore,
@@ -1018,6 +1043,7 @@ public class CompQuantPanelController implements Initializable{
 			this.isCancelled = runCancelled;
 			this.params = new ConcurrentHashMap<>(Map.ofEntries(
 					Map.entry("downsample", downsample),
+					Map.entry("tileSize", tileSize),
 					Map.entry("sourceType", sourceType),
 					Map.entry("rescaleScore", rescaleScore),
 					Map.entry("normalizeScore", normalizeScore),
@@ -1051,7 +1077,7 @@ public class CompQuantPanelController implements Initializable{
 			}
 		}
 
-		public static void closeQuietly(AutoCloseable c){
+		public static void closeQuietly(AutoCloseable c) {
 			if (c != null) {
 				logger.info("closing...");
 				try {
@@ -1151,7 +1177,7 @@ public class CompQuantPanelController implements Initializable{
 		public CompletableFuture<Void> cancelTasks() {
 			logger.warn("Trying to shutdown running tasks!");
 			isCancelled.set(true);
-			CompletableFuture<Void> result = CompletableFuture.runAsync (()-> {
+			CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
 				if (forkJoinPool != null) {
 					forkJoinPool.shutdownNow();
 					try {
@@ -1185,37 +1211,43 @@ public class CompQuantPanelController implements Initializable{
 			}
 		}
 
-		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
-			ROI combinedROI = null;
-			PathClass p_class = null;
-			for (PathObject annotation : annots) {
-				if (combinedROI == null) {
-					combinedROI = annotation.getROI();//.duplicate();
-					p_class = annotation.getPathClass();
-				} else if (combinedROI.getImagePlane().equals(annotation.getROI().getImagePlane())) {
-					combinedROI = RoiTools.combineROIs(combinedROI, annotation.getROI(), RoiTools.CombineOp.ADD);
-				} else {
-					logger.info("Cannot merge PathObjects across different image planes!");
-//				continue;
-				}
-			}
+//		public ROI combinePathObjs(List<PathObject> annots) throws ExecutionException, InterruptedException {
+//			List<ROI> rois = forkJoinPool.submit(()-> annots.parallelStream().map(a -> a.getROI()).collect(Collectors.toList())).get();
+//			ROI combinedROI = RoiTools.union(rois);
+//			return combinedROI;
+//		}
 
-			if (newAnnot) {
-				PathObjectHierarchy hierarchy = bImageData.getHierarchy();
-				hierarchy.removeObjects(annots, true);
-				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
-				hierarchy.addPathObject(combinedAnnot);
-			}
-
-			return combinedROI;
-		}
+//		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
+//			ROI combinedROI = null;
+//			PathClass p_class = null;
+//			for (PathObject annotation : annots) {
+//				if (combinedROI == null) {
+//					combinedROI = annotation.getROI();//.duplicate();
+//					p_class = annotation.getPathClass();
+//				} else if (combinedROI.getImagePlane().equals(annotation.getROI().getImagePlane())) {
+//					combinedROI = RoiTools.combineROIs(combinedROI, annotation.getROI(), RoiTools.CombineOp.ADD);
+//				} else {
+//					logger.info("Cannot merge PathObjects across different image planes!");
+////				continue;
+//				}
+//			}
+//
+//			if (newAnnot) {
+//				PathObjectHierarchy hierarchy = bImageData.getHierarchy();
+//				hierarchy.removeObjects(annots, true);
+//				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
+//				hierarchy.addPathObject(combinedAnnot);
+//			}
+//
+//			return combinedROI;
+//		}
 
 		// AQUA inside each intersecting compartment of ROI only
 		//    Map<String, Integer> targets = new LinkedHashMap<>();
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
 		// How to flexibly find ROIs within TMA core hierarchy?
 		public CompletableFuture<Void> getTargetScoresForROIs() throws RuntimeException {
-			return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments,(Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
+			return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
 		}
 
 		//		It would be nice to set this up so that there is a static method that can be used from scripting if you didn't want to use the GUI
@@ -1258,17 +1290,20 @@ public class CompQuantPanelController implements Initializable{
 			ImageServer<BufferedImage> server = bImageData.getServer();
 			CompletableFuture<Void> result = null;
 			try {
-				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
+				List<ROI> allIgnoreROIs = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream()
+						.filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
+						.map(p -> p.getROI())
 						.collect(Collectors.toList())).get();
-				List<PathObject> compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
-						.collect(Collectors.toList())).get();
+				List<PathObject> compartmentObjs = Collections.synchronizedList(forkJoinPool.submit(() -> pathObjs.parallelStream()
+						.filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
+						.collect(Collectors.toList())).get());
 
-				logger.info(allIgnoreAnnotations.toString());
-				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
+				logger.info(allIgnoreROIs.toString());
+				combinedExcludeROI = RoiTools.union(allIgnoreROIs);
 				if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
 					doAdjust.set(true);
 					combinedExcludeGeom = combinedExcludeROI.getGeometry();
-				}else{
+				} else {
 					doAdjust.set(false);
 					combinedExcludeGeom = null;
 				}
@@ -1317,7 +1352,7 @@ public class CompQuantPanelController implements Initializable{
 												throw new CancellationException();
 											}
 
-											if(r != null) {
+											if (r != null) {
 //												ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
 												for (PathObject compObj : compartmentObjs) {
 
@@ -1379,61 +1414,378 @@ public class CompQuantPanelController implements Initializable{
 			return result;
 		}
 
-		public static List<ROI> makeTiles(ROI roi, int tileWidth, int tileHeight, boolean trimToROI, boolean createTileObjects) {
-			// TODO: Convert to use JTS Geometries rather than AWT Areas.
-			// TODO: Convert to parallelStreams
-			// Create a collection of tiles
-			Rectangle bounds = AwtTools.getBounds(roi);
-			Area area = RoiTools.getArea(roi);
-			List<ROI> tiles = new ArrayList<>();
-			int indY = 0;
-			int indX = 0;
-			for (int y = bounds.y; y < bounds.y + bounds.height; y += tileHeight) {
-				for (int x = bounds.x; x < bounds.x + bounds.width; x += tileWidth) {
-					//				int width = Math.min(x + tileWidth, bounds.x + bounds.width) - x;
-					//				int height = Math.min(y + tileHeight, bounds.y + bounds.height) - y;
-					int width = tileWidth;
-					int height = tileHeight;
-					Rectangle tileBounds = new Rectangle(x, y, width, height);
-					ROI tile;
-					// If the tile is completely contained by the ROI, it's straightforward
-					if (area.contains(x, y, width, height))
-						tile = ROIs.createRectangleROI(x, y, width, height, roi.getImagePlane());
-					else if (!trimToROI) {
-						// If we aren't trimming, then check if the centroid is contained
-						if (area.contains(x+0.5*width, y+0.5*height))
-							tile = ROIs.createRectangleROI(x, y, width, height, roi.getImagePlane());
-						else
-							continue;
-					}
-					else {
-						// Check if we are actually within the object
-						if (!area.intersects(x, y, width, height))
-							continue;
-						// Shrink the tile if that is sensible
-						// TODO: Avoid converting tiles to Areas where not essential
-						Area tileArea = new Area(tileBounds);
-						tileArea.intersect(area);
-						if (tileArea.isEmpty())
-							continue;
-						if (tileArea.isRectangular()) {
-							Rectangle2D bounds2 = tileArea.getBounds2D();
-							tile = ROIs.createRectangleROI(bounds2.getX(), bounds2.getY(), bounds2.getWidth(), bounds2.getHeight(), roi.getImagePlane());
-						}
-						else
-							tile = ROIs.createAreaROI(tileArea, roi.getImagePlane());
-					}
-					if(createTileObjects) {
-						PathObject tileObj = PathObjects.createTileObject(tile);
-						tileObj.setName(String.format("Tile (%d, %d)", indY, indX));
-					}
-					tiles.add(tile);
-					++indX;
-				}
-				++indY;
+		/**
+		 * Try to intersect two geometries, returning null if this fails.
+		 * Intended for use in a stream.
+		 *
+		 * @param g1
+		 * @param g2
+		 * @return
+		 */
+		private static Geometry intersect(Geometry g1, Geometry g2) {
+//		if (g1.covers(g2))
+//			return g2;
+//		if (g2.covers(g1))
+//			return g1;
+			if (g1 == g2)
+				return g1;
+
+			try {
+				return GeometryTools.homogenizeGeometryCollection(g1.intersection(g2));
+			} catch (Exception e) {
+				logger.warn(e.getLocalizedMessage(), e);
+				return null;
 			}
-			return tiles;
 		}
+
+		public Map<PathObject, Map<PathClass, ROI>> computeTiledROIsForCompartments(Rectangle2D bounds,
+																							List<PathObject> compartmentPathObjs,
+																							ImmutableDimension sizePreferred,
+																							boolean fixedSize,
+																							int overlap) throws ExecutionException, InterruptedException {
+
+			ConcurrentHashMap<PathClass, Geometry> compartmentGeoms = new ConcurrentHashMap<>(
+					compartmentPathObjs.parallelStream()
+							.map(r -> Map.entry(r.getPathClass(), r.getROI().getGeometry()))
+							.filter(m -> m.getValue() != null)
+							.collect(Collectors.toMap(
+											Map.Entry::getKey,
+											Map.Entry::getValue
+									)
+							)
+			);
+
+			return computeTiledROIsForCompartments(bounds, ImagePlane.getDefaultPlane(), compartmentGeoms, sizePreferred, fixedSize, overlap);
+		}
+
+		public Map<PathObject, Map<PathClass, ROI>> computeTiledROIsForCompartments(Rectangle2D bounds,
+																							Map<PathClass, ROI> compartmentPathROIs,
+																							ImmutableDimension sizePreferred,
+																							boolean fixedSize,
+																							int overlap) throws ExecutionException, InterruptedException {
+
+			ConcurrentHashMap<PathClass, Geometry> compartmentGeoms = new ConcurrentHashMap<>(
+					compartmentPathROIs.entrySet().parallelStream()
+							.map(r -> Map.entry(r.getKey(), r.getValue().getGeometry()))
+							.filter(m -> m.getValue() != null)
+							.collect(Collectors.toMap(
+											Map.Entry::getKey,
+											Map.Entry::getValue
+									)
+							)
+			);
+
+
+			return computeTiledROIsForCompartments(bounds, ImagePlane.getDefaultPlane(), compartmentGeoms, sizePreferred, fixedSize, overlap);
+		}
+
+
+		public Map<PathObject, Map<PathClass, ROI>> computeTiledROIsForCompartments(Rectangle2D bounds,
+																							ImagePlane plane,
+																							ConcurrentHashMap<PathClass, Geometry> compartmentGeoms,
+																							ImmutableDimension sizePreferred,
+																							boolean fixedSize,
+																							int overlap) throws ExecutionException, InterruptedException {
+
+//			Bound for entire image
+
+//			if (pathArea == null || (bounds.getWidth() <= sizeMax.width && bounds.getHeight() <= sizeMax.height)) {
+//				return Collections.singletonList(parentROI);
+//			}
+
+			if (compartmentGeoms.size() <= 0) {
+				logger.warn("Found no valid geometries for compartment PathObjects...");
+				return Map.ofEntries(
+						Map.entry(null,
+							Map.ofEntries(Map.entry(getPathClass("null"), ROIs.createEmptyROI()))
+						)
+				);
+			}
+
+
+			ConcurrentHashMap<PathClass, PreparedGeometry> preparedGeoms = new ConcurrentHashMap<>(
+					forkJoinPool.submit(()->compartmentGeoms.entrySet().parallelStream()
+							.map(m -> {
+								if (m.getValue().getNumPoints() > 1000) {
+									return Map.entry(m.getKey(), PreparedGeometryFactory.prepare(m.getValue()));
+								} else {
+									return Map.entry(m.getKey(), null);
+								}
+							})
+		//					.filter(m -> m.getValue() != null)
+							.collect(Collectors.toMap(
+											m -> m.getKey(),
+											m -> (PreparedGeometry) m.getValue()
+									)
+							)
+					).get());
+
+			int xMin = (int) bounds.getMinX();
+			int yMin = (int) bounds.getMinY();
+			int nx = (int) Math.ceil(bounds.getWidth() / sizePreferred.width);
+			int ny = (int) Math.ceil(bounds.getHeight() / sizePreferred.height);
+			int w = fixedSize ? sizePreferred.width : (int) Math.ceil(bounds.getWidth() / nx);
+			int h = fixedSize ? sizePreferred.height : (int) Math.ceil(bounds.getHeight() / ny);
+
+			// Center the tiles
+//			xMin = (int) (bounds.getCenterX() - (nx * w * .5));
+//			yMin = (int) (bounds.getCenterY() - (ny * h * .5));
+
+			// This can be very slow if we have an extremely large number of vertices/tiles.
+			// For that reason, we try to split initially by either rows or columns if needed.
+			boolean byRow = false;
+			boolean byColumn = false;
+			ConcurrentHashMap<Integer, ConcurrentHashMap<PathClass, Geometry>> localGeoms = new ConcurrentHashMap<>();
+			// make the empty based on one of the entries in compartmentGeoms... may error if the key/value selected is null?
+			if (ny > 1 && nx > 1 && preparedGeoms.size() >= 1) {
+				// If we have a lot of points, create a prepared geometry so we can check covers/intersects quickly;
+				// (for a regular geometry, it would be faster to just compute an intersection and see if it's empty)
+				logger.info(String.format("Preparing %d sets of local geometries...", preparedGeoms.size()));
+
+				byRow = nx > ny;
+//				byRow = true;
+				byColumn = !byRow;
+				double yMin2 = yMin;
+				double xMin2 = xMin;
+
+				PathClass compKey = compartmentGeoms.keySet().iterator().next();
+				Geometry empty = compartmentGeoms.get(compKey).getFactory().createEmpty(2);
+
+				Map<PathClass, Envelope> compartmentEnvel = compartmentGeoms.entrySet().parallelStream()
+						.map(m -> Map.entry(m.getKey(), m.getValue().getEnvelopeInternal()))
+						.collect(Collectors.toMap(
+								m -> m.getKey(),
+								m -> m.getValue()
+						));
+
+				// Compute intersection by row so that later intersections are simplified
+				if (byRow) {
+					localGeoms = new ConcurrentHashMap<>(
+							forkJoinPool.submit(()->
+								IntStream.range(0, ny)
+										.parallel()
+										.boxed()
+										.collect(
+												Collectors.toMap(
+														yi -> yi,
+														yi -> {
+															double y = yMin2 + yi * h - overlap;
+															return new ConcurrentHashMap<PathClass, Geometry>(
+																	preparedGeoms.entrySet().parallelStream()
+																			.map(prep -> {
+																				var prepared2 = prep.getValue();
+																				var geometry = compartmentGeoms.get(prep.getKey());
+																				if (prepared2 == null) {
+																					// This would happen if the geometry was too small to be prepared
+																					// use the compartment geometry in this case
+																					return Map.entry(prep.getKey(), geometry);
+																				}
+																				var envelope = compartmentEnvel.get(prep.getKey());
+																				var row = GeometryTools.createRectangle(
+																						envelope.getMinX(),
+																						y,
+																						envelope.getMaxX(),
+																						h + overlap * 2);
+																				if (!prepared2.intersects(row)) {
+																					return Map.entry(prep.getKey(), empty);
+																				} else if (prepared2.covers(row)) {
+																					return Map.entry(prep.getKey(), row);
+																				}
+																				var temp = intersect(geometry, row);
+																				return Map.entry(prep.getKey(), temp == null ? geometry : temp);
+																			})
+																			.collect(Collectors.toMap(
+																					m -> m.getKey(),
+																					m -> m.getValue())
+																			)
+															);
+														}
+												)
+										)
+							).get());
+				}
+				if (byColumn) {
+					localGeoms = new ConcurrentHashMap<>(
+							forkJoinPool.submit(()->
+								IntStream.range(0, nx)
+										.parallel()
+										.boxed()
+										.collect(
+												Collectors.toMap(
+														xi -> xi,
+														xi -> {
+															double x = xMin2 + xi * w - overlap;
+															return new ConcurrentHashMap<PathClass, Geometry>(
+																preparedGeoms.entrySet().parallelStream()
+																	.map(prep -> {
+																		var prepared2 = prep.getValue();
+																		var geometry = compartmentGeoms.get(prep.getKey());
+																		if (prepared2 == null) {
+																			// This would happen if the geometry was too small to be prepared
+																			// use the compartment geometry in this case
+																			return Map.entry(prep.getKey(), geometry);
+																		}
+																		var envelope = compartmentEnvel.get(prep.getKey());
+																		var col = GeometryTools.createRectangle(
+																				x,
+																				envelope.getMinY(),
+																				w + overlap * 2,
+																				envelope.getMaxY());
+																		if (!prepared2.intersects(col)) {
+																			return Map.entry(prep.getKey(), empty);
+																		} else if (prepared2.covers(col)) {
+																			return Map.entry(prep.getKey(), col);
+																		}
+																		var temp = intersect(geometry, col);
+																		return Map.entry(prep.getKey(), temp == null ? geometry : temp);
+																	}
+																	).collect(Collectors.toMap(
+																				m->m.getKey(),
+																				m->m.getValue()
+																		))
+															);
+														}
+												)
+										)
+							).get());
+				}
+			}
+
+			// Generate all the rectangles as geometries
+//			Map<Geometry, Geometry> tileGeometries = new LinkedHashMap<>();
+			Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = new ConcurrentHashMap<>();
+
+
+			ConcurrentHashMap<Integer, ConcurrentHashMap<PathClass, Geometry>> finalLocalGeoms = localGeoms;
+
+			if(!byRow && !byColumn){
+				ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = compartmentGeoms;
+//				always using full compartment geometries to compute intersections
+//				when geometries are small (< 1000 pts)
+				forkJoinPool.submit(()->
+					IntStream.range(0, nx).parallel().forEach(xi -> {
+						if (isCancelled.get()) {
+							throw new CancellationException();
+						}
+						int x = xMin + xi * w - overlap;
+						IntStream.range(0, ny).parallel().forEach(yi -> {
+							int y = yMin + yi * h - overlap;
+							// Create the tile
+							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
+
+	//						Map<PathClass, ROI> thisIntersectMap = new HashMap<>();
+							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
+									.collect(Collectors.toMap(
+											m -> m.getKey(),
+											m -> m.getValue()
+									));
+							// handle empty/null thisIntersectMaps?
+							if (!thisIntersectMap.isEmpty()) {
+								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
+								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
+	//							logger.info(thisIntersectMap.toString());
+								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
+								tileIntersectROIs.put(tileObj, thisIntersectMap);
+							}
+						});
+					})
+				).get();
+			} else if(byRow) {
+				forkJoinPool.submit(()->
+					IntStream.range(0, ny).parallel().forEach(yi -> {
+						if (isCancelled.get()) {
+							throw new CancellationException();
+						}
+						int y = yMin + yi * h - overlap;
+						// always row
+						ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = finalLocalGeoms.getOrDefault(yi, compartmentGeoms);
+						IntStream.range(0, nx).parallel().forEach(xi -> {
+							int x = xMin + xi * w - overlap;
+							// Create the tile
+							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
+	//						logger.info(String.format("r%dc%d_x%dy%d",yi, xi, x, y));
+							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
+									.collect(Collectors.toMap(
+											m -> m.getKey(),
+											m -> m.getValue()
+									));
+
+							// handle empty/null thisIntersectMaps?
+							if (!thisIntersectMap.isEmpty()) {
+								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
+								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
+	//							logger.info(thisIntersectMap.toString());
+								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
+								tileIntersectROIs.put(tileObj, thisIntersectMap);
+							}
+						});
+					})
+				).get();
+			} else if(byColumn){
+				forkJoinPool.submit(()->
+					IntStream.range(0, nx).parallel().forEach(xi -> {
+						if (isCancelled.get()) {
+							throw new CancellationException();
+						}
+						int x = xMin + xi * w - overlap;
+						// always column
+						ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = finalLocalGeoms.getOrDefault(xi, compartmentGeoms);
+						IntStream.range(0, ny).parallel().forEach(yi -> {
+							int y = yMin + yi * h - overlap;
+							// Create the tile
+							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
+	//						logger.info(String.format("r%dc%d_x%dy%d",yi, xi, x, y));
+							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
+									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
+									.collect(Collectors.toMap(
+											m -> m.getKey(),
+											m -> m.getValue()
+									));
+
+							// handle empty/null thisIntersectMaps?
+							if(!thisIntersectMap.isEmpty()) {
+								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
+								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
+	//							logger.info(thisIntersectMap.toString());
+								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
+								tileIntersectROIs.put(tileObj, thisIntersectMap);
+							}
+						});
+					})
+				).get();
+
+			}
+
+			return tileIntersectROIs;
+
+			// If there was an exception, the tile will be null
+//			if (tileROIs.size() < tileGeometries.size()) {
+//				logger.warn("Tiles lost during tiling: {}", tileGeometries.size() - tileROIs.size());
+//				logger.warn("You may be able to avoid tiling errors by calling 'Simplify shape' on any complex annotations first.");
+//			}
+//
+//			// Remove any empty/non-area tiles
+//			return tileROIs.stream()
+//					.filter(t -> !t.isEmpty() && t.isArea())
+//					.collect(Collectors.toList());
+		}
+
+		public CompletableFuture<Void>  TileRecalcCompartmentsAndScores() throws RuntimeException {
+			return TileRecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"),
+					(double) params.get("downsample"),  (int) params.get("tileSize"), numThreads);
+		}
+
 		public CompletableFuture<Void> TileRecalcCompartmentsAndScores(Set<PathClass> ignoreClasses,
 																	   Map<ColorTransform, Double> targets,
 																	   Set<PathClass> compartments,
@@ -1443,9 +1795,75 @@ public class CompQuantPanelController implements Initializable{
 																	   int numThreads
 		) throws RuntimeException{
 
-			ROI rootImageROI = bImageData.getHierarchy().getRootObject().getROI();
-			List<ROI> tiles = makeTiles(rootImageROI, tileSize, tileSize, false, true);
-			
+			if (numThreads <= 0)
+				numThreads = 1;
+
+			setupNewForkJoinPool(numThreads);
+
+			Integer progAmount = 1;
+
+			// Used for placing child objects inside ROI
+			AtomicReference<Boolean> doAdjust = new AtomicReference<>(false);
+			ROI combinedExcludeROI;
+			Geometry combinedExcludeGeom;
+
+			PathObjectHierarchy hierarchy = bImageData.getHierarchy();
+			var pathObjs = hierarchy.getObjects(null, PathObject.class);
+			ImageServer<BufferedImage> server = bImageData.getServer();
+			Rectangle2D bounds = new Rectangle2D.Double();
+			bounds.setFrame(0.0, 0.0, server.getWidth(), server.getHeight());
+			CompletableFuture<Void> result = null;
+			try {
+				List<ROI> allIgnoreROIs = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream()
+						.filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
+						.map(p -> p.getROI())
+						.collect(Collectors.toList())).get();
+				List<PathObject> compartmentObjs = forkJoinPool.submit(() -> pathObjs.parallelStream().filter(p -> p.getPathClass() != null && compartments.contains(p.getPathClass()) && p.getClass() == sourceType)
+						.collect(Collectors.toList())).get();
+
+				logger.info(allIgnoreROIs.toString());
+				combinedExcludeROI = RoiTools.union(allIgnoreROIs);
+				// TODO: is there a simpler way to get this Map<PathClass, List<ROI>> from one stream, and then combine if there are multiple entries in the List<ROI>?
+				// combine compartments into path objects
+				// TODO: remove ignore annotations
+				Map<PathClass, ROI> combCompartmentROIMap = new HashMap<>();
+				for(PathClass c : compartments){
+					List<ROI> theseCROIs = forkJoinPool.submit(()->compartmentObjs.parallelStream()
+							.filter(p-> c == p.getPathClass())
+							.map(p -> p.getROI())
+							.collect(Collectors.toList())).get();
+					ROI combinedC = RoiTools.union(theseCROIs);
+					if(combinedC!=null && !combinedC.isEmpty()){
+						combCompartmentROIMap.put(c, combinedC);
+					}
+				}
+				if(combCompartmentROIMap.isEmpty()){
+					logger.error("Combining compartments resulted in null? Check compartment annotations/sources...");
+					return null;
+				}
+
+//				Uses default image plane, will not work for timeseries or z slices
+				Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(bounds,
+																										combCompartmentROIMap,
+																										ImmutableDimension.getInstance(tileSize, tileSize),
+																								true,
+																									0);
+//				Make pathObjects out of intersections and add to tileObj as children
+				tileIntersectROIs.entrySet().parallelStream()
+						.forEach(tileM ->{
+							List<PathObject> intersectChildren = tileM.getValue().entrySet().parallelStream()
+											.map(m -> PathObjects.createTileObject(m.getValue(), m.getKey(), null))
+											.collect(Collectors.toList());
+							PathObject tileObj = tileM.getKey();
+							tileObj.addPathObjects(intersectChildren);
+							hierarchy.addPathObject(tileObj);
+						});
+
+
+			} catch (ExecutionException | InterruptedException e) {
+				throw new RuntimeException(e);
+			}
+
 
 			return null;
 
@@ -1512,9 +1930,12 @@ public class CompQuantPanelController implements Initializable{
 			try {
 				// These operations block the GUI threads.... can't really replace them though because I need to collect the annotations before starting
 				// maybe can rewrite this whole block as a sequential task to submit to the pool?
-				List<PathObject> allIgnoreAnnotations = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream().filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
+				List<ROI> allIgnoreROIs = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream()
+						.filter(p -> p.getPathClass() != null && ignoreClasses.contains(p.getPathClass()))
+						.map(p -> p.getROI())
 						.collect(Collectors.toList())).get();
-				List<PathObject> tmaCoreChildren = Collections.synchronizedList(forkJoinPool.submit(() -> tmaCores.parallelStream().flatMap(core -> core.getChildObjects().stream())
+				List<PathObject> tmaCoreChildren = Collections.synchronizedList(forkJoinPool.submit(() -> tmaCores.parallelStream()
+						.flatMap(core -> core.getChildObjects().stream())
 						.collect(Collectors.toList())).get());
 
 				if(tmaCoreChildren.size() < 1){
@@ -1528,8 +1949,9 @@ public class CompQuantPanelController implements Initializable{
 				// insertHierarchy can miss annotations that are outside of TMA core parent. Maybe there is a way to use the missing annotations
 				// and check if any TMA cores x,y contain that annotation (or vice versa).
 				setEstNumTasks(tmaCoreChildren.size());
-				logger.info(allIgnoreAnnotations.toString());
-				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
+				logger.info(allIgnoreROIs.toString());
+//				combinedExcludeROI = combinePathObjs(allIgnoreAnnotations, false);
+				combinedExcludeROI = RoiTools.union(allIgnoreROIs);
 				if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
 					doAdjust.set(true);
 					combinedExcludeGeom = combinedExcludeROI.getGeometry();
