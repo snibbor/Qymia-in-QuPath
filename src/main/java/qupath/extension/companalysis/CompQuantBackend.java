@@ -197,7 +197,7 @@ public class CompQuantBackend {
         } else {
             logger.warn("forkJoinPool already exists and is not terminated yet!");
             try {
-                cancelTasks().get();
+                shutdownPool().get();
             } catch (InterruptedException | ExecutionException e) {
                 throw new RuntimeException(e);
             }
@@ -247,7 +247,7 @@ public class CompQuantBackend {
         this.cellCompartments = null;
         this.measurements = null;
         try {
-            cancelTasks().get();
+            shutdownPool().get();
         } catch (InterruptedException | ExecutionException e) {
             throw new RuntimeException(e);
         }
@@ -295,9 +295,7 @@ public class CompQuantBackend {
         }
     }
 
-    public CompletableFuture<Void> cancelTasks() {
-        logger.warn("Trying to shutdown running tasks!");
-        isCancelled.set(true);
+    public CompletableFuture<Void> shutdownPool(){
         CompletableFuture<Void> result = CompletableFuture.runAsync(() -> {
             if (forkJoinPool != null) {
                 forkJoinPool.shutdownNow();
@@ -323,6 +321,12 @@ public class CompQuantBackend {
         setEstNumTasks(0);
         progressValue.set(BigInteger.valueOf(0));
         return result;
+    }
+
+    public CompletableFuture<Void> cancelTasks() {
+        isCancelled.set(true);
+        logger.warn("Trying to shutdown running tasks!");
+        return shutdownPool();
     }
 
     public boolean isTaskRunning() {
@@ -911,18 +915,20 @@ public class CompQuantBackend {
         boolean finalByColumn = byColumn;
         boolean finalByRow = byRow;
 //			ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = compartmentGeoms;
+        int finalXMin = xMin;
+        int finalYMin = yMin;
         forkJoinPool.submit(()->
             IntStream.range(0, nx).parallel().forEach(xi -> {
                 if (isCancelled.get()) {
                     throw new CancellationException();
                 }
-                int x = xMin + xi * w - overlap;
+                int x = finalXMin + xi * w - overlap;
 //					A very hacky way to consolidate the code into 1 loop.
 //					Atomic Reference doesn't behave when getting hit by multiple streams setting potentially different values for each stream...
                 ConcurrentHashMap<PathClass, Geometry> outerLocalGeoms = finalByColumn ? finalLocalGeoms.getOrDefault(xi, compartmentGeoms) : compartmentGeoms;
 
                 IntStream.range(0, ny).parallel().forEach(yi -> {
-                    int y = yMin + yi * h - overlap;
+                    int y = finalYMin + yi * h - overlap;
                     ConcurrentHashMap<PathClass, Geometry> innerLocalGeoms = finalByRow ? finalLocalGeoms.getOrDefault(yi, compartmentGeoms) : outerLocalGeoms;
 
                     // Create the tile
@@ -1074,11 +1080,11 @@ public class CompQuantBackend {
                     })
             ).get();
 
-            logger.info("Creating and Scoring tiles... (4/4)");
+            logger.info("Scoring tiles... (4/4)");
 
             if(progressBar!=null) {
                 Platform.runLater(() -> {
-                    progressLabel.setText("Creating and Scoring tiles... (4/4)");
+                    progressLabel.setText("Scoring tiles... (4/4)");
                 });
             }
             setEstNumTasks(tileIntersectROIs.size());

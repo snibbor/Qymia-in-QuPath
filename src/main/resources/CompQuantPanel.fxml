@@ -31,6 +31,8 @@
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Grid as Overlay" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>
             </Menu>
             <Menu fx:id="settingsMenu" mnemonicParsing="false" text="Settings">

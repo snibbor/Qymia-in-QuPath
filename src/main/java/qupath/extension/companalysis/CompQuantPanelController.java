@@ -28,6 +28,7 @@ import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 
+import org.controlsfx.dialog.ProgressDialog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
@@ -150,6 +151,8 @@ public class CompQuantPanelController implements Initializable{
 	@FXML
 	MenuItem importGridOverlayMenuItem;
 	@FXML
+	MenuItem runForProjectMenuItem;
+	@FXML
 	CheckMenuItem measEssentialMenuItem;
 	@FXML
 	CheckMenuItem measAllMenuItem;
@@ -169,8 +172,10 @@ public class CompQuantPanelController implements Initializable{
 	File initialFileDirectory;
 
 //	don't like how I need two observable lists to do this... because MenuItem doesn't inherit from Control.......
-	ObservableList<Control> controlListToToggle = FXCollections.observableArrayList();
-	ObservableList<MenuItem> menuItemListToToggle = FXCollections.observableArrayList();
+	private ObservableList<Control> controlListToToggle = FXCollections.observableArrayList();
+	private ObservableList<MenuItem> menuItemListToToggle = FXCollections.observableArrayList();
+	private List<ProjectImageEntry<BufferedImage>> previousImages = new ArrayList<>();
+	private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
 
 
 	public CompQuantPanelController(QuPathGUI qupath) {
@@ -202,6 +207,7 @@ public class CompQuantPanelController implements Initializable{
 			}
 		});
 		startQuantButton.setOnAction(this::startQuant);
+		runForProjectMenuItem.setOnAction(this::runForProject);
 		cancelButton.setOnAction(this::cancelQuant);
 //		setup controls list to disable during quantification
 		controlListToToggle.addAll(exportMeasButton, startQuantButton);
@@ -500,6 +506,7 @@ public class CompQuantPanelController implements Initializable{
 			targetListView.getItems().clear();
 			targetListView.setDisable(true);
 			startQuantButton.setDisable(true);
+			runForProjectMenuItem.setDisable(true);
 			return;
 		}
 		targetListView.setDisable(false);
@@ -519,6 +526,7 @@ public class CompQuantPanelController implements Initializable{
 		String result = selectedResultType.get();
 		//check if something is selected for compartments and targets....
 		startQuantButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
+		runForProjectMenuItem.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 		cancelButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 
 		if(result != null && result.toLowerCase().contains("grid")){
@@ -560,179 +568,192 @@ public class CompQuantPanelController implements Initializable{
 	}
 
 
-	//Utility methods
-	// https://stackoverflow.com/questions/8567596/how-to-make-updating-bigdecimal-within-concurrenthashmap-thread-safe
 
-//	/**
-//	 * Request project image entries to run script for.
-//	 * @param doSave
-//	 */
-//	void handleRunProject(final boolean doSave) {
-//		Project<BufferedImage> project = qupath.getProject();
-//		if (project == null) {
-//			Dialogs.showNoProjectError("CompQuant");
-//			return;
-//		}
-//
-//		// Ensure that the previous images remain selected if the project still contains them
-////		FilteredList<ProjectImageEntry<?>> sourceList = new FilteredList<>(FXCollections.observableArrayList(project.getImageList()));
-//
-//		String sameImageWarning = doSave ? "A selected image is open in the viewer!\nUse 'File>Reload data' to see changes." : null;
-//		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
-//
-//		Dialog<ButtonType> dialog = new Dialog<>();
-//		dialog.initOwner(qupath.getStage());
-//		dialog.setTitle("Select project images");
-//		dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
-//		dialog.getDialogPane().setContent(listSelectionView);
-//		dialog.setResizable(true);
-//		dialog.getDialogPane().setPrefWidth(600);
-//		dialog.initModality(Modality.APPLICATION_MODAL);
-//		Optional<ButtonType> result = dialog.showAndWait();
-//		if (!result.isPresent() || result.get() != ButtonType.OK)
-//			return;
-//
-//		previousImages.clear();
-////		previousImages.addAll(listSelectionView.getTargetItems());
-//
-//		previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
-//
-//		if (previousImages.isEmpty())
-//			return;
-//
-//		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
-//
-//		CompQuantPanelController.ProjectTask worker = new CompQuantPanelController.ProjectTask(project, imagesToProcess, tab, doSave);
-//
-//
-//		ProgressDialog progress = new ProgressDialog(worker);
-//		progress.initOwner(qupath.getStage());
-//		progress.setTitle("Batch script");
-//		progress.getDialogPane().setHeaderText("Batch processing...");
-//		progress.getDialogPane().setGraphic(null);
-//		progress.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
-//		progress.getDialogPane().lookupButton(ButtonType.CANCEL).addEventFilter(ActionEvent.ACTION, e -> {
-//			if (Dialogs.showYesNoDialog("Cancel batch script", "Are you sure you want to stop the running script after the current image?")) {
-//				worker.quietCancel();
-//				progress.setHeaderText("Cancelling...");
-////				worker.cancel(false);
-//				progress.getDialogPane().lookupButton(ButtonType.CANCEL).setDisable(true);
-//			}
-//			e.consume();
-//		});
-//
-//		// Clear console if necessary
-//		if (autoClearConsole.get() && getCurrentScriptObject() != null) {
-//			tab.getConsoleComponent().clear();
-//		}
-//
-//		// Create & run task
-//		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
-//		progress.show();
-//	}
-//
-//	class ProjectTask extends Task<Void> {
-//
-//		private Project<BufferedImage> project;
-//		private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
-//		private ScriptTab tab;
-//		private boolean quietCancel = false;
-//		private boolean doSave = false;
-//
-//		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final ScriptTab tab, final boolean doSave) {
-//			this.project = project;
-//			this.imagesToProcess = imagesToProcess;
-//			this.tab = tab;
-//			this.doSave = doSave;
-//		}
-//
-//		public void quietCancel() {
-//			this.quietCancel = true;
-//		}
-//
-//		public boolean isQuietlyCancelled() {
-//			return quietCancel;
-//		}
-//
-//		@Override
-//		public Void call() {
-//
-//			long startTime = System.currentTimeMillis();
-//
-//			tab.setRunning(true);
-//
-//			int counter = 0;
-//			for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
-//				try {
-//					// Stop
-//					if (isQuietlyCancelled() || isCancelled()) {
-//						logger.warn("Script cancelled with " + (imagesToProcess.size() - counter) + " image(s) remaining");
-//						break;
-//					}
-//
-//					updateProgress(counter, imagesToProcess.size());
-//					counter++;
-//					updateMessage(entry.getImageName() + " (" + counter + "/" + imagesToProcess.size() + ")");
-//
-//					// Create a new region store if we need one
-//					System.gc();
-//
-//					// Open saved data if there is any, or else the image itself
-//					ImageData<BufferedImage> imageData = entry.readImageData();
-//					if (imageData == null) {
-//						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
-//						continue;
-//					}
-////					QPEx.setBatchImageData(imageData);
-//					executeScript(tab, tab.getEditorComponent().getText(), project, imageData);
-//					if (doSave)
-//						entry.saveImageData(imageData);
-//					imageData.getServer().close();
-//
-//					if (clearCache.get()) {
-//						try {
-//							var store = qupath == null ? null : qupath.getImageRegionStore();
-//							if (store != null)
-//								store.clearCache();
-//							System.gc();
-//						} catch (Exception e) {
-//
-//						}
-//					}
-//				} catch (Exception e) {
-//					logger.error("Error running batch script: {}", e);
-//				}
-//			}
-//			updateProgress(imagesToProcess.size(), imagesToProcess.size());
-//
-//			long endTime = System.currentTimeMillis();
-//
-//			long timeMillis = endTime - startTime;
-//			String time = null;
-//			if (timeMillis > 1000*60)
-//				time = String.format("Total processing time: %.2f minutes", timeMillis/(1000.0 * 60.0));
-//			else if (timeMillis > 1000)
-//				time = String.format("Total processing time: %.2f seconds", timeMillis/(1000.0));
-//			else
-//				time = String.format("Total processing time: %d milliseconds", timeMillis);
-//			logger.info("Processed {} images", imagesToProcess.size());
-//			logger.info(time);
-//
-//			return null;
-//		}
-//
-//
-//		@Override
-//		protected void done() {
-//			super.done();
-//			tab.setRunning(false);
-//			// Make sure we reset the running task
-//			Platform.runLater(() -> runningTask.setValue(null));
-//		}
-//
-//	};
+	/**
+	 * Request project image entries to run script for.
+	 * @param doSave
+	 */
+	void handleRunProject(final boolean doSave) {
+		Project<BufferedImage> project = qupath.getProject();
+		if (project == null) {
+			Dialogs.showNoProjectError("CompQuant");
+			return;
+		}
 
-	CompQuantBackend setupQuant(){
+		// Ensure that the previous images remain selected if the project still contains them
+//		FilteredList<ProjectImageEntry<?>> sourceList = new FilteredList<>(FXCollections.observableArrayList(project.getImageList()));
+
+		String sameImageWarning = doSave ? "A selected image is open in the viewer!\nUse 'File>Reload data' to see changes." : null;
+		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
+
+		Dialog<ButtonType> dialog = new Dialog<>();
+		dialog.initOwner(qupath.getStage());
+		dialog.setTitle("Select project images");
+		dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+		dialog.getDialogPane().setContent(listSelectionView);
+		dialog.setResizable(true);
+		dialog.getDialogPane().setPrefWidth(600);
+		dialog.initModality(Modality.APPLICATION_MODAL);
+		Optional<ButtonType> result = dialog.showAndWait();
+		if (!result.isPresent() || result.get() != ButtonType.OK)
+			return;
+
+		previousImages.clear();
+//		previousImages.addAll(listSelectionView.getTargetItems());
+
+		previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+
+		if (previousImages.isEmpty())
+			return;
+
+		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
+
+		CompQuantPanelController.ProjectTask worker = new CompQuantPanelController.ProjectTask(project, imagesToProcess, doSave);
+
+
+		ProgressDialog progress = new ProgressDialog(worker);
+		progress.initOwner(qupath.getStage());
+		progress.setTitle("Batch script");
+		progress.getDialogPane().setHeaderText("Batch processing...");
+		progress.getDialogPane().setGraphic(null);
+		progress.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+		progress.getDialogPane().lookupButton(ButtonType.CANCEL).addEventFilter(ActionEvent.ACTION, e -> {
+			if (Dialogs.showYesNoDialog("Cancel batch script", "Are you sure you want to stop the running script after the current image?")) {
+				worker.quietCancel();
+				progress.setHeaderText("Cancelling...");
+				runCancelled.set(true);
+//				worker.cancel(false);
+				progress.getDialogPane().lookupButton(ButtonType.CANCEL).setDisable(true);
+			}
+			e.consume();
+		});
+
+
+		// Create & run task
+		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
+		progress.show();
+	}
+
+	class ProjectTask extends Task<Void> {
+
+		private Project<BufferedImage> project;
+		private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
+		private ScriptTab tab;
+		private boolean quietCancel = false;
+		private boolean doSave = false;
+
+		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave) {
+			this.project = project;
+			this.imagesToProcess = imagesToProcess;
+			this.doSave = doSave;
+		}
+
+		public void quietCancel() {
+			this.quietCancel = true;
+		}
+
+		public boolean isQuietlyCancelled() {
+			return quietCancel;
+		}
+
+		@Override
+		public Void call() {
+
+			long startTime = System.currentTimeMillis();
+			Map<String, Object> params = setupQuantParams();
+			if(params==null)
+				return null;
+			Map<ColorTransform, Double> selTargets = selectedTargets.entrySet().stream().collect(Collectors.toMap(
+					e->e.getKey(),
+					e->e.getValue())
+			);
+			Set<PathClass> selCompartments = selectedCompartments.parallelStream().collect(Collectors.toSet());
+
+			int counter = 0;
+			for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
+				try {
+					// Stop
+					if (isQuietlyCancelled() || isCancelled()) {
+						logger.warn("Script cancelled with " + (imagesToProcess.size() - counter) + " image(s) remaining");
+						break;
+					}
+
+					updateProgress(counter, imagesToProcess.size());
+					counter++;
+					updateMessage(entry.getImageName() + " (" + counter + "/" + imagesToProcess.size() + ")");
+
+					// Create a new region store if we need one
+					System.gc();
+
+					// Open saved data if there is any, or else the image itself
+					ImageData<BufferedImage> imageData = entry.readImageData();
+					if (imageData == null) {
+						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
+						continue;
+					}
+
+					CompQuantBackend compQuant = new CompQuantBackend(
+							imageData,
+							selTargets,
+							selCompartments,
+							ignoreClasses,
+							roiClasses,
+							params,
+							getNumThreads()-3,
+							runCancelled,
+							controlListToToggle,
+							menuItemListToToggle,
+							quantProgressBar,
+							progressLabel
+					);
+
+					runQuant(compQuant).get();
+
+					if (doSave)
+						entry.saveImageData(imageData);
+					imageData.getServer().close();
+
+//					might be redundant because already checking to clear cache inside each CompQuantBackend object after closing...
+					try {
+						var store = qupath == null ? null : qupath.getImageRegionStore();
+						if (store != null)
+							store.clearCache();
+						System.gc();
+					} catch (Exception e) {
+
+					}
+				} catch (Exception e) {
+					logger.error("Error running batch script: {}", e);
+				}
+			}
+			updateProgress(imagesToProcess.size(), imagesToProcess.size());
+
+			long endTime = System.currentTimeMillis();
+
+			long timeMillis = endTime - startTime;
+			String time = null;
+			if (timeMillis > 1000*60)
+				time = String.format("Total processing time: %.2f minutes", timeMillis/(1000.0 * 60.0));
+			else if (timeMillis > 1000)
+				time = String.format("Total processing time: %.2f seconds", timeMillis/(1000.0));
+			else
+				time = String.format("Total processing time: %d milliseconds", timeMillis);
+			logger.info("Processed {} images", imagesToProcess.size());
+			logger.info(time);
+
+			return null;
+		}
+
+
+		@Override
+		protected void done() {
+			super.done();
+			// Make sure we reset the running task
+			Platform.runLater(() -> runningTask.setValue(null));
+		}
+	};
+
+	Map<String, Object> setupQuantParams(){
 		//		double check that all fields have values
 		String slide = selectedSlideType.get();
 		String stain = selectedStainType.get();
@@ -745,11 +766,14 @@ public class CompQuantPanelController implements Initializable{
 			return null;
 		}
 		runCancelled.set(false);
-		exportMeasButton.setDisable(true);
-		exportMeasMenuItem.setDisable(true);
-		startQuantButton.setDisable(true);
-		quantProgressBar.setProgress(-1);
-		progressLabel.setText("Starting Compartment Quantification...");
+		Platform.runLater(()->{
+			exportMeasButton.setDisable(true);
+			exportMeasMenuItem.setDisable(true);
+			startQuantButton.setDisable(true);
+			runForProjectMenuItem.setDisable(true);
+			quantProgressBar.setProgress(-1);
+			progressLabel.setText("Starting Compartment Quantification...");
+		});
 		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
 		boolean rescaleScore = rescaleMenuItem.selectedProperty().get();
 
@@ -779,23 +803,13 @@ public class CompQuantPanelController implements Initializable{
 				Map.entry("stain", stain)
 		));
 
-		CompQuantBackend compQuant = new CompQuantBackend(qupath.getImageData(),
-				selectedTargets,
-				selectedCompartments,
-				ignoreClasses,
-				roiClasses,
-				params,
-				getNumThreads()-3,
-				runCancelled,
-				controlListToToggle,
-				menuItemListToToggle,
-				quantProgressBar,
-				progressLabel
-				);
-		return compQuant;
+
+		return params;
 	}
 
-	void runQuant(CompQuantBackend compQuant){
+	CompletableFuture<Void> runQuant(CompQuantBackend compQuant){
+//		Every time you run this code, make sure that the runCancelled is false
+		runCancelled.set(false);
 		ImageData<BufferedImage> imageData = compQuant.getImageData();
 		PathObjectHierarchy hierarchy = imageData.getHierarchy();
 		Map<String, Object> params = compQuant.getParams();
@@ -814,7 +828,7 @@ public class CompQuantPanelController implements Initializable{
 			hierarchy.removeObjects(notCells, true);
 			clearMeasurements(hierarchy, hierarchy.getCellObjects());
 		}
-		CompletableFuture.runAsync(()->{
+		CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
 			}
@@ -831,12 +845,16 @@ public class CompQuantPanelController implements Initializable{
 						progressLabel.setText("Quantifying Grid Tiles...");
 					});
 					try{
+//						If you are making grids/tiles, delete any old tiles?
+						logger.warn("Deleting any tile objects!!");
+						hierarchy.removeObjects(hierarchy.getTileObjects(), true);
 						compQuant.TileRecalcCompartmentsAndScores().get();
 					}catch (ExecutionException | InterruptedException | CancellationException ex){
 						Platform.runLater(()-> {
 							exportMeasButton.setDisable(false);
 							exportMeasMenuItem.setDisable(false);
 							startQuantButton.setDisable(false);
+							runForProjectMenuItem.setDisable(false);
 						});
 						throw new RuntimeException(ex);
 					}
@@ -861,6 +879,7 @@ public class CompQuantPanelController implements Initializable{
 						exportMeasButton.setDisable(false);
 						exportMeasMenuItem.setDisable(false);
 						startQuantButton.setDisable(false);
+						runForProjectMenuItem.setDisable(false);
 					});
 					throw new RuntimeException(ex);
 				}
@@ -882,6 +901,7 @@ public class CompQuantPanelController implements Initializable{
 						exportMeasButton.setDisable(false);
 						exportMeasMenuItem.setDisable(false);
 						startQuantButton.setDisable(false);
+						runForProjectMenuItem.setDisable(false);
 					});
 					throw new RuntimeException(ex);
 				}
@@ -904,6 +924,7 @@ public class CompQuantPanelController implements Initializable{
 				exportMeasButton.setDisable(false);
 				exportMeasMenuItem.setDisable(false);
 				startQuantButton.setDisable(false);
+				runForProjectMenuItem.setDisable(false);
 			});
 //				cleanup vars
 			compQuant.close();
@@ -917,22 +938,55 @@ public class CompQuantPanelController implements Initializable{
 			logger.info("Completed with all tasks...");
 //			update progress bar again.....?
 		});
+		return runFuture;
+	}
+
+	public void cancelRunningTask(){
+		Future<?> future = runningTask.get();
+		if (future != null) {
+			if (future.isDone())
+				runningTask.set(null);
+			else
+				future.cancel(true);
+		}
 	}
 
 	//Main panel and button commands
 	public void startQuant(ActionEvent e){
-		PathObjectHierarchy hierarchy = qupath.getImageData().getHierarchy();
-		CompQuantBackend compQuant = setupQuant();
-		if(compQuant==null)
+		Map<String, Object> params = setupQuantParams();
+		if(params==null)
 			return;
+		CompQuantBackend compQuant = new CompQuantBackend(
+				qupath.getImageData(),
+				selectedTargets,
+				selectedCompartments,
+				ignoreClasses,
+				roiClasses,
+				params,
+				getNumThreads()-3,
+				runCancelled,
+				controlListToToggle,
+				menuItemListToToggle,
+				quantProgressBar,
+				progressLabel
+		);
+//		make runQuant it's own task??
 		runQuant(compQuant);
 	}
 
+	public void runForProject(ActionEvent e){
+//		always set saving to true for batch jobs...
+		handleRunProject(true);
+	}
+
 	public void cancelQuant(ActionEvent e){
+		runCancelled.set(true);
+		cancelRunningTask();
 		exportMeasButton.setDisable(false);
 		exportMeasMenuItem.setDisable(false);
 		startQuantButton.setDisable(false);
-		runCancelled.set(true);
+		runForProjectMenuItem.setDisable(false);
+
 		progressLabel.setText("Canceled task...");
 //		would be cool to make progress bar red
 		quantProgressBar.setProgress(0);
