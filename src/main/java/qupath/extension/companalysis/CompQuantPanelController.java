@@ -8,6 +8,7 @@ import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.*;
+import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
@@ -24,6 +25,7 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
+import javafx.stage.Modality;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
@@ -31,6 +33,7 @@ import javafx.util.converter.IntegerStringConverter;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 
+import org.controlsfx.dialog.ProgressDialog;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
@@ -48,6 +51,10 @@ import qupath.lib.awt.common.AwtTools;
 import qupath.lib.awt.common.BufferedImageTools;
 import qupath.lib.geom.ImmutableDimension;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.dialogs.Dialogs;
+import qupath.lib.gui.dialogs.ProjectDialogs;
+import qupath.lib.gui.scripting.DefaultScriptEditor;
+import qupath.lib.gui.scripting.ScriptTab;
 import qupath.lib.gui.tools.MeasurementExporter;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.PathImage;
@@ -71,13 +78,11 @@ import qupath.lib.roi.interfaces.ROI;
 import static qupath.lib.common.Prefs.getNumThreads;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.clearMeasurements;
-import static qupath.lib.scripting.QP.getCurrentHierarchy;
 
 import qupath.opencv.ops.ImageOps;
 import qupath.opencv.tools.OpenCVTools;
 
 //import java.awt.*;
-import java.awt.*;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 //import java.io.BufferedReader;
@@ -505,7 +510,7 @@ public class CompQuantPanelController implements Initializable{
 //
 //	}
 
-	public void updateResultTypes(ActionEvent event){
+	private void updateResultTypes(ActionEvent event){
 		resultTypeComboBox.valueProperty().set(null);
 		resultTypeComboBox.getItems().clear();
 		String currentSlideType = slideTypeComboBox.getValue();
@@ -561,7 +566,7 @@ public class CompQuantPanelController implements Initializable{
 	 * @param imageData
 	 * @return
 	 */
-	public Collection<ColorTransform> getAvailableTransforms(ImageData<BufferedImage> imageData) {
+	private Collection<ColorTransform> getAvailableTransforms(ImageData<BufferedImage> imageData) {
 		var validChannels = new LinkedHashMap<ColorTransform, Double>();
 		var server = imageData.getServer();
 		double increment = server.getPixelType().isFloatingPoint() ? 0.1 : 0.5;
@@ -589,7 +594,175 @@ public class CompQuantPanelController implements Initializable{
 	//Utility methods
 	// https://stackoverflow.com/questions/8567596/how-to-make-updating-bigdecimal-within-concurrenthashmap-thread-safe
 
-	
+//	/**
+//	 * Request project image entries to run script for.
+//	 * @param doSave
+//	 */
+//	void handleRunProject(final boolean doSave) {
+//		Project<BufferedImage> project = qupath.getProject();
+//		if (project == null) {
+//			Dialogs.showNoProjectError("CompQuant");
+//			return;
+//		}
+//
+//		// Ensure that the previous images remain selected if the project still contains them
+////		FilteredList<ProjectImageEntry<?>> sourceList = new FilteredList<>(FXCollections.observableArrayList(project.getImageList()));
+//
+//		String sameImageWarning = doSave ? "A selected image is open in the viewer!\nUse 'File>Reload data' to see changes." : null;
+//		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
+//
+//		Dialog<ButtonType> dialog = new Dialog<>();
+//		dialog.initOwner(qupath.getStage());
+//		dialog.setTitle("Select project images");
+//		dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+//		dialog.getDialogPane().setContent(listSelectionView);
+//		dialog.setResizable(true);
+//		dialog.getDialogPane().setPrefWidth(600);
+//		dialog.initModality(Modality.APPLICATION_MODAL);
+//		Optional<ButtonType> result = dialog.showAndWait();
+//		if (!result.isPresent() || result.get() != ButtonType.OK)
+//			return;
+//
+//		previousImages.clear();
+////		previousImages.addAll(listSelectionView.getTargetItems());
+//
+//		previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+//
+//		if (previousImages.isEmpty())
+//			return;
+//
+//		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
+//
+//		CompQuantPanelController.ProjectTask worker = new CompQuantPanelController.ProjectTask(project, imagesToProcess, tab, doSave);
+//
+//
+//		ProgressDialog progress = new ProgressDialog(worker);
+//		progress.initOwner(qupath.getStage());
+//		progress.setTitle("Batch script");
+//		progress.getDialogPane().setHeaderText("Batch processing...");
+//		progress.getDialogPane().setGraphic(null);
+//		progress.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+//		progress.getDialogPane().lookupButton(ButtonType.CANCEL).addEventFilter(ActionEvent.ACTION, e -> {
+//			if (Dialogs.showYesNoDialog("Cancel batch script", "Are you sure you want to stop the running script after the current image?")) {
+//				worker.quietCancel();
+//				progress.setHeaderText("Cancelling...");
+////				worker.cancel(false);
+//				progress.getDialogPane().lookupButton(ButtonType.CANCEL).setDisable(true);
+//			}
+//			e.consume();
+//		});
+//
+//		// Clear console if necessary
+//		if (autoClearConsole.get() && getCurrentScriptObject() != null) {
+//			tab.getConsoleComponent().clear();
+//		}
+//
+//		// Create & run task
+//		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
+//		progress.show();
+//	}
+//
+//	class ProjectTask extends Task<Void> {
+//
+//		private Project<BufferedImage> project;
+//		private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
+//		private ScriptTab tab;
+//		private boolean quietCancel = false;
+//		private boolean doSave = false;
+//
+//		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final ScriptTab tab, final boolean doSave) {
+//			this.project = project;
+//			this.imagesToProcess = imagesToProcess;
+//			this.tab = tab;
+//			this.doSave = doSave;
+//		}
+//
+//		public void quietCancel() {
+//			this.quietCancel = true;
+//		}
+//
+//		public boolean isQuietlyCancelled() {
+//			return quietCancel;
+//		}
+//
+//		@Override
+//		public Void call() {
+//
+//			long startTime = System.currentTimeMillis();
+//
+//			tab.setRunning(true);
+//
+//			int counter = 0;
+//			for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
+//				try {
+//					// Stop
+//					if (isQuietlyCancelled() || isCancelled()) {
+//						logger.warn("Script cancelled with " + (imagesToProcess.size() - counter) + " image(s) remaining");
+//						break;
+//					}
+//
+//					updateProgress(counter, imagesToProcess.size());
+//					counter++;
+//					updateMessage(entry.getImageName() + " (" + counter + "/" + imagesToProcess.size() + ")");
+//
+//					// Create a new region store if we need one
+//					System.gc();
+//
+//					// Open saved data if there is any, or else the image itself
+//					ImageData<BufferedImage> imageData = entry.readImageData();
+//					if (imageData == null) {
+//						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
+//						continue;
+//					}
+////					QPEx.setBatchImageData(imageData);
+//					executeScript(tab, tab.getEditorComponent().getText(), project, imageData);
+//					if (doSave)
+//						entry.saveImageData(imageData);
+//					imageData.getServer().close();
+//
+//					if (clearCache.get()) {
+//						try {
+//							var store = qupath == null ? null : qupath.getImageRegionStore();
+//							if (store != null)
+//								store.clearCache();
+//							System.gc();
+//						} catch (Exception e) {
+//
+//						}
+//					}
+//				} catch (Exception e) {
+//					logger.error("Error running batch script: {}", e);
+//				}
+//			}
+//			updateProgress(imagesToProcess.size(), imagesToProcess.size());
+//
+//			long endTime = System.currentTimeMillis();
+//
+//			long timeMillis = endTime - startTime;
+//			String time = null;
+//			if (timeMillis > 1000*60)
+//				time = String.format("Total processing time: %.2f minutes", timeMillis/(1000.0 * 60.0));
+//			else if (timeMillis > 1000)
+//				time = String.format("Total processing time: %.2f seconds", timeMillis/(1000.0));
+//			else
+//				time = String.format("Total processing time: %d milliseconds", timeMillis);
+//			logger.info("Processed {} images", imagesToProcess.size());
+//			logger.info(time);
+//
+//			return null;
+//		}
+//
+//
+//		@Override
+//		protected void done() {
+//			super.done();
+//			tab.setRunning(false);
+//			// Make sure we reset the running task
+//			Platform.runLater(() -> runningTask.setValue(null));
+//		}
+//
+//	};
+
 	//Main panel and button commands
 	public void startQuant(ActionEvent e){
 //		double check that all fields have values
@@ -643,12 +816,12 @@ public class CompQuantPanelController implements Initializable{
 
 //		Remove detection objects that are not cells, clear source measurements
 		if(source.equals("Annotations")) {
-			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell())
+			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
 																						.collect(Collectors.toList());
 			hierarchy.removeObjects(notCells, true);
 			clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
 		} else if(source.equals("Cells")){
-			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell())
+			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
 					.collect(Collectors.toList());
 			hierarchy.removeObjects(notCells, true);
 			clearMeasurements(hierarchy, hierarchy.getCellObjects());
@@ -670,8 +843,8 @@ public class CompQuantPanelController implements Initializable{
 						progressLabel.setText("Quantifying Grid Tiles...");
 					});
 					try{
-						compQuant.TileRecalcCompartmentsAndScores();
-					}catch (CancellationException ex){
+						compQuant.TileRecalcCompartmentsAndScores().get();
+					}catch (ExecutionException | InterruptedException | CancellationException ex){
 						Platform.runLater(()-> {
 							exportMeasButton.setDisable(false);
 							exportMeasMenuItem.setDisable(false);
@@ -738,8 +911,20 @@ public class CompQuantPanelController implements Initializable{
 			return null;
 		})
 		.thenRun(()->{
+//			not necessary but just in case
+			Platform.runLater(()-> {
+				exportMeasButton.setDisable(false);
+				exportMeasMenuItem.setDisable(false);
+				startQuantButton.setDisable(false);
+			});
 //			cleanup vars
 			compQuant.close();
+			var store = qupath == null ? null : qupath.getImageRegionStore();
+			if (store != null)
+//				This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
+				logger.info("Clearing Image Region Store cache...");
+				store.clearCache();
+//			System.gc();
 //			compQuant = null;
 			System.gc();
 			logger.info("Completed with all tasks...");
@@ -778,15 +963,15 @@ public class CompQuantPanelController implements Initializable{
 //		}
 	}
 	
-	public void advancedSettings(ActionEvent e) {
+	void advancedSettings(ActionEvent e) {
 		logger.info("Opening advanced settings panel...");
 	}
 	
-	public void helpButton(ActionEvent e) {
+	void helpButton(ActionEvent e) {
 		logger.info("Opening help dialog...");
 	}
 	
-	public void exportImageMeasurementsButton(ActionEvent e) {
+	void exportImageMeasurementsButton(ActionEvent e) {
 		logger.info("Opening dialog to export measurements for project...");
 //		fileSelector = new FileChooser();
 		Project<BufferedImage> project = qupath.getProject();
@@ -818,7 +1003,7 @@ public class CompQuantPanelController implements Initializable{
 		}
 	}
 
-	public void exportAllMeasurementsButton(ActionEvent e) {
+	void exportAllMeasurementsButton(ActionEvent e) {
 		logger.info("Opening dialog to export measurements for project...");
 //		fileSelector = new FileChooser();
 		Project<BufferedImage> project = qupath.getProject();
@@ -850,7 +1035,7 @@ public class CompQuantPanelController implements Initializable{
 		}
 	}
 
-	public List<String> getMeasExcludeColumns(String excludeType) {
+	List<String> getMeasExcludeColumns(String excludeType) {
 		if (excludeType.equals("essential")) {
 			List<String> excludeColumns = new ArrayList<String>();
 			excludeColumns.add("ROI");
@@ -949,7 +1134,7 @@ public class CompQuantPanelController implements Initializable{
 					});
 				});
 	}
-	public void exportMasksButton(ActionEvent e) {
+	void exportMasksButton(ActionEvent e) {
 		logger.info("Opening dialog to export masks for project...");
 	}
 	
@@ -959,35 +1144,26 @@ public class CompQuantPanelController implements Initializable{
 	}
 
 	//	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
-	public class CompQuantBackend {
+	private class CompQuantBackend {
 		private static final Logger logger = LoggerFactory.getLogger(CompQuantBackend.class);
 		private ForkJoinPool forkJoinPool;
-//		private ForkJoinTask mainTask;
 
 		private int estNumTasks;
 		private int numThreads;
 
 		private Collection<Compartments> cellCompartments = Collections.synchronizedList(Arrays.asList(Compartments.values()));
 		private Set<Measurements> measurements = Collections.synchronizedSet(new HashSet<>(Arrays.asList(Measurements.values())));
-		//		public final double maxFloatValue;
-//		public final boolean normalizeScore;
-//		public final boolean rescaleScore;
 		private Map<String, Object> params = new ConcurrentHashMap<>();
-
-		//		private QuPathGUI qupath;
 		private ImageData<BufferedImage> bImageData;
 		//		private Map<Thread, ImageServer<BufferedImage>> threadImageServerMap = new ConcurrentHashMap<>();
 		private ConcurrentHashMap<ColorTransform, Double> targets;
 		private Set<PathClass> compartments;
 		private Set<PathClass> ignoreClasses;
 		private Set<PathClass> roiClasses;
-
-		//		private final AtomicReference<BigDecimal> progressValue = new AtomicReference<BigDecimal>(new BigDecimal(String.format("%.2f", 0.0)));
 		private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
 		private final AtomicReference<Boolean> isCancelled;
 
 		CompQuantBackend(ImageData<BufferedImage> bImageData,
-//						 QuPathGUI qupath,
 						 Map<ColorTransform, Double> targets,
 						 Set<PathClass> compartments,
 						 Set<PathClass> ignoreClasses,
@@ -1001,7 +1177,6 @@ public class CompQuantPanelController implements Initializable{
 						 double maxFloatValue,
 						 int numThreads) {
 			this.bImageData = bImageData;
-//			this.qupath = qupath;
 			this.targets = new ConcurrentHashMap<>(targets);
 			this.compartments = Collections.synchronizedSet(compartments);
 			this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
@@ -1019,7 +1194,6 @@ public class CompQuantPanelController implements Initializable{
 		}
 
 		CompQuantBackend(ImageData<BufferedImage> bImageData,
-//						 QuPathGUI qupath,
 						 Map<ColorTransform, Double> targets,
 						 Set<PathClass> compartments,
 						 Set<PathClass> ignoreClasses,
@@ -1034,7 +1208,6 @@ public class CompQuantPanelController implements Initializable{
 						 int numThreads,
 						 List<Compartments> cellCompartments,
 						 HashSet<Measurements> measurements) {
-//			this.qupath = qupath;
 			this.bImageData = bImageData;
 			this.targets = new ConcurrentHashMap<>(targets);
 			this.compartments = Collections.synchronizedSet(compartments);
@@ -1158,18 +1331,8 @@ public class CompQuantPanelController implements Initializable{
 		public void incrementProgress(Integer amount) {
 			double prog = incrementAndGet(amount).doubleValue();
 			int newEst = getEstNumTasks();
-			logger.info(String.format("%f", prog / newEst));
+//			logger.debug(String.format("%f", prog / newEst));
 			Platform.runLater(() -> {
-//				just to make sure that GUI resets and GC happens
-				if (prog / newEst + 0.005 >= 1.0) {
-					exportMeasButton.setDisable(false);
-					exportMeasMenuItem.setDisable(false);
-					startQuantButton.setDisable(false);
-//					should you force the cancel?
-//					cancelTasks();
-					System.gc();
-					System.gc();
-				}
 				quantProgressBar.setProgress(prog / newEst);
 			});
 		}
@@ -1200,6 +1363,11 @@ public class CompQuantPanelController implements Initializable{
 				}
 			});
 			setEstNumTasks(0);
+			progressValue.set(BigInteger.valueOf(0));
+//			Platform.runLater(()->{
+//				quantProgressBar.setProgress(0);
+//				progressLabel.setText("Cancelled tasks...");
+//			});
 			return result;
 		}
 
@@ -1211,41 +1379,10 @@ public class CompQuantPanelController implements Initializable{
 			}
 		}
 
-//		public ROI combinePathObjs(List<PathObject> annots) throws ExecutionException, InterruptedException {
-//			List<ROI> rois = forkJoinPool.submit(()-> annots.parallelStream().map(a -> a.getROI()).collect(Collectors.toList())).get();
-//			ROI combinedROI = RoiTools.union(rois);
-//			return combinedROI;
-//		}
-
-//		public ROI combinePathObjs(Collection<PathObject> annots, Boolean newAnnot) {
-//			ROI combinedROI = null;
-//			PathClass p_class = null;
-//			for (PathObject annotation : annots) {
-//				if (combinedROI == null) {
-//					combinedROI = annotation.getROI();//.duplicate();
-//					p_class = annotation.getPathClass();
-//				} else if (combinedROI.getImagePlane().equals(annotation.getROI().getImagePlane())) {
-//					combinedROI = RoiTools.combineROIs(combinedROI, annotation.getROI(), RoiTools.CombineOp.ADD);
-//				} else {
-//					logger.info("Cannot merge PathObjects across different image planes!");
-////				continue;
-//				}
-//			}
-//
-//			if (newAnnot) {
-//				PathObjectHierarchy hierarchy = bImageData.getHierarchy();
-//				hierarchy.removeObjects(annots, true);
-//				PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
-//				hierarchy.addPathObject(combinedAnnot);
-//			}
-//
-//			return combinedROI;
-//		}
-
 		// AQUA inside each intersecting compartment of ROI only
 		//    Map<String, Integer> targets = new LinkedHashMap<>();
 		// Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
-		// How to flexibly find ROIs within TMA core hierarchy?
+		// TODO: How to flexibly find ROIs within TMA core hierarchy?
 		public CompletableFuture<Void> getTargetScoresForROIs() throws RuntimeException {
 			return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
 		}
@@ -1268,6 +1405,7 @@ public class CompQuantPanelController implements Initializable{
 
 			AtomicInteger totalROIs = new AtomicInteger(0);
 			Integer progAmount = 1;
+			progressValue.set(BigInteger.valueOf(0));
 
 			// Used for placing child objects inside ROI
 			AtomicInteger roiNumber = new AtomicInteger(1);
@@ -1321,21 +1459,21 @@ public class CompQuantPanelController implements Initializable{
 
 											PathObject adjpathObj = null;
 											ROI adjpathObjROI = f.getROI();
-											boolean intersectsExclude = false;
-											if (doAdjust.get() && combinedExcludeGeom != null) {
-												intersectsExclude = adjpathObjROI.getGeometry().intersects(combinedExcludeGeom);
-												if (intersectsExclude) {
-													adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+											if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
+												adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+												if (adjpathObjROI.isEmpty()) {
+													logger.info(String.format("ROI %s is now empty, skipping AQUA metrics...", f.getName()));
+													return null;
+												} else {
+													logger.info(String.format("Adjusting ROI %s based on ignore annotations...", f.getName()));
+
+													adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+//													Do I need to set the name again?
+													adjpathObj.setName(f.getName());
+													hierarchy.addPathObject(adjpathObj);
+//													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+													hierarchy.removeObject(f, true);
 												}
-											}
-											if (adjpathObjROI.isEmpty()) {
-												logger.info(String.format("ROI %s is now empty, skipping AQUA metrics...", f.getName()));
-											} else if (doAdjust.get() && intersectsExclude) {
-												logger.info(String.format("Adjusting ROI %s based on ignore annotations...", f.getName()));
-												adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
-												hierarchy.addPathObject(adjpathObj);
-//												bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-												hierarchy.removeObject(f, true);
 											} else {
 												adjpathObj = f;
 											}
@@ -1345,6 +1483,7 @@ public class CompQuantPanelController implements Initializable{
 											setEstNumTasks(totalROIs.get());
 											return adjpathObj;
 										})
+										.filter(p -> p != null)
 										.forEach(r -> {
 											//Typically the number of compartments is small and these are all combined for a WSI.
 											//Not efficient for TMA cores! but should work...
@@ -1352,33 +1491,31 @@ public class CompQuantPanelController implements Initializable{
 												throw new CancellationException();
 											}
 
-											if (r != null) {
-//												ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
-												for (PathObject compObj : compartmentObjs) {
+//											ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
+											for (PathObject compObj : compartmentObjs) {
 
-													ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
+												ROI compInterROI = RoiTools.combineROIs(compObj.getROI(), r.getROI(), RoiTools.CombineOp.INTERSECT);
 
-													if (!compInterROI.isEmpty()) {
-														PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
-														logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
-														// For debugging, maybe helps with visualization
-														// Add object as a child of the ROI
-														//                        addObject(compInterDet);
-														compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-														bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
+												if (!compInterROI.isEmpty()) {
+													PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
+													logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
+													// For debugging, maybe helps with visualization
+													// Add object as a child of the ROI
+													//                        addObject(compInterDet);
+													compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
+													bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
 
-														logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
+													logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
 
-														// Quantify metrics/AQUA for each target in each intersecting compartment
-														// Calculate AQUA scoring metrics for new compartment detections for all targets
-														try {
-															getTargetsIntensityScores_OpenCV(server, compInterDet);
-														} catch (IOException ex) {
-															logger.warn(ex.toString());
-														}
-													} else {
-														logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
+													// Quantify metrics/AQUA for each target in each intersecting compartment
+													// Calculate AQUA scoring metrics for new compartment detections for all targets
+													try {
+														getTargetsIntensityScores_OpenCV(server, compInterDet);
+													} catch (IOException ex) {
+														logger.warn(ex.toString());
 													}
+												} else {
+													logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
 												}
 											}
 											incrementProgress(progAmount);
@@ -1438,6 +1575,162 @@ public class CompQuantPanelController implements Initializable{
 			}
 		}
 
+		// fixed version of original RoiTools.computeTiledROIs function
+		// TODO: make into parallelStreams
+		// TODO: consolidate into computeTiledROISForCompartments?
+		public static Collection<? extends ROI> computeTiledROIs(ROI parentROI, ImmutableDimension sizePreferred, ImmutableDimension sizeMax, boolean fixedSize, int overlap) {
+
+			ROI pathArea = parentROI != null && parentROI.isArea() ? parentROI : null;
+			Rectangle2D bounds = AwtTools.getBounds2D(parentROI);
+			if (pathArea == null || (bounds.getWidth() <= sizeMax.width && bounds.getHeight() <= sizeMax.height)) {
+				return Collections.singletonList(parentROI);
+			}
+
+			Geometry geometry = pathArea.getGeometry();
+			PreparedGeometry prepared = null;
+
+			double xMin = bounds.getMinX();
+			double yMin = bounds.getMinY();
+			int nx = (int)Math.ceil(bounds.getWidth() / sizePreferred.width);
+			int ny = (int)Math.ceil(bounds.getHeight() / sizePreferred.height);
+			double w = fixedSize ? sizePreferred.width : (int)Math.ceil(bounds.getWidth() / nx);
+			double h = fixedSize ? sizePreferred.height : (int)Math.ceil(bounds.getHeight() / ny);
+
+			// Center the tiles
+//			xMin = (int)(bounds.getCenterX() - (nx * w * .5));
+//			yMin = (int)(bounds.getCenterY() - (ny * h * .5));
+
+			// This can be very slow if we have an extremely large number of vertices/tiles.
+			// For that reason, we try to split initially by either rows or columns if needed.
+			boolean byRow = false;
+			boolean byColumn = false;
+			Map<Integer, Geometry> rowParents = null;
+			Map<Integer, Geometry> columnParents = null;
+			var envelope = geometry.getEnvelopeInternal();
+			if (ny > 1 && nx > 1 && geometry.getNumPoints() > 1000) {
+
+				// If we have a lot of points, create a prepared geometry so we can check covers/intersects quickly;
+				// (for a regular geometry, it would be faster to just compute an intersection and see if it's empty)
+				prepared = PreparedGeometryFactory.prepare(geometry);
+				var prepared2 = prepared;
+				var empty = geometry.getFactory().createEmpty(2);
+
+				byRow = nx > ny;
+				byColumn = !byRow;
+				double yMin2 = yMin;
+				double xMin2 = xMin;
+				// Compute intersection by row so that later intersections are simplified
+				if (byRow) {
+					rowParents = IntStream.range(0, ny)
+							.parallel()
+							.mapToObj(yi -> yi)
+							.collect(
+									Collectors.toMap(
+											yi -> yi,
+											yi -> {
+												double y = yMin2 + yi * h - overlap;
+												var row = GeometryTools.createRectangle(
+														envelope.getMinX(),
+														y,
+														envelope.getMaxX(),
+														h + overlap*2);
+												if (!prepared2.intersects(row))
+													return empty;
+												else if (prepared2.covers(row))
+													return row;
+												var temp = intersect(geometry, row);
+												return temp == null ? geometry : temp;
+											}
+									)
+							);
+				}
+				if (byColumn) {
+					columnParents = IntStream.range(0, nx)
+							.parallel()
+							.mapToObj(xi -> xi)
+							.collect(
+									Collectors.toMap(
+											xi -> xi,
+											xi -> {
+												double x = xMin2 + xi * w - overlap;
+												var col = GeometryTools.createRectangle(
+														x,
+														envelope.getMinY(),
+														w + overlap*2,
+														envelope.getMaxY());
+												if (!prepared2.intersects(col))
+													return empty;
+												else if (prepared2.covers(col))
+													return col;
+												var temp = intersect(geometry, col);
+												return temp == null ? geometry : temp;
+											}
+									)
+							);
+				}
+			}
+
+			// Geometry local is the one we're working with for the current row or column
+			// (often it's the same as the full ROI)
+			Geometry geometryLocal = geometry;
+
+			// Generate all the rectangles as geometries
+			Map<Geometry, Geometry> tileGeometries = new LinkedHashMap<>();
+			for (int yi = 0; yi < ny; yi++) {
+
+				double y = yMin + yi * h - overlap;
+				if (rowParents != null)
+					geometryLocal = rowParents.getOrDefault(yi, geometry);
+
+				for (int xi = 0; xi < nx; xi++) {
+
+					double x = xMin + xi * w - overlap;
+					if (columnParents != null)
+						geometryLocal = columnParents.getOrDefault(xi, geometry);
+
+					if (geometryLocal.isEmpty())
+						continue;
+
+					// Create the tile
+					var rect = GeometryTools.createRectangle(x, y, w + overlap*2, h + overlap*2);
+
+					// Use a prepared geometry if we have one to check covers/intersects & save some effort
+					if (prepared != null) {
+						if (!prepared.intersects(rect)) {
+							continue;
+						} else if (prepared.covers(rect)) {
+							tileGeometries.put(rect, rect);
+							continue;
+						}
+					}
+
+					// Checking geometryLocal.intersects(rect) first is actually much slower!
+					// So add everything and filter out empty tiles later.
+					tileGeometries.put(rect, geometryLocal);
+				}
+			}
+			// Compute intersections & map to ROIs
+			var plane = parentROI.getImagePlane();
+			var tileROIs = tileGeometries
+					.entrySet()
+					.parallelStream()
+					.map(entry -> intersect(entry.getKey(), entry.getValue()))
+					.filter(g -> g != null)
+					.map(g -> GeometryTools.geometryToROI(g, plane))
+					.collect(Collectors.toList());
+
+			// If there was an exception, the tile will be null
+			if (tileROIs.size() < tileGeometries.size()) {
+				logger.warn("Tiles lost during tiling: {}", tileGeometries.size() - tileROIs.size());
+				logger.warn("You may be able to avoid tiling errors by calling 'Simplify shape' on any complex annotations first.");
+			}
+
+			// Remove any empty/non-area tiles
+			return tileROIs.stream()
+					.filter(t -> !t.isEmpty() && t.isArea())
+					.collect(Collectors.toList());
+		}
+
 		public Map<PathObject, Map<PathClass, ROI>> computeTiledROIsForCompartments(Rectangle2D bounds,
 																							List<PathObject> compartmentPathObjs,
 																							ImmutableDimension sizePreferred,
@@ -1481,11 +1774,11 @@ public class CompQuantPanelController implements Initializable{
 
 
 		public Map<PathObject, Map<PathClass, ROI>> computeTiledROIsForCompartments(Rectangle2D bounds,
-																							ImagePlane plane,
-																							ConcurrentHashMap<PathClass, Geometry> compartmentGeoms,
-																							ImmutableDimension sizePreferred,
-																							boolean fixedSize,
-																							int overlap) throws ExecutionException, InterruptedException {
+																					ImagePlane plane,
+																					ConcurrentHashMap<PathClass, Geometry> compartmentGeoms,
+																					ImmutableDimension sizePreferred,
+																					boolean fixedSize,
+																					int overlap) throws ExecutionException, InterruptedException {
 
 //			Bound for entire image
 
@@ -1501,7 +1794,6 @@ public class CompQuantPanelController implements Initializable{
 						)
 				);
 			}
-
 
 			ConcurrentHashMap<PathClass, PreparedGeometry> preparedGeoms = new ConcurrentHashMap<>(
 					forkJoinPool.submit(()->compartmentGeoms.entrySet().parallelStream()
@@ -1540,7 +1832,12 @@ public class CompQuantPanelController implements Initializable{
 			if (ny > 1 && nx > 1 && preparedGeoms.size() >= 1) {
 				// If we have a lot of points, create a prepared geometry so we can check covers/intersects quickly;
 				// (for a regular geometry, it would be faster to just compute an intersection and see if it's empty)
-				logger.info(String.format("Preparing %d sets of local geometries...", preparedGeoms.size()));
+				String prepString = String.format("Preparing %d sets of local geometries (1/4)", preparedGeoms.size());
+				logger.info(prepString);
+				Platform.runLater(()->{
+					progressLabel.setText(prepString);
+					quantProgressBar.setProgress(-1);
+				});
 
 				byRow = nx > ny;
 //				byRow = true;
@@ -1561,93 +1858,96 @@ public class CompQuantPanelController implements Initializable{
 				// Compute intersection by row so that later intersections are simplified
 				if (byRow) {
 					localGeoms = new ConcurrentHashMap<>(
-							forkJoinPool.submit(()->
-								IntStream.range(0, ny)
-										.parallel()
-										.boxed()
-										.collect(
-												Collectors.toMap(
-														yi -> yi,
-														yi -> {
-															double y = yMin2 + yi * h - overlap;
-															return new ConcurrentHashMap<PathClass, Geometry>(
-																	preparedGeoms.entrySet().parallelStream()
-																			.map(prep -> {
-																				var prepared2 = prep.getValue();
-																				var geometry = compartmentGeoms.get(prep.getKey());
-																				if (prepared2 == null) {
-																					// This would happen if the geometry was too small to be prepared
-																					// use the compartment geometry in this case
-																					return Map.entry(prep.getKey(), geometry);
-																				}
-																				var envelope = compartmentEnvel.get(prep.getKey());
-																				var row = GeometryTools.createRectangle(
-																						envelope.getMinX(),
-																						y,
-																						envelope.getMaxX(),
-																						h + overlap * 2);
-																				if (!prepared2.intersects(row)) {
-																					return Map.entry(prep.getKey(), empty);
-																				} else if (prepared2.covers(row)) {
-																					return Map.entry(prep.getKey(), row);
-																				}
-																				var temp = intersect(geometry, row);
-																				return Map.entry(prep.getKey(), temp == null ? geometry : temp);
-																			})
-																			.collect(Collectors.toMap(
-																					m -> m.getKey(),
-																					m -> m.getValue())
-																			)
-															);
+						forkJoinPool.submit(()->
+							IntStream.range(0, ny)
+								.parallel()
+								.boxed()
+								.collect(
+									Collectors.toMap(
+										yi -> yi,
+										yi -> {
+											double y = yMin2 + yi * h - overlap;
+											return new ConcurrentHashMap<PathClass, Geometry>(
+												preparedGeoms.entrySet().parallelStream()
+													.map(prep -> {
+														var prepared2 = prep.getValue();
+														var geometry = compartmentGeoms.get(prep.getKey());
+														if (prepared2 == null) {
+															// This would happen if the geometry was too small to be prepared
+															// use the compartment geometry in this case
+															return Map.entry(prep.getKey(), geometry);
 														}
-												)
-										)
-							).get());
+														var envelope = compartmentEnvel.get(prep.getKey());
+														var row = GeometryTools.createRectangle(
+																envelope.getMinX(),
+																y,
+																envelope.getMaxX(),
+																h + overlap * 2);
+														if (!prepared2.intersects(row)) {
+															return Map.entry(prep.getKey(), empty);
+														} else if (prepared2.covers(row)) {
+															return Map.entry(prep.getKey(), row);
+														}
+														var temp = intersect(geometry, row);
+														return Map.entry(prep.getKey(), temp == null ? geometry : temp);
+													})
+													.collect(Collectors.toMap(
+															m -> m.getKey(),
+															m -> m.getValue()
+															)
+													)
+											);
+									}
+								)
+							)
+						).get()
+					);
 				}
 				if (byColumn) {
 					localGeoms = new ConcurrentHashMap<>(
-							forkJoinPool.submit(()->
-								IntStream.range(0, nx)
-										.parallel()
-										.boxed()
-										.collect(
-												Collectors.toMap(
-														xi -> xi,
-														xi -> {
-															double x = xMin2 + xi * w - overlap;
-															return new ConcurrentHashMap<PathClass, Geometry>(
-																preparedGeoms.entrySet().parallelStream()
-																	.map(prep -> {
-																		var prepared2 = prep.getValue();
-																		var geometry = compartmentGeoms.get(prep.getKey());
-																		if (prepared2 == null) {
-																			// This would happen if the geometry was too small to be prepared
-																			// use the compartment geometry in this case
-																			return Map.entry(prep.getKey(), geometry);
-																		}
-																		var envelope = compartmentEnvel.get(prep.getKey());
-																		var col = GeometryTools.createRectangle(
-																				x,
-																				envelope.getMinY(),
-																				w + overlap * 2,
-																				envelope.getMaxY());
-																		if (!prepared2.intersects(col)) {
-																			return Map.entry(prep.getKey(), empty);
-																		} else if (prepared2.covers(col)) {
-																			return Map.entry(prep.getKey(), col);
-																		}
-																		var temp = intersect(geometry, col);
-																		return Map.entry(prep.getKey(), temp == null ? geometry : temp);
-																	}
-																	).collect(Collectors.toMap(
-																				m->m.getKey(),
-																				m->m.getValue()
-																		))
-															);
+						forkJoinPool.submit(()->
+							IntStream.range(0, nx)
+								.parallel()
+								.boxed()
+								.collect(
+									Collectors.toMap(
+										xi -> xi,
+										xi -> {
+											double x = xMin2 + xi * w - overlap;
+											return new ConcurrentHashMap<PathClass, Geometry>(
+												preparedGeoms.entrySet().parallelStream()
+													.map(prep -> {
+														var prepared2 = prep.getValue();
+														var geometry = compartmentGeoms.get(prep.getKey());
+														if (prepared2 == null) {
+															// This would happen if the geometry was too small to be prepared
+															// use the compartment geometry in this case
+															return Map.entry(prep.getKey(), geometry);
 														}
-												)
-										)
-							).get());
+														var envelope = compartmentEnvel.get(prep.getKey());
+														var col = GeometryTools.createRectangle(
+																x,
+																envelope.getMinY(),
+																w + overlap * 2,
+																envelope.getMaxY());
+														if (!prepared2.intersects(col)) {
+															return Map.entry(prep.getKey(), empty);
+														} else if (prepared2.covers(col)) {
+															return Map.entry(prep.getKey(), col);
+														}
+														var temp = intersect(geometry, col);
+														return Map.entry(prep.getKey(), temp == null ? geometry : temp);
+													}
+													).collect(Collectors.toMap(
+																m->m.getKey(),
+																m->m.getValue()
+														))
+											);
+										}
+								)
+							)
+						).get()
+					);
 				}
 			}
 
@@ -1658,114 +1958,58 @@ public class CompQuantPanelController implements Initializable{
 
 			ConcurrentHashMap<Integer, ConcurrentHashMap<PathClass, Geometry>> finalLocalGeoms = localGeoms;
 
-			if(!byRow && !byColumn){
-				ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = compartmentGeoms;
-//				always using full compartment geometries to compute intersections
-//				when geometries are small (< 1000 pts)
-				forkJoinPool.submit(()->
-					IntStream.range(0, nx).parallel().forEach(xi -> {
-						if (isCancelled.get()) {
-							throw new CancellationException();
-						}
-						int x = xMin + xi * w - overlap;
-						IntStream.range(0, ny).parallel().forEach(yi -> {
-							int y = yMin + yi * h - overlap;
-							// Create the tile
-							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
+//			always using full compartment geometries to compute intersections
+//			when geometries are small (< 1000 pts)
+//			AtomicReference<ConcurrentHashMap<PathClass, Geometry>> theseLocalGeoms = new AtomicReference<>(compartmentGeoms);
+			setEstNumTasks(nx*ny);
+			int progAmount = 1;
+			progressValue.set(BigInteger.valueOf(0));
+			Platform.runLater(()->{
+				progressLabel.setText("Computing tile & compartment intersections (2/4)");
+			});
 
-	//						Map<PathClass, ROI> thisIntersectMap = new HashMap<>();
-							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
-									.collect(Collectors.toMap(
-											m -> m.getKey(),
-											m -> m.getValue()
-									));
-							// handle empty/null thisIntersectMaps?
-							if (!thisIntersectMap.isEmpty()) {
-								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
-								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
-	//							logger.info(thisIntersectMap.toString());
-								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
-								tileIntersectROIs.put(tileObj, thisIntersectMap);
-							}
-						});
-					})
-				).get();
-			} else if(byRow) {
-				forkJoinPool.submit(()->
+			boolean finalByColumn = byColumn;
+			boolean finalByRow = byRow;
+//			ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = compartmentGeoms;
+			forkJoinPool.submit(()->
+				IntStream.range(0, nx).parallel().forEach(xi -> {
+					if (isCancelled.get()) {
+						throw new CancellationException();
+					}
+					int x = xMin + xi * w - overlap;
+//					A very hacky way to consolidate the code into 1 loop.
+//					Atomic Reference doesn't behave when getting hit by multiple streams setting potentially different values for each stream...
+					ConcurrentHashMap<PathClass, Geometry> outerLocalGeoms = finalByColumn ? finalLocalGeoms.getOrDefault(xi, compartmentGeoms) : compartmentGeoms;
+
 					IntStream.range(0, ny).parallel().forEach(yi -> {
-						if (isCancelled.get()) {
-							throw new CancellationException();
-						}
 						int y = yMin + yi * h - overlap;
-						// always row
-						ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = finalLocalGeoms.getOrDefault(yi, compartmentGeoms);
-						IntStream.range(0, nx).parallel().forEach(xi -> {
-							int x = xMin + xi * w - overlap;
-							// Create the tile
-							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
-	//						logger.info(String.format("r%dc%d_x%dy%d",yi, xi, x, y));
-							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
-									.collect(Collectors.toMap(
-											m -> m.getKey(),
-											m -> m.getValue()
-									));
+						ConcurrentHashMap<PathClass, Geometry> innerLocalGeoms = finalByRow ? finalLocalGeoms.getOrDefault(yi, compartmentGeoms) : outerLocalGeoms;
 
-							// handle empty/null thisIntersectMaps?
-							if (!thisIntersectMap.isEmpty()) {
-								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
-								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
-	//							logger.info(thisIntersectMap.toString());
-								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
-								tileIntersectROIs.put(tileObj, thisIntersectMap);
-							}
-						});
-					})
-				).get();
-			} else if(byColumn){
-				forkJoinPool.submit(()->
-					IntStream.range(0, nx).parallel().forEach(xi -> {
-						if (isCancelled.get()) {
-							throw new CancellationException();
+						// Create the tile
+						var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
+
+//						Map<PathClass, ROI> thisIntersectMap = new HashMap<>();
+						Map<PathClass, ROI> thisIntersectMap = innerLocalGeoms.entrySet().parallelStream()
+								.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+								.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
+								.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
+								.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
+								.collect(Collectors.toMap(
+										m -> m.getKey(),
+										m -> m.getValue()
+								));
+						// handle empty/null thisIntersectMaps?
+						if (!thisIntersectMap.isEmpty()) {
+							PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
+							tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
+//							logger.info(thisIntersectMap.toString());
+							logger.info(String.format("Creating Tile-r%dc%d_x%dy%d...",yi, xi, x, y));
+							tileIntersectROIs.put(tileObj, thisIntersectMap);
 						}
-						int x = xMin + xi * w - overlap;
-						// always column
-						ConcurrentHashMap<PathClass, Geometry> theseLocalGeoms = finalLocalGeoms.getOrDefault(xi, compartmentGeoms);
-						IntStream.range(0, ny).parallel().forEach(yi -> {
-							int y = yMin + yi * h - overlap;
-							// Create the tile
-							var rect = GeometryTools.createRectangle(x, y, w + overlap * 2, h + overlap * 2);
-	//						logger.info(String.format("r%dc%d_x%dy%d",yi, xi, x, y));
-							Map<PathClass, ROI> thisIntersectMap = theseLocalGeoms.entrySet().parallelStream()
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), intersect(rect, m.getValue())))
-									.filter(m -> m.getValue() != null && !m.getValue().isEmpty())
-									.map(m -> Map.entry(m.getKey(), GeometryTools.geometryToROI(m.getValue(), plane)))
-									.collect(Collectors.toMap(
-											m -> m.getKey(),
-											m -> m.getValue()
-									));
-
-							// handle empty/null thisIntersectMaps?
-							if(!thisIntersectMap.isEmpty()) {
-								PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
-								tileObj.setName(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
-	//							logger.info(thisIntersectMap.toString());
-								logger.info(String.format("Tile-r%dc%d_x%dy%d",yi, xi, x, y));
-								tileIntersectROIs.put(tileObj, thisIntersectMap);
-							}
-						});
-					})
-				).get();
-
-			}
+						incrementProgress(progAmount);
+					});
+				})
+			).get();
 
 			return tileIntersectROIs;
 
@@ -1799,8 +2043,8 @@ public class CompQuantPanelController implements Initializable{
 				numThreads = 1;
 
 			setupNewForkJoinPool(numThreads);
-
 			Integer progAmount = 1;
+			progressValue.set(BigInteger.valueOf(0));
 
 			// Used for placing child objects inside ROI
 			AtomicReference<Boolean> doAdjust = new AtomicReference<>(false);
@@ -1823,9 +2067,15 @@ public class CompQuantPanelController implements Initializable{
 
 				logger.info(allIgnoreROIs.toString());
 				combinedExcludeROI = RoiTools.union(allIgnoreROIs);
+				if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
+					doAdjust.set(true);
+					combinedExcludeGeom = combinedExcludeROI.getGeometry();
+				} else{
+					doAdjust.set(false);
+					combinedExcludeGeom = null;
+				}
 				// TODO: is there a simpler way to get this Map<PathClass, List<ROI>> from one stream, and then combine if there are multiple entries in the List<ROI>?
 				// combine compartments into path objects
-				// TODO: remove ignore annotations
 				Map<PathClass, ROI> combCompartmentROIMap = new HashMap<>();
 				for(PathClass c : compartments){
 					List<ROI> theseCROIs = forkJoinPool.submit(()->compartmentObjs.parallelStream()
@@ -1834,6 +2084,13 @@ public class CompQuantPanelController implements Initializable{
 							.collect(Collectors.toList())).get();
 					ROI combinedC = RoiTools.union(theseCROIs);
 					if(combinedC!=null && !combinedC.isEmpty()){
+						if (doAdjust.get() && combinedC.getGeometry().intersects(combinedExcludeGeom)) {
+							combinedC = RoiTools.combineROIs(combinedC, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+							if(combinedC.isEmpty()){
+								continue;
+							}
+						}
+						// Do not remake the pathObject
 						combCompartmentROIMap.put(c, combinedC);
 					}
 				}
@@ -1848,35 +2105,70 @@ public class CompQuantPanelController implements Initializable{
 																										ImmutableDimension.getInstance(tileSize, tileSize),
 																								true,
 																									0);
+
+
 //				Make pathObjects out of intersections and add to tileObj as children
-				tileIntersectROIs.entrySet().parallelStream()
+				progressValue.set(BigInteger.valueOf(0));
+				Platform.runLater(()->{
+					progressLabel.setText("Creating tile objects... (3/4)");
+					quantProgressBar.setProgress(-1);
+				});
+//				I don't like how this blocks the main thread and GUI, can freeze up the UI easily.... should wrap inside the completable future?
+				forkJoinPool.submit(()->tileIntersectROIs.entrySet().parallelStream()
 						.forEach(tileM ->{
-							List<PathObject> intersectChildren = tileM.getValue().entrySet().parallelStream()
-											.map(m -> PathObjects.createTileObject(m.getValue(), m.getKey(), null))
-											.collect(Collectors.toList());
+							List<PathObject> intersectChildren = null;
+							try {
+								intersectChildren = forkJoinPool.submit(()->tileM.getValue().entrySet().parallelStream()
+												.map(m -> PathObjects.createTileObject(m.getValue(), m.getKey(), null))
+												.collect(Collectors.toList())).get();
+							} catch (InterruptedException | ExecutionException e) {
+								logger.error("Could not create tile children....");
+								throw new RuntimeException(e);
+							}
 							PathObject tileObj = tileM.getKey();
 							tileObj.addPathObjects(intersectChildren);
 							hierarchy.addPathObject(tileObj);
-						});
+						})
+					).get();
 
-
-			} catch (ExecutionException | InterruptedException e) {
-				throw new RuntimeException(e);
+				Platform.runLater(()->{
+					progressLabel.setText("Creating and Scoring tiles... (4/4)");
+				});
+				setEstNumTasks(tileIntersectROIs.size());
+				result = CompletableFuture.runAsync(() -> tileIntersectROIs.entrySet().parallelStream().forEach(tileM ->{
+							if (isCancelled.get()) {
+								throw new CancellationException();
+							}
+							try {
+								getTargetsIntensityScores_OpenCV(server, tileM.getKey(), tileM.getValue());
+							} catch (IOException ex) {
+								logger.warn(ex.toString());
+							}
+							incrementProgress(progAmount);
+						})
+				,forkJoinPool)
+				.thenRun(() -> {
+					Platform.runLater(() -> {
+						progressLabel.setText("Completed scoring Tiles!");
+						quantProgressBar.setProgress(1.0);
+						exportMeasButton.setDisable(false);
+						exportMeasMenuItem.setDisable(false);
+						startQuantButton.setDisable(false);
+					});
+				})
+				.exceptionally(ex -> {
+					ex.printStackTrace();
+//							logger.warn(Arrays.toString(ex.getStackTrace()));
+					logger.warn("TileRecalcCompartmentsAndScores: " + ex);
+					return null;
+				});
+			} catch (ExecutionException | InterruptedException ex) {
+				throw new RuntimeException(ex);
+			} finally {
+//				no effect on commonPool
+				forkJoinPool.shutdown();
 			}
-
-
-			return null;
-
-			// Make tiles for entire image of tileSize x tileSize
-				// label tiles "Tile_(row, col)"
-				// get empty tiles?
-				// get intersections with compartments here?
-			// for each tile, get intersection with each compartment
-				// add compartment intersection as detection to parent tile hierarchy?
-				// get intensity measurements, add to detection object AND parent tile
-
-
-
+			return result;
 		}
 
 
@@ -1920,6 +2212,7 @@ public class CompQuantPanelController implements Initializable{
 			// could just try and use the amount of tasks queued... doesn't work in time before forkJoinPool is done with submit/invoke
 //			setEstNumTasks((int) tmaCores.size() * compartments.size());
 			Integer progAmount = 1;
+			progressValue.set(BigInteger.valueOf(0));
 			if (numThreads <= 0)
 				numThreads = 1;
 
@@ -1982,27 +2275,24 @@ public class CompQuantPanelController implements Initializable{
 //										ImageServer<BufferedImage> server = threadImageServerMap.computeIfAbsent(Thread.currentThread(), t -> bImageData.getServer());
 										PathObject adjpathObj;
 										ROI adjpathObjROI = pathObj.getROI();
-										boolean intersectsExclude = false;
+//										boolean intersectsExclude = false;
 										// is not very efficient as the excluded areas may only be in certain TMA spots....
 										// getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
 										// not very efficient use of if statements when these variables are set before the parallelStream starts
 										// case switch inside parallelStream? does this work?
-										if (doAdjust.get() && combinedExcludeGeom != null) {
-											intersectsExclude = adjpathObjROI.getGeometry().intersects(combinedExcludeGeom);
-											if (intersectsExclude) {
-												adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+										if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
+											adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+											if (adjpathObjROI.isEmpty()) {
+												logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+												//removeObject(detection, true);
+												return;
+											} else {
+												logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+												adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+												hierarchy.addPathObject(adjpathObj);
+												bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+												hierarchy.removeObject(pathObj, true);
 											}
-										}
-										if (adjpathObjROI.isEmpty()) {
-											logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
-											//						removeObject(detection, true);
-											return;
-										} else if (doAdjust.get() && intersectsExclude) {
-											logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
-											adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
-											hierarchy.addPathObject(adjpathObj);
-											bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-											hierarchy.removeObject(pathObj, true);
 										} else {
 											adjpathObj = pathObj;
 										}
@@ -2138,6 +2428,10 @@ public class CompQuantPanelController implements Initializable{
 		}
 
 		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject pathObject) throws IOException {
+			return getTargetsIntensityScores_OpenCV(server, pathObject, null);
+		}
+
+		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject parentObject, Map<PathClass, ROI> intersectROIs) throws IOException {
 			//get params required
 			double downsample;
 			boolean rescaleScore;
@@ -2152,35 +2446,39 @@ public class CompQuantPanelController implements Initializable{
 //				ex.printStackTrace();
 				throw new RuntimeException(ex);
 			}
-			return getTargetsIntensityScores_OpenCV(server, pathObject, targets, cellCompartments, measurements,
+			return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, cellCompartments, measurements,
 					downsample, rescaleScore, normalizeScore, maxFloatValue);
 
 		}
 
-		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject pathObject,
-															Map<ColorTransform, Double> targets,
-															Collection<Compartments> cellCompartments,
-															Collection<Measurements> measurements,
-															double downsample, boolean rescaleScore, boolean normalizeScore,
-															double maxFloatValue) throws IOException {
+		public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server,
+														PathObject parentObject,
+														Map<PathClass, ROI> intersectROIs,
+														Map<ColorTransform, Double> targets,
+														Collection<Compartments> cellCompartments,
+														Collection<Measurements> measurements,
+														double downsample, boolean rescaleScore, boolean normalizeScore,
+														double maxFloatValue) throws IOException {
 //			It would be nice to close the server after use, but doing this also closes the main server across all threads....
 			try {
 				// Determine amount to downsample
 //				var server = imageData.getServer();
-				String className = pathObject.getPathClass().toString();
+				if(intersectROIs==null){
+					intersectROIs = new ConcurrentHashMap<>(Map.ofEntries(
+							Map.entry(parentObject.getPathClass(), parentObject.getROI())
+						)
+					);
+				}
+//				String className = pathObject.getPathClass().toString();
 				PixelCalibration pc = server.getPixelCalibration();
 				PixelType pixType = server.getPixelType();
 				int bitDepth = server.getPixelType().getBitsPerPixel();
 				double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
 				//    println 'Squarred MPP: ' + mppSq.toString();
 
-				// Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
-				MeasurementList measList = pathObject.getMeasurementList();
-
-				// Add shape measurements
-				double annotationArea = pathObject.getROI().getArea();
-				measList.putMeasurement(className + " area px", annotationArea);
-				measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+				// get the parent pathObject measurement list
+				MeasurementList measList = parentObject.getMeasurementList();
+				// add basic metadata
 				measList.putMeasurement("MPP^2", mppSq);
 				measList.putMeasurement("Channel bitdepth", bitDepth);
 				int bitDepthVal = (int) Math.pow(2, bitDepth);
@@ -2192,18 +2490,28 @@ public class CompQuantPanelController implements Initializable{
 
 				measList.putMeasurement("downsample", downsample);
 
-				Map<String, DescriptiveStatistics> allStats = new ConcurrentHashMap<>();
-				Map<String, String> measNames = new ConcurrentHashMap<>();
-				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-					String targetName = tar.getKey().toString();
-					allStats.put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
-					String measName = targetName + " Intensity in " + className;
-					measNames.put(targetName, measName);
-					logger.info(String.format("Scoring %s in %s", targetName, className));
+				// Add shape measurements and setup stat trackers
+				Map<PathClass, Map<String, DescriptiveStatistics>> allStats = new ConcurrentHashMap<>();
+				Map<PathClass, Map<String, String>> measNames = new ConcurrentHashMap<>();
+				for(Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
+					double annotationArea = interROI.getValue().getArea();
+					PathClass pathClass = interROI.getKey();
+					String className = pathClass.toString();
+					measList.putMeasurement(className + " area px", annotationArea);
+					measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+					allStats.put(pathClass, new ConcurrentHashMap<>());
+					measNames.put(pathClass, new ConcurrentHashMap<>());
+					for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+						String targetName = tar.getKey().toString();
+						allStats.get(pathClass).put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
+						String measName = targetName + " Intensity in " + className;
+						measNames.get(pathClass).put(targetName, measName);
+						logger.info(String.format("Scoring %s in %s", targetName, className));
+					}
 				}
 
-				if (pathObject instanceof PathCellObject) {
-					PathCellObject cell = (PathCellObject) pathObject;
+				if (parentObject instanceof PathCellObject) {
+					PathCellObject cell = (PathCellObject) parentObject;
 					if (cell.getROI() == null) {
 						logger.warn("ROI is null, cannot get intensity scores...");
 						return false;
@@ -2213,7 +2521,7 @@ public class CompQuantPanelController implements Initializable{
 					RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, cell.getROI());
 					BufferedImage img = server.readBufferedImage(region);
 					if (img == null) {
-						logger.error("Could not read image - unable to compute intensity features for {}", pathObject);
+						logger.error("Could not read image - unable to compute intensity features for {}", parentObject);
 						return false;
 					}
 
@@ -2232,127 +2540,132 @@ public class CompQuantPanelController implements Initializable{
 						}
 					}
 
-					//				not implemented yet
+//					not implemented yet
 					return false;
 
-					//For mean, median, stdev, etc.
-					//				measureCells_OpenCV(nucBytes, cellBytes, Map.of(1.0, cell), channels, cellCompartments, measurements);
+//					For mean, median, stdev, etc.
+//					measureCells_OpenCV(nucBytes, cellBytes, Map.of(1.0, cell), channels, cellCompartments, measurements);
 				} else {
-					ROI roi = pathObject.getROI();
-					if (roi == null) {
-						logger.warn("ROI is null, cannot get intensity scores...");
-						return false;
-					}
-					// Create tiled ROIs, if required
-					ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
-					Collection<? extends ROI> rois = RoiTools.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
-					if (rois.size() > 1)
-						logger.info("Splitting {} into {} tiles for intensity measurements", roi, rois.size());
-
-					for (ROI pathROI : rois) {
-
-						if (Thread.currentThread().isInterrupted()) {
-							logger.warn("Measurement skipped - thread interrupted!");
+					for(Map.Entry<PathClass, ROI> interROI: intersectROIs.entrySet()) {
+						ROI roi = interROI.getValue();
+						PathClass pathClass = interROI.getKey();
+						String className = pathClass.toString();
+						if (roi == null) {
+							logger.warn("ROI is null, cannot get intensity scores...");
 							return false;
 						}
+						// Create tiled ROIs, if required
+						ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
+						Collection<? extends ROI> rois = CompQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
+						if (rois.size() > 1)
+							logger.info("Splitting {} into {} tiles for intensity measurements", roi, rois.size());
 
-						// Get bounds
-//						int pad = (int) Math.ceil(downsample * 2);
-						RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
-//								.pad2D(pad, pad)
-//								.intersect2D(0, 0, server.getWidth(), server.getHeight());
-						BufferedImage img = server.readBufferedImage(region);
-						if (img == null) {
-							logger.error("Could not read image - unable to compute intensity features for {}", pathObject);
-							return false;
-						}
+						for (ROI pathROI : rois) {
 
-						// Create mask ROI if necessary
-						// If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
-						byte[] maskBytes = null;
-						if (img.getWidth() * img.getHeight() > 1) {
-							BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), pathROI, region);
-							maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
-						}
+							if (Thread.currentThread().isInterrupted()) {
+								logger.warn("Measurement skipped - thread interrupted!");
+								return false;
+							}
 
-						int w = img.getWidth();
-						int h = img.getHeight();
-						float[] pixels = null;
+							// Get bounds
+							RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
+							BufferedImage img = server.readBufferedImage(region);
+							if (img == null) {
+								logger.error("Could not read image - unable to compute intensity feature");
+								return false;
+							}
 
-						for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-							ColorTransform transform = tar.getKey();
-							//						double expTime = tar.getValue();
-							DescriptiveStatistics thisStats = allStats.get(transform.toString());
+							// Create mask ROI if necessary
+							// If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
+							byte[] maskBytes = null;
+							if (img.getWidth() * img.getHeight() > 1) {
+								BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), pathROI, region);
+								maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+							}
 
-							// Transform the pixels
-							pixels = transform.extractChannel(server, img, pixels);
+							int w = img.getWidth();
+							int h = img.getHeight();
+							float[] pixels = null;
 
-							// Create the simple image
-							SimpleModifiableImage pixelImage = SimpleImages.createFloatImage(pixels, w, h);
+							for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+								ColorTransform transform = tar.getKey();
+//								double expTime = tar.getValue();
+								DescriptiveStatistics thisStats = allStats.get(pathClass).get(transform.toString());
 
-//							assert pixelImage.getHeight() * pixelImage.getWidth() == pixels.length;
+								// Transform the pixels
+								pixels = transform.extractChannel(server, img, pixels);
 
-							// Apply any arbitrary mask and add values to stats
-							if (maskBytes != null) {
-								for (int i = 0; i < pixels.length; i++) {
-									if (maskBytes[i] == (byte) 0) {
-//										pixelImage.setValue(i % w, i / w, Float.NaN);
-										continue;
+								// Create the simple image
+								SimpleModifiableImage pixelImage = SimpleImages.createFloatImage(pixels, w, h);
+
+//								assert pixelImage.getHeight() * pixelImage.getWidth() == pixels.length;
+
+								// Apply any arbitrary mask and add values to stats
+								if (maskBytes != null) {
+									for (int i = 0; i < pixels.length; i++) {
+										if (maskBytes[i] == (byte) 0) {
+//											pixelImage.setValue(i % w, i / w, Float.NaN);
+											continue;
+										}
+										thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
 									}
-									thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
+									allStats.get(pathClass).put(transform.toString(), thisStats);
 								}
-								allStats.put(transform.toString(), thisStats);
 							}
 						}
+						addMeasurements_OpenCV(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
 					}
-					addMeasurements_OpenCV(allStats, measNames, pathObject, measurements);
 				}
 
-				for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-					String targetName = tar.getKey().toString();
-					double exposure_time = tar.getValue();
-					String measName = measNames.get(targetName);
-					double targetMean = measList.getMeasurementValue(measName + ": Mean");
-					// double sumInt = targetMean*annotationArea;
-					// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
-					// Debugging, would load from available metadata
-					if (exposure_time == 0.0 || exposure_time < 0) {
-						exposure_time = 1000;
-						measList.putMeasurement(targetName + " exposure time (ms)", 0);
-					} else {
-						measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
-					}
+				for(Map.Entry<PathClass, Map<String, String>> measEntry : measNames.entrySet()) {
+					String className = measEntry.getKey().toString();
+					Map<String, String> theseMeas = measEntry.getValue();
+					for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
+						String targetName = tar.getKey().toString();
+						double exposure_time = tar.getValue();
+						String measName = theseMeas.get(targetName);
+						double targetMean = measList.getMeasurementValue(measName + ": Mean");
+						// double sumInt = targetMean*annotationArea;
+						// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
+						// Debugging, would load from available metadata
+						if (exposure_time == 0.0 || exposure_time < 0) {
+							exposure_time = 1000;
+							measList.putMeasurement(targetName + " exposure time (ms)", 0);
+						} else {
+							measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+						}
 
-					// double MeanI_S = targetMean/(exposure_time/1000)
-					// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
-					// Intensity/(um^2*sec)
-					// double QIF_area = targetMean/mppSq;
-					// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
-					//if pixelType float, skip [vetra Polaris data]
-					if (pixType.isFloatingPoint()) {
-						double QIF_areaS = (targetMean / mppSq);
-						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-					} else if (rescaleScore && !normalizeScore) {
-						//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
-						//using bitdepth and maxFloatValue to rescale
-						double rescaleFactor = (maxFloatValue / bitDepthVal);
-						double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
-						measList.putMeasurement("Rescale factor", rescaleFactor);
-						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-					} else if (normalizeScore) {
-						double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
-					} else {
-						// no normalization
-						double QIF_areaS = (targetMean / mppSq);
-						measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+						// double MeanI_S = targetMean/(exposure_time/1000)
+						// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
+						// Intensity/(um^2*sec)
+						// double QIF_area = targetMean/mppSq;
+						// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
+						//if pixelType float, skip [vetra Polaris data]
+						if (pixType.isFloatingPoint()) {
+							double QIF_areaS = (targetMean / mppSq);
+							measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+						} else if (rescaleScore && !normalizeScore) {
+							//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
+							//using bitdepth and maxFloatValue to rescale
+							double rescaleFactor = (maxFloatValue / bitDepthVal);
+							double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
+							measList.putMeasurement("Rescale factor", rescaleFactor);
+							measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+						} else if (normalizeScore) {
+							double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+							measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+						} else {
+							// no normalization
+							double QIF_areaS = (targetMean / mppSq);
+							measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+						}
+						//    double totalPx = server.getHeight()*server.getWidth();
+						//    println 'Total pixels: '+ totalPx.toString();
+						//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
+						//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
+						//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
+						//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
 					}
-					//    double totalPx = server.getHeight()*server.getWidth();
-					//    println 'Total pixels: '+ totalPx.toString();
-					//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
-					//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
-					//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
-					//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
 				}
 
 				// Lock any measurements that require it
@@ -2365,9 +2678,10 @@ public class CompQuantPanelController implements Initializable{
 //			pathObject.getMeasurementList().close();
 			measList.close();
 //			server = null;
-			pathObject = null;
+			parentObject = null;
 			measList = null;
 			measNames = null;
+			allStats = null;
 			System.gc();
 
 		} catch (Exception e) {
@@ -2852,492 +3166,4 @@ public class CompQuantPanelController implements Initializable{
 //	}
 	}
 
-//	public class CompQuantMeasurements {
-//		private final static Logger logger = LoggerFactory.getLogger(CompQuantMeasurements.class);
-//
-//		private final Collection<CompQuantMeasurements.Compartments> cellCompartments;
-//		private final LinkedHashSet<CompQuantMeasurements.Measurements> measurements;
-//
-//		private final Map<ColorTransform, Double> targets;
-//		private final ImageData<BufferedImage> imageData;
-//		private final Map<String, Object> params;
-//
-//		public CompQuantMeasurements(Map<ColorTransform, Double> targets,
-//									 ImageData<BufferedImage> imageData,
-//									 Map<String, Object> params){
-//			this.targets = targets;
-//			this.imageData = imageData;
-//			this.params = params;
-//			this.cellCompartments = Arrays.asList(Compartments.values());
-//			this.measurements = new LinkedHashSet<>(Arrays.asList(Measurements.values()));
-//		}
-//
-//		public CompQuantMeasurements(Map<ColorTransform, Double> targets,
-//									 ImageData<BufferedImage> imageData,
-//									 Map<String, Object> params,
-//									 Collection<CompQuantMeasurements.Compartments> cellCompartments,
-//									 Collection<CompQuantMeasurements.Measurements> measurements){
-//			this.targets = targets;
-//			this.imageData = imageData;
-//			this.params = params;
-//			this.cellCompartments = cellCompartments;
-//			this.measurements = new LinkedHashSet<>(measurements);
-//		}
-//
-//		/**
-//		 * Cell compartments.
-//		 */
-//		public enum Compartments {
-//			/**
-//			 * Nucleus only
-//			 */
-//			NUCLEUS,
-//			/**
-//			 * Full cell region, with nucleus removed
-//			 */
-//			CYTOPLASM,
-//			/**
-//			 * Full cell region
-//			 */
-//			CELL,
-//			/**
-//			 * Cell boundary, with interior removed
-//			 */
-//			MEMBRANE
-//
-//		}
-//
-//		/**
-//		 * Requested intensity measurements.
-//		 */
-//		public enum Measurements {
-//			/**
-//			 * Arithmetic mean
-//			 */
-//			MEAN,
-//			/**
-//			 * Median value
-//			 */
-//			MEDIAN,
-//			/**
-//			 * Minimum value
-//			 */
-//			MIN,
-//			/**
-//			 * Maximum value
-//			 */
-//			MAX,
-//			/**
-//			 * Standard deviation value
-//			 */
-//			STD_DEV,
-//			/**
-//			 * Variance value
-//			 */
-//			VARIANCE;
-//
-//			private String getMeasurementName() {
-//				switch (this) {
-//					case MAX:
-//						return "Max";
-//					case MEAN:
-//						return "Mean";
-//					case MEDIAN:
-//						return "Median";
-//					case MIN:
-//						return "Min";
-//					case STD_DEV:
-//						return "Std.Dev.";
-//					case VARIANCE:
-//						return "Variance";
-//					default:
-//						throw new IllegalArgumentException("Unknown measurement " + this);
-//				}
-//			}
-//
-//			private double getMeasurement(StatisticalSummary stats) {
-//				switch (this) {
-//					case MAX:
-//						return stats.getMax();
-//					case MEAN:
-//						return stats.getMean();
-//					case MEDIAN:
-//						if (stats instanceof DescriptiveStatistics)
-//							return ((DescriptiveStatistics)stats).getPercentile(50.0);
-//						else
-//							return Double.NaN;
-//					case MIN:
-//						return stats.getMin();
-//					case STD_DEV:
-//						return stats.getStandardDeviation();
-//					case VARIANCE:
-//						return stats.getVariance();
-//					default:
-//						throw new IllegalArgumentException("Unknown measurement " + this);
-//				}
-//			}
-//		}
-//
-//
-//		public void getTargetsIntensityScores(PathObject pathObject) throws IOException {
-//			//get params required
-//			double downsample;
-//			boolean rescaleScore;
-//			boolean normalizeScore;
-//			double maxFloatValue;
-//			try {
-//				downsample = (double) params.get("downsample");
-//				rescaleScore = (boolean) params.get("rescaleScore");
-//				normalizeScore = (boolean) params.get("normalizeScore");
-//				maxFloatValue = (double) params.get("maxFloatValue");
-//			} catch(Exception ex){
-////				ex.printStackTrace();
-//				throw new RuntimeException(ex);
-//			}
-//
-//			// Convert to binary mask Mat
-//			ROI roi = pathObject.getROI();
-//			String className = pathObject.getPathClass().toString();
-//			ImageServer<BufferedImage> server = imageData.getServer();
-//
-//			int pad = (int) Math.ceil(downsample * 2);
-//			RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
-//					.pad2D(pad, pad)
-//					.intersect2D(0, 0, server.getWidth(), server.getHeight());
-//
-//			PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
-////			ImagePlus imp = pathImage.getImage();
-//
-//			PixelCalibration pc = server.getPixelCalibration();
-//			PixelType pixType = server.getPixelType();
-//			int bitDepth = server.getPixelType().getBitsPerPixel();
-//			double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
-//			//    println 'Squarred MPP: ' + mppSq.toString();
-//
-//			// Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
-//			MeasurementList measList = pathObject.getMeasurementList();
-//
-//			// Add shape measurements
-//			double annotationArea = pathObject.getROI().getArea();
-//			measList.putMeasurement(className + " area px", annotationArea);
-//			measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
-//			measList.putMeasurement("MPP^2", mppSq);
-//			measList.putMeasurement("Channel bitdepth", bitDepth);
-//			int bitDepthVal = (int) Math.pow(2, bitDepth);
-////			int bitDepthVal = (int) Math.pow(2, 16);
-//
-//			Map<String, ImageProcessor> channels = new LinkedHashMap<>();
-//			Map<String, String> measNames = new LinkedHashMap<>();
-//
-//			//Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
-//			//Using ImageJ to create a binary mask [0,1] of ROI
-//			ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
-//			bpCell.setValue(1.0);
-//			Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
-//			bpCell.fill(roiIJ);
-//
-//			//Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
-//			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-//				ColorTransform targetTransform = tar.getKey();
-//				String targetName = targetTransform.toString();
-//				ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
-//				String measName = targetName + " Intensity in " + className;
-//				measNames.put(targetName, measName);
-//				channels.put(measName, ipChannel);
-//				logger.info(String.format("Scoring %s in %s", targetName, className));
-//			}
-//
-//			if (pathObject instanceof PathCellObject) {
-//				PathCellObject cell = (PathCellObject) pathObject;
-//				ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
-//				if (cell.getNucleusROI() != null) {
-//					bpNucleus.setValue(1.0);
-//					Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
-//					bpNucleus.fill(roiNucleusIJ);
-//				}
-//				//For mean, median, stdev, etc.
-//				measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels);
-//				//Calculate sum intensity in compartment
-//				//        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-//			} else {
-//				var imgLabels = new PixelImageIJ(bpCell);
-//				for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
-//					var img = new PixelImageIJ(entry.getValue());
-//					//For mean, median, stdev, etc.
-//					measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey());
-//					//Calculate sum intensity in compartment
-//					//            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-//				}
-//			}
-//
-//
-//			for (Map.Entry<ColorTransform, Double> tar : targets.entrySet()) {
-//				String targetName = tar.getKey().toString();
-//				double exposure_time = tar.getValue();
-//				String measName = measNames.get(targetName);
-//				double targetMean = measList.getMeasurementValue(measName + ": Mean");
-//				// double sumInt = targetMean*annotationArea;
-//				// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
-//				// Debugging, would load from available metadata
-//				if (exposure_time == 0.0 || exposure_time < 0) {
-//					exposure_time = 1000;
-//					measList.putMeasurement(targetName + " exposure time (ms)", 0);
-//				} else {
-//					measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
-//				}
-//
-//				// double MeanI_S = targetMean/(exposure_time/1000)
-//				// measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
-//				// Intensity/(um^2*sec)
-//				// double QIF_area = targetMean/mppSq;
-//				// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
-//				//if pixelType float, skip [vetra Polaris data]
-//				if(pixType.isFloatingPoint()) {
-//					double QIF_areaS = (targetMean / mppSq);
-//					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-//				}else if(rescaleScore && !normalizeScore){
-//					//assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
-//					//using bitdepth and maxFloatValue to rescale
-//					double rescaleFactor = (maxFloatValue/bitDepthVal);
-//					double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
-//					measList.putMeasurement("Rescale factor", rescaleFactor);
-//					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-//				}else if(normalizeScore) {
-//					double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-//					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
-//				}else{
-//					// no normalization
-//					double QIF_areaS = (targetMean / mppSq);
-//					measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-//				}
-//				//    double totalPx = server.getHeight()*server.getWidth();
-//				//    println 'Total pixels: '+ totalPx.toString();
-//				//    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
-//				//    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
-//				//    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
-//				//    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
-//			}
-//
-////			clean up vars?
-//			server = null;
-//			pathImage = null;
-//			channels = null;
-//			request = null;
-//			measList = null;
-//		}
-//
-//		/**
-//		 * Measure all channels of an image for one individual object or cell.
-//		 * All compartments are measured where possible (nucleus, cytoplasm, membrane and full cell).
-//		 * <p>
-//		 * Note: This implementation is likely to change in the future, to enable neighboring cells to be
-//		 * measured more efficiently.
-//		 *
-//		 * @param server the server containing the pixels (and channels) to be measured
-//		 * @param pathObject the cell to measure (the {@link MeasurementList} will be updated)
-//		 * @param downsample resolution at which to request pixels
-//		 * @param measurements requested measurements to make
-//		 * @param compartments the cell compartments to measure; ignored if the object is not a cell
-//		 * @throws IOException
-//		 */
-////		public static void addIntensityMeasurements(
-////				ImageServer<BufferedImage> server,
-////				PathObject pathObject,
-////				double downsample,
-////				Collection<CompQuantMeasurements.Measurements> measurements,
-////				Collection<CompQuantMeasurements.Compartments> compartments) throws IOException {
-////
-////			var roi = pathObject.getROI();
-////
-////			int pad = (int)Math.ceil(downsample * 2);
-////			var request = RegionRequest.createInstance(server.getPath(), downsample, roi)
-////					.pad2D(pad, pad)
-////					.intersect2D(0, 0, server.getWidth(), server.getHeight());
-////
-////			var pathImage = IJTools.convertToImagePlus(server, request);
-////			var imp = pathImage.getImage();
-////
-////			Map<String, ImageProcessor> channels = new LinkedHashMap<>();
-////			var serverChannels = server.getMetadata().getChannels();
-////			if (server.isRGB() && imp.getStackSize() == 1 && imp.getProcessor() instanceof ColorProcessor) {
-////				ColorProcessor cp = (ColorProcessor)imp.getProcessor();
-////				for (int i = 0; i < serverChannels.size(); i++) {
-////					channels.put(serverChannels.get(i).getName(), cp.getChannel(i+1, null));
-////				}
-////			} else {
-////				assert imp.getStackSize() == serverChannels.size();
-////				for (int i = 0; i < imp.getStackSize(); i++) {
-////					channels.put(serverChannels.get(i).getName(), imp.getStack().getProcessor(i+1));
-////				}
-////			}
-////
-////			ByteProcessor bpCell = new ByteProcessor(imp.getWidth(), imp.getHeight());
-////			bpCell.setValue(1.0);
-////			var roiIJ = IJTools.convertToIJRoi(roi, pathImage);
-////			bpCell.fill(roiIJ);
-////
-////			if (pathObject instanceof PathCellObject) {
-////				var cell = (PathCellObject)pathObject;
-////				ByteProcessor bpNucleus = new ByteProcessor(imp.getWidth(), imp.getHeight());
-////				if (cell.getNucleusROI() != null) {
-////					bpNucleus.setValue(1.0);
-////					var roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
-////					bpNucleus.fill(roiNucleusIJ);
-////				}
-////				measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, compartments, measurements);
-////			} else {
-////				var imgLabels = new PixelImageIJ(bpCell);
-////				for (var entry : channels.entrySet()) {
-////					var img = new PixelImageIJ(entry.getValue());
-////					measureObjects(img, imgLabels, new PathObject[] {pathObject}, entry.getKey(), measurements);
-////				}
-////			}
-////		}
-//
-//		/**
-//		 * Make cell measurements based on labelled images.
-//		 * All compartments are measured where possible (nucleus, cytoplasm, membrane and full cell).
-//		 *
-//		 * @param ipNuclei labelled image representing nuclei
-//		 * @param ipCells labelled image representing cells
-//		 * @param pathObjects cell objects mapped to integer values in the labelled images
-//		 * @param channels channels to measure, mapped to the name to incorporate into the measurements for that channel
-//		 */
-//		private void measureCells(
-//				ImageProcessor ipNuclei, ImageProcessor ipCells,
-//				Map<? extends Number, ? extends PathObject> pathObjects,
-//				Map<String, ImageProcessor> channels) {
-//
-//			var array = mapToArray(pathObjects);
-////		PathObjectTools.constrainCellByScaledNucleus(cell, nucleusScaleFactor, keepMeasurements)
-//			int width = ipNuclei.getWidth();
-//			int height = ipNuclei.getHeight();
-//			ImageProcessor ipMembrane = new FloatProcessor(width, height);
-//			ImageProcessor ipCytoplasm = ipCells.duplicate();
-//			for (int y = 0; y < height; y++) {
-//				for (int x = 0; x < width; x++) {
-//					float cell = ipCells.getf(x, y);
-//					float nuc = ipNuclei.getf(x, y);
-//					if (nuc != 0f)
-//						ipCytoplasm.setf(x, y, 0f);
-//					if (cell == 0f)
-//						continue;
-//					// Check 4-neighbours to decide if we're at the membrane
-//					if ((y >= 1 && ipCells.getf(x, y-1) != cell) ||
-//							(y < height-1 && ipCells.getf(x, y+1) != cell) ||
-//							(x >= 1 && ipCells.getf(x-1, y) != cell) ||
-//							(x < width-1 && ipCells.getf(x+1, y) != cell))
-//						ipMembrane.setf(x, y, cell);
-//				}
-//			}
-//
-//			var imgNuclei = new PixelImageIJ(ipNuclei);
-//			var imgCells = new PixelImageIJ(ipCells);
-//			var imgCytoplasm = new PixelImageIJ(ipCytoplasm);
-//			var imgMembrane = new PixelImageIJ(ipMembrane);
-//
-//			for (var entry : channels.entrySet()) {
-//				var img = new PixelImageIJ(entry.getValue());
-//				if (cellCompartments.contains(CompQuantMeasurements.Compartments.NUCLEUS))
-//					measureObjects(img, imgNuclei, array, entry.getKey().trim() + ": " + "Nucleus");
-//				if (cellCompartments.contains(CompQuantMeasurements.Compartments.CYTOPLASM))
-//					measureObjects(img, imgCytoplasm, array, entry.getKey().trim() + ": " + "Cytoplasm");
-//				if (cellCompartments.contains(CompQuantMeasurements.Compartments.MEMBRANE))
-//					measureObjects(img, imgMembrane, array, entry.getKey().trim() + ": " + "Membrane");
-//				if (cellCompartments.contains(CompQuantMeasurements.Compartments.CELL))
-//					measureObjects(img, imgCells, array, entry.getKey().trim() + ": " + "Cell");
-//			}
-//
-//		}
-//
-//
-//		private static PathObject[] mapToArray(Map<? extends Number, ? extends PathObject> pathObjects) {
-//			Number[] labels = new Number[pathObjects.size()];
-//			int n = 0;
-//			long maxLabel = 0L;
-//			int invalidLabels = 0;
-//			for (var label : pathObjects.keySet()) {
-//				long lab = label.longValue();
-//				if (lab < 0 || lab != label.doubleValue() || lab >= Integer.MAX_VALUE) {
-//					invalidLabels++;
-//				} else {
-//					labels[n] = label;
-//					maxLabel = Math.max(lab, maxLabel);
-//					n++;
-//				}
-//			}
-//
-//			if (invalidLabels > 0) {
-//				logger.warn("Only {}/{} labels are integer values >= 0 and < Integer.MAX_VALUE, the rest will be discarded!",
-//						n, pathObjects.size());
-//			}
-//
-//			PathObject[] array = new PathObject[n];
-//			for (var label : labels) {
-//				array[label.intValue()-1] = pathObjects.get(label);
-//			}
-//			return array;
-//		}
-//
-////	/**
-////	 * Measure objects within the specified image, adding them to the corresponding measurement lists.
-////	 * @param img intensity values to measure
-////	 * @param imgLabels labels corresponding to objects
-////	 * @param pathObjects map between label values and objects
-////	 * @param baseName base name to include when adding measurements (e.g. the channel name)
-////	 * @param measurements requested measurements
-////	 */
-////	private static void measureObjects(
-////			SimpleImage img, SimpleImage imgLabels,
-////			Map<? extends Number, ? extends PathObject> pathObjects,
-////			String baseName, Collection<Measurements> measurements) {
-////
-////		measureObjects(img, imgLabels, mapToArray(pathObjects), baseName, measurements);
-////	}
-//
-//		/**
-//		 * Measure objects within the specified image, adding them to the corresponding measurement lists.
-//		 * @param img intensity values to measure
-//		 * @param imgLabels labels corresponding to objects
-//		 * @param pathObjects array of objects, where array index for an object is 1 less than the label in imgLabels
-//		 * @param baseName base name to include when adding measurements (e.g. the channel name)
-//		 */
-//		private void measureObjects(
-//				SimpleImage img, SimpleImage imgLabels,
-//				PathObject[] pathObjects,
-//				String baseName) {
-//
-//			// Initialize stats
-//			int n = pathObjects.length;
-//			DescriptiveStatistics[] allStats = new DescriptiveStatistics[n];
-//			for (int i = 0; i < n; i++)
-//				allStats[i] = new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW);
-//
-//			// Compute statistics
-//			int width = img.getWidth();
-//			int height = img.getHeight();
-//			for (int y = 0; y < height; y++) {
-//				for (int x = 0; x < width; x++) {
-//					int label = (int)imgLabels.getValue(x, y);
-//					if (label <= 0 || label > n)
-//						continue;
-//					float val = img.getValue(x, y);
-//					allStats[label-1].addValue(val);
-//				}
-//			}
-//
-//			// Add measurements
-//			for (int i = 0; i < n; i++) {
-//				var pathObject = pathObjects[i];
-//				if (pathObject == null)
-//					continue;
-//				var stats = allStats[i];
-//				try (var ml = pathObject.getMeasurementList()) {
-//					for (var m : measurements) {
-//						ml.putMeasurement(baseName + ": " + m.getMeasurementName(), m.getMeasurement(stats));
-//					}
-//				}
-//			}
-//		}
-//	}
 }
