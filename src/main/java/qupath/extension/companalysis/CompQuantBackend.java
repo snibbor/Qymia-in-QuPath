@@ -287,7 +287,7 @@ public class CompQuantBackend {
     public void incrementProgress(Integer amount) {
         double prog = incrementAndGet(amount).doubleValue();
         int newEst = getEstNumTasks();
-        logger.info(String.format("Progress: %f", prog / newEst));
+        logger.debug(String.format("Progress: %f", prog / newEst));
         if(progressBar!=null) {
             Platform.runLater(() -> {
                 progressBar.setProgress(prog / newEst);
@@ -949,7 +949,7 @@ public class CompQuantBackend {
                         PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
                         tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
 //							logger.info(thisIntersectMap.toString());
-                        logger.info(String.format("Creating Tile-r%dc%d_x%dy%d...",yi, xi, x, y));
+                        logger.debug(String.format("Creating Tile-r%dc%d_x%dy%d...",yi, xi, x, y));
                         tileIntersectROIs.put(tileObj, thisIntersectMap);
                     }
                     incrementProgress(progAmount);
@@ -1450,7 +1450,7 @@ public class CompQuantBackend {
                     allStats.get(pathClass).put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
                     String measName = targetName + " Intensity in " + className;
                     measNames.get(pathClass).put(targetName, measName);
-                    logger.info(String.format("Scoring %s in %s", targetName, className));
+                    logger.debug(String.format("Scoring %s in %s", targetName, className));
                 }
             }
 
