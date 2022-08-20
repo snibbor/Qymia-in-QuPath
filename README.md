@@ -1,37 +1,9 @@
-# CompAnalysis-in-QuPath
-Molecular Compartment Quantification of Immunofluorescence/Immunohistochemistry Images in QuPath
+# QIIMA in QuPath
+### Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA, "kee-ma" or "k-EYE-ma") in QuPath
 
-CompAnalysis is currently designed as a 2 part GUI extension where you make compartments with CompMaker and quantify the target expression within these compartments with CompQuant. The CompMaker portion of the extension is under construction.
+Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
-## TODO:
-- CompQuant
-  - [ ] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
-    - [ ] Export measurements to tab delim .csv or .json?
-  - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
-    - OpenCV implementation reduced memory consumption ~ same speed
-  - [ ] Need to fix memory leak from ForkJoinPool
-    - ~~[x] Clean up resources (e.g. ImageServer)?~~ --> doesn't completely dereference memory in thread, can't close() ImageServer because it can close the main ImageServer
-    - [ ] Custom thread pool/executor? qupath.lib.common.ThreadTools?
-  - Advanced settings
-    - [ ] Change ignore classes
-    - [ ] Simpler measurement export options
-    - [ ] Change rescale value (if image data was already normalized but rescaled to an unsigned integer)
-  - [ ] Export masks as binary masks or segmentation masks for downstream applications
-  - [ ] Improve "finished" asthetics/state of progress bar
-  - Test for bugs
-
-- CompMaker
-  - Streamline CompMaker UI, integrate with PixelClassificationOverlays, work on backend functions
-    - Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
-    - Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
-  - Save/load through serialization of GUI state/parameters into a reloadable preferably human readable protocol file
-  - Undo/redo system 
-  - Resultant validator to throw errors for binding loops or other invalid operations before computing mask resultant ImageOps
-  - Determine best execution order of dependent resultants
-    - Handle drag and drop of operations?
-
-- Integrate cell segmentation and subcellular compartment tools into QuPath-CompAnalysis workflow
-- Integrate custom or ML-generated segmentation masks into QuPath-CompAnalysis workflow
+QIIMA is currently designed as a 2 part GUI extension where you make compartments with QIIMA-Comp and quantify the target expression within these compartments with QIIMA-Quant. The QIIMA-Comp portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
 
 ## Workflow Demo Version 0.0.1:
 
@@ -41,6 +13,9 @@ This workflow uses the QuPath built-in SimpleThresholder as well as CompQuant
 
 ### 1) Thresholding Whole Tissue Section with PixelClassifiers
 
+<!-- <video width="50%" height="50%" src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" type="video/mp4"></video> -->
+
+<!-- <video src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" controls="controls" style="max-width:640px;max-height:200px;"></video> -->
 https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4
 
 ### 2) Within each user-annotated Regions of Interest (ROIs), quantify expression of targets for each compartment
@@ -65,4 +40,62 @@ https://user-images.githubusercontent.com/28576964/183575198-896ba7da-dab5-4433-
 ### 2) Within each TMA core, quantify the expression of targets for each compartment
 
 https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-adf5-6118fc9ada42.mp4
+
+## TODO:
+- ### QIIMA-Quant
+  - #### Main features
+    - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
+      - [x] Export measurements to tab delim .csv ~~or .json?~~
+    - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
+      - OpenCV implementation reduced memory consumption ~ same speed
+    - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
+  
+  - #### Advanced settings
+    - [ ] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
+      - [ ] Regression options to calculate conversion function using standard index array
+        - [ ] Visuallization of regression fit in QuPath
+        - [ ] Outlier removal
+        - [ ] Handle multiple conversion functions/standard curves per project.
+        - [ ] Methods to save results to file --> set current project conversion functions on save
+      - [ ] Apply conversion functions/standard curves to images in project
+        - [ ] Load conversion function parameters from file --> apply based mapping of imagePath -> function name
+          - [ ] Map functions and images based on CSV/TSV/Excel file
+          - [ ] Interactive GUI to select images for each conversion function
+    - [ ] Change ignore classes
+    - [x] Simpler measurement export options
+      - [ ] Change GUI controls to use the default QuPath measurement exporter.
+    - [ ] Change rescale value (if image data was already normalized but rescaled to an unsigned integer)
+    - [ ] Export masks as binary masks or segmentation masks for downstream applications
+    - [x] Improve "finished" asthetics/state of progress bar
+      - [x] Completed message for task --> used CompletableFutures to do this
+      - [x] Cancelled message --> progress value is set to 0, no color change
+      
+  - #### Fix known bugs/problems, improve backend
+    - [ ] Trim tiles to image dimensions (for asthetics)  
+    - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
+    - [ ] On switching projects or images, make sure GUI is updated. Handle running tasks.
+      - [ ] Restrict switching projects during a run? Dialog box to cancel tasks?
+      - [ ] Restrict swithing images during a run? Dialog box to cancel tasks?
+    - [ ] Check for problems on missing target channels (ColorTransforms)
+    - [ ] Improve scoring (getTargetsIntensity function) to be even faster through ImageOps? Notes in code.
+    - [ ] Make the backend more accessible outside GUI for use in scripting
+      - [x] Separated QIIMAQuantBackend into it's own class. 
+      - [ ] Make a QIIMAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
+  
+  - #### Test for more bugs and interface & workflow usability
+
+- ### QIIMA-Comp
+  - [ ] Streamline CompMaker UI, integrate with PixelClassificationOverlays, work on backend functions
+    - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
+    - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
+    - [ ] Make any new operations fully scriptable in QuPath outside GUI backend
+  - [ ] Save/load through serialization of GUI state/parameters into a reloadable preferably human readable protocol file
+  - [ ] Undo/redo system that can be integrated with QuPath's scripting workflows
+  - [ ] Resultant validator to throw errors for binding loops or other invalid operations before computing mask resultant ImageOps
+  - [ ] Determine best execution order of dependent resultants
+    - [ ] Handle drag and drop of operations?
+
+- ### Future workflows
+  - Integrate cell segmentation and subcellular compartment tools into QuPath-CompAnalysis workflow
+  - Integrate custom or ML-generated segmentation masks into QuPath-CompAnalysis workflow
 
