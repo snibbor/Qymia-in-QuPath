@@ -420,10 +420,10 @@ public class CompQuantBackend {
                                         if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
                                             adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
                                             if (adjpathObjROI.isEmpty()) {
-                                                logger.info(String.format("ROI %s is now empty, skipping AQUA metrics...", f.getName()));
+                                                logger.info("ROI {} is now empty, skipping AQUA metrics...", f.getName());
                                                 return null;
                                             } else {
-                                                logger.info(String.format("Adjusting ROI %s based on ignore annotations...", f.getName()));
+                                                logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
 
                                                 adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
 //													Do I need to set the name again?
@@ -455,14 +455,14 @@ public class CompQuantBackend {
 
                                             if (!compInterROI.isEmpty()) {
                                                 PathObject compInterDet = PathObjects.createDetectionObject(compInterROI, compObj.getPathClass());
-                                                logger.info(String.format("ROI contains %s compartment! Scoring target expression within ROI.", compObj.getPathClass().toString()));
+                                                logger.info("ROI contains {} compartment! Scoring target expression within ROI.", compObj.getPathClass().toString());
                                                 // For debugging, maybe helps with visualization
                                                 // Add object as a child of the ROI
                                                 //                        addObject(compInterDet);
                                                 compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
                                                 bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
 
-                                                logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
+                                                logger.info("Got {} intersection with ROI", compObj.getPathClass().toString());
 
                                                 // Quantify metrics/AQUA for each target in each intersecting compartment
                                                 // Calculate AQUA scoring metrics for new compartment detections for all targets
@@ -472,7 +472,7 @@ public class CompQuantBackend {
                                                     logger.warn(ex.toString());
                                                 }
                                             } else {
-                                                logger.info(String.format("No intersection with %s compartment for ROI... skipping.", compObj.getPathClass().toString()));
+                                                logger.info("No intersection with {} compartment for ROI... skipping.", compObj.getPathClass().toString());
                                             }
                                         }
                                         incrementProgress(progAmount);
@@ -947,9 +947,10 @@ public class CompQuantBackend {
                     // handle empty/null thisIntersectMaps?
                     if (!thisIntersectMap.isEmpty()) {
                         PathObject tileObj = PathObjects.createTileObject(GeometryTools.geometryToROI(rect, plane));
-                        tileObj.setName(String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y));
+                        String tileName = String.format("Tile-r%dc%d_x%dy%d", yi, xi, x, y);
+                        tileObj.setName(tileName);
 //							logger.info(thisIntersectMap.toString());
-                        logger.debug(String.format("Creating Tile-r%dc%d_x%dy%d...",yi, xi, x, y));
+                        logger.debug("Creating {}", tileName);
                         tileIntersectROIs.put(tileObj, thisIntersectMap);
                     }
                     incrementProgress(progAmount);
@@ -1227,11 +1228,11 @@ public class CompQuantBackend {
                                     if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
                                         adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
                                         if (adjpathObjROI.isEmpty()) {
-                                            logger.info(String.format("Detection %s compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString()));
+                                            logger.info("Detection {} compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString());
                                             //removeObject(detection, true);
                                             return;
                                         } else {
-                                            logger.info(String.format("Adjusting %s compartment based on new annotations...", pathObj.getPathClass().toString()));
+                                            logger.info("Adjusting {} compartment based on new annotations...", pathObj.getPathClass().toString());
                                             adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
                                             hierarchy.addPathObject(adjpathObj);
                                             bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
@@ -1452,7 +1453,7 @@ public class CompQuantBackend {
                     allStats.get(pathClass).put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
                     String measName = targetName + " Intensity in " + className;
                     measNames.get(pathClass).put(targetName, measName);
-                    logger.debug(String.format("Scoring %s in %s", targetName, className));
+                    logger.debug("Scoring {} in {}", targetName, className);
                 }
             }
 
@@ -1842,7 +1843,7 @@ public class CompQuantBackend {
                 String measName = targetName + " Intensity in " + className;
                 measNames.put(targetName, measName);
                 channels.put(measName, ipChannel);
-                logger.info(String.format("Scoring %s in %s", targetName, className));
+                logger.info("Scoring {} in {}", targetName, className);
             }
 
             if (pathObject instanceof PathCellObject) {

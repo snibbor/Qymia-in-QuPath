@@ -687,6 +687,7 @@ public class CompQuantPanelController implements Initializable{
 
 					// Open saved data if there is any, or else the image itself
 					ImageData<BufferedImage> imageData = entry.readImageData();
+					logger.info("Working on {}", entry.getImageName());
 					if (imageData == null) {
 						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
 						continue;
@@ -868,7 +869,7 @@ public class CompQuantPanelController implements Initializable{
 				throw new CancellationException();
 			}
 			if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
-				logger.info(String.format("Beginning compartment quantification of TMA cores for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
+				logger.info("Beginning compartment quantification of TMA cores for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
 				Platform.runLater(()->{
 					progressLabel.setText("Quantifying TMA core compartments...");
 				});
@@ -890,7 +891,7 @@ public class CompQuantPanelController implements Initializable{
 				throw new CancellationException();
 			}
 			if(result.toLowerCase().contains("roi")){
-				logger.info(String.format("Beginning compartment quantification of ROIs for compartments: %s and targets: %s...", selectedCompartments.toString(), selectedTargets.toString()));
+				logger.info("Beginning compartment quantification of ROIs for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
 				Platform.runLater(()->{
 					progressLabel.setText("Quantifying ROI compartments...");
 				});
