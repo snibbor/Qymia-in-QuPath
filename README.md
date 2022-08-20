@@ -1,7 +1,6 @@
 # CompAnalysis-in-QuPath (QIIMA, "kee-ma" or "k-eye-ma")
 Molecular Compartment Quantification of Immunofluorescence/Immunohistochemistry Images in QuPath.
 
-New name?
 Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA)?
 
 CompAnalysis is currently designed as a 2 part GUI extension where you make compartments with CompMaker and quantify the target expression within these compartments with CompQuant. The CompMaker portion of the extension is under construction.
@@ -10,7 +9,7 @@ CompAnalysis is currently designed as a 2 part GUI extension where you make comp
 - ### CompQuant
   - #### Main features
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
-      - [x] Export measurements to tab delim .csv or .json?
+      - [x] Export measurements to tab delim .csv ~~or .json?~~
     - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
       - OpenCV implementation reduced memory consumption ~ same speed
     - [x] Need to fix memory leak from ForkJoinPool --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
