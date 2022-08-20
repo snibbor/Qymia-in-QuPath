@@ -28,10 +28,12 @@ import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 
+import org.controlsfx.control.action.Action;
 import org.controlsfx.dialog.ProgressDialog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.commands.MeasurementExportCommand;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.scripting.DefaultScriptEditor;
@@ -153,20 +155,12 @@ public class CompQuantPanelController implements Initializable{
 	@FXML
 	MenuItem runForProjectMenuItem;
 	@FXML
-	CheckMenuItem measEssentialMenuItem;
-	@FXML
-	CheckMenuItem measAllMenuItem;
-	@FXML
-	CheckMenuItem measAnnotMenuItem;
-	@FXML
-	CheckMenuItem measDetMenuItem;
-	@FXML
 	CheckMenuItem normalizeMenuItem;
 	@FXML
 	CheckMenuItem rescaleMenuItem;
 	// rescale scores using maxFloatValue and bitdepth
 	private double maxFloatValue = 1000.0/4.0;
-	private String exportMeasFields = "all";
+//	private String exportMeasFields = "all";
 
 	FileChooser fileSelector = new FileChooser();
 	File initialFileDirectory;
@@ -176,10 +170,13 @@ public class CompQuantPanelController implements Initializable{
 	private ObservableList<MenuItem> menuItemListToToggle = FXCollections.observableArrayList();
 	private List<ProjectImageEntry<BufferedImage>> previousImages = new ArrayList<>();
 	private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
+	public final Action EXPORT;
 
 
 	public CompQuantPanelController(QuPathGUI qupath) {
 		this.qupath = qupath;
+		var measureCommand = new MeasurementExportCommand(qupath);
+		EXPORT = qupath.createProjectAction(project -> measureCommand.run());
 	}
 
 	@Override
@@ -188,7 +185,7 @@ public class CompQuantPanelController implements Initializable{
 		setupMenu();
 		setupComboBoxes();
 		setupListViews();
-		exportMeasButton.setOnAction(this::exportImageMeasurementsButton);
+		exportMeasButton.setOnAction(EXPORT);
 		gridSizeTextField = formatTextFields(gridSizeTextField, "integer", String.valueOf(defaultGridSize));
 		gridSizeTextField.textProperty().bindBidirectional(gridSize, new IntegerStringConverter());
 		gridSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
@@ -214,26 +211,11 @@ public class CompQuantPanelController implements Initializable{
 		menuItemListToToggle.addAll(exportMeasMenuItem);
 
 		updateGUI(true);
-//		initObservables();
 	}
 
 	private void setupMenu(){
-		exportMeasMenuItem.setOnAction(this::exportAllMeasurementsButton);
+		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
-		measAnnotMenuItem.selectedProperty().set(true);
-		measDetMenuItem.selectedProperty().set(true);
-		measAllMenuItem.selectedProperty().set(true);
-//		measAllMenuItem.selectedProperty().bindBidirectional(measEssentialMenuItem.selectedProperty().not());
-		measAllMenuItem.selectedProperty().addListener((obs,old,val)-> {
-			measEssentialMenuItem.selectedProperty().set(!val);
-			// only need to set once
-			if(val)
-				exportMeasFields = "all";
-			else
-				exportMeasFields = "essential";
-			logger.info(exportMeasFields);
-		});
-		measEssentialMenuItem.selectedProperty().addListener((obs,old,val)->measAllMenuItem.selectedProperty().set(!val));
 	}
 
 	private void setupComboBoxes(){
@@ -280,28 +262,6 @@ public class CompQuantPanelController implements Initializable{
 				return observable;
 			}
 		}));
-
-//		targetListView.setCellFactory(CheckBoxListCell.forListView(new Callback<ColorTransform, ObservableValue<Boolean>>() {
-//			@Override
-//			public ObservableValue<Boolean> call(ColorTransform item) {
-//				BooleanProperty observable = new SimpleBooleanProperty();
-//				observable.addListener((obs, wasSelected, isNowSelected) -> {
-//					logger.info("Check box for " + item + " changed from " + wasSelected + " to " + isNowSelected);
-//					if (isNowSelected) {
-//						selectedTargets.put(item, 0.0);
-//					} else {
-//						selectedTargets.remove(item);
-//					}
-//					logger.info(selectedTargets.toString());
-//				});
-//
-//				observable.set(selectedTargets.containsKey(item));
-//				selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->
-//						observable.set(selectedTargets.containsKey(item)));
-//
-//				return observable;
-//			}
-//		}));
 
 		targetListView.setCellFactory((ListView<ColorTransform> param) -> new ListCell<ColorTransform>(){
 			private HBox container;
@@ -481,10 +441,6 @@ public class CompQuantPanelController implements Initializable{
 		return textField;
 	}
 
-//	private void initObservables() {
-//
-//	}
-
 	private void updateResultTypes(ActionEvent event){
 		resultTypeComboBox.valueProperty().set(null);
 		resultTypeComboBox.getItems().clear();
@@ -580,9 +536,6 @@ public class CompQuantPanelController implements Initializable{
 			return;
 		}
 
-		// Ensure that the previous images remain selected if the project still contains them
-//		FilteredList<ProjectImageEntry<?>> sourceList = new FilteredList<>(FXCollections.observableArrayList(project.getImageList()));
-
 		String sameImageWarning = doSave ? "A selected image is open in the viewer!\nUse 'File>Reload data' to see changes." : null;
 		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
 
@@ -599,7 +552,6 @@ public class CompQuantPanelController implements Initializable{
 			return;
 
 		previousImages.clear();
-//		previousImages.addAll(listSelectionView.getTargetItems());
 
 		previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
 
@@ -640,7 +592,7 @@ public class CompQuantPanelController implements Initializable{
 		private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
 		private ScriptTab tab;
 		private boolean quietCancel = false;
-		private boolean doSave = false;
+		private boolean doSave = true;
 
 		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave) {
 			this.project = project;
@@ -836,12 +788,9 @@ public class CompQuantPanelController implements Initializable{
 			if(result.toLowerCase().contains("grid")){
 				if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
-//						return false;
 				}else if(gridSizeTextField.getText() != null && Integer.parseInt(gridSizeTextField.getText()) == 0) {
 					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
-//						return false;
 				}else {
-//					logger.warn("Grid scoring not implemented yet...");
 					Platform.runLater(()->{
 						progressLabel.setText("Quantifying Grid Tiles...");
 					});
@@ -862,7 +811,6 @@ public class CompQuantPanelController implements Initializable{
 				}
 
 			}
-//				return false;
 		}, startRunFJP)
 		.thenRun(()->{
 			if(runCancelled.get()){
@@ -989,29 +937,8 @@ public class CompQuantPanelController implements Initializable{
 		runForProjectMenuItem.setDisable(false);
 
 		progressLabel.setText("Canceled task...");
-//		would be cool to make progress bar red
+//		would be cool to make progress bar red or something
 		quantProgressBar.setProgress(0);
-//		if(compQuant != null && compQuant.isTaskRunning()) {
-//			logger.warn("Trying to cancel running task...");
-//			compQuant.cancelTasks();
-////			// garbage cleanup?
-//			compQuant.close();
-////			compQuant = null;
-//			System.gc();
-//			progressLabel.setText("Canceled task...");
-////			would be cool to make progress bar red
-//			quantProgressBar.setProgress(0);
-//
-//		} else{
-//			logger.info("No task is running...");
-//			if(compQuant != null) {
-////				trying to cancel the tasks anyways
-//				compQuant.cancelTasks();
-//				compQuant.close();
-////				compQuant = null;
-//				System.gc();
-//			}
-//		}
 	}
 	
 	void advancedSettings(ActionEvent e) {
@@ -1021,170 +948,7 @@ public class CompQuantPanelController implements Initializable{
 	void helpButton(ActionEvent e) {
 		logger.info("Opening help dialog...");
 	}
-	
-	void exportImageMeasurementsButton(ActionEvent e) {
-		logger.info("Opening dialog to export measurements for project...");
-//		fileSelector = new FileChooser();
-		Project<BufferedImage> project = qupath.getProject();
-		if(project!=null) {
-			initialFileDirectory = Projects.getBaseDirectory(project);
-			logger.info("starting at " + initialFileDirectory);
-		}else {
-			initialFileDirectory = Paths.get(".").toFile();
-		}
-		fileSelector.setInitialDirectory(initialFileDirectory);
-		fileSelector.getExtensionFilters().addAll(
-				new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"),
-				new FileChooser.ExtensionFilter("All files", "*.*"));
-		File outputFile = fileSelector.showSaveDialog(qupath.getStage());
-		if(outputFile!=null) {
-			progressLabel.setText("Exporting measurements for image...");
-			quantProgressBar.setProgress(-1);
-			try {
-				exportMeasurements(outputFile, false);
-			} catch (IOException ex) {
-				progressLabel.setText("Didn't save measurements, exception encountered...");
-				quantProgressBar.setProgress(0.0);
-				throw new RuntimeException(ex);
-			}
-		} else{
-			logger.warn("Did not save measurements, file output path is null.");
-			progressLabel.setText("Didn't save measurements, file output is null");
-			quantProgressBar.setProgress(0.0);
-		}
-	}
 
-	void exportAllMeasurementsButton(ActionEvent e) {
-		logger.info("Opening dialog to export measurements for project...");
-//		fileSelector = new FileChooser();
-		Project<BufferedImage> project = qupath.getProject();
-		if(project!=null) {
-			initialFileDirectory = Projects.getBaseDirectory(project);
-			logger.info("starting at " + initialFileDirectory);
-		}else {
-			initialFileDirectory = Paths.get(".").toFile();
-		}
-		fileSelector.setInitialDirectory(initialFileDirectory);
-		fileSelector.getExtensionFilters().addAll(
-				new FileChooser.ExtensionFilter("CSV files (*.csv)", "*.csv"),
-				new FileChooser.ExtensionFilter("All files", "*.*"));
-		File outputFile = fileSelector.showSaveDialog(qupath.getStage());
-		if(outputFile!=null) {
-			progressLabel.setText("Exporting measurements for all images in project...");
-			quantProgressBar.setProgress(-1);
-			try {
-				exportMeasurements(outputFile, true);
-			} catch (IOException ex) {
-				progressLabel.setText("Didn't save measurements, exception encountered...");
-				quantProgressBar.setProgress(0.0);
-				throw new RuntimeException(ex);
-			}
-		} else{
-			logger.warn("Did not save measurements, file output path is null.");
-			progressLabel.setText("Didn't save measurements, file output is null");
-			quantProgressBar.setProgress(0.0);
-		}
-	}
-
-	List<String> getMeasExcludeColumns(String excludeType) {
-		if (excludeType.equals("essential")) {
-			List<String> excludeColumns = new ArrayList<String>();
-			excludeColumns.add("ROI");
-			excludeColumns.add("Area Âµm^2");
-			excludeColumns.add("Perimeter Âµm");
-			excludeColumns.add("Missing");
-
-			for(Map.Entry<ColorTransform, Double> tar  : selectedTargets.entrySet()) {
-				//	removing double quotes....
-				String tarName = tar.getKey().toString().replaceAll("\"", "");
-				for(PathClass comp : selectedCompartments) {
-					String compName = comp.toString();
-					excludeColumns.add(String.format("%s Intensity in %s: Median",tarName, compName));
-					excludeColumns.add(String.format("%s Intensity in %s: Min",tarName, compName));
-					excludeColumns.add(String.format("%s Intensity in %s: Max",tarName, compName));
-					excludeColumns.add(String.format("%s Intensity in %s: Std.Dev.",tarName, compName));
-					excludeColumns.add(String.format("%s Intensity in %s: Variance",tarName, compName));
-					excludeColumns.add(String.format("%s area px", compName));
-				}
-
-			}
-			logger.info("Excluding columns: "+excludeColumns.toString());
-			return excludeColumns;
-		}else {
-			return Collections.<String>emptyList();
-		}
-	}
-	public void exportMeasurements(File outputFile, boolean exportAllImages) throws IOException {
-		// Get the list of all images in the current project
-		Project<BufferedImage> project = qupath.getProject();
-		if (project==null) {
-			logger.error("Cannot export measurements for null project!");
-			progressLabel.setText("Cannot export measurements for null project!");
-			quantProgressBar.setProgress(0.0);
-			return;
-		}
-
-		exportMeasButton.setDisable(true);
-		exportMeasMenuItem.setDisable(true);
-
-		// save current image before exporting measurements
-		ImageData<BufferedImage> thisImageData = qupath.getImageData();
-		project.getEntry(thisImageData).saveImageData(thisImageData);
-		List<ProjectImageEntry<BufferedImage>> imagesToExport;
-		if(exportAllImages) {
-			imagesToExport = project.getImageList();
-		}else{
-			imagesToExport = List.of(project.getEntry(thisImageData));
-		}
-
-		// Separate each measurement value in the output file with a comma (",")
-		String separator = ",";
-
-		// Choose the columns that will be included in the export
-		// Note: if 'columnsToInclude' is empty, all columns will be included
-		//def columnsToInclude = new String[]{"Name", "Class", "Nucleus: Area"}
-		String[] excludeColumns = getMeasExcludeColumns(exportMeasFields).toArray(new String[0]);
-//		logger.info("Excluding columns: "+excludeColumns.toString());
-
-		// Choose the type of objects that the export will process
-		// Other possibilities include:
-		//    1. PathAnnotationObject
-		//    2. PathDetectionObject
-		//    3. PathRootObject
-		// Note: import statements should then be modified accordingly
-		Class<? extends PathObject> exportType;
-		if(measAnnotMenuItem.selectedProperty().get() && measDetMenuItem.selectedProperty().get() || !measAnnotMenuItem.selectedProperty().get() && !measDetMenuItem.selectedProperty().get()){
-			//	export all objects
-			//	If both of these menu items are deselected, assume it was a mistake and export all objects anyways
-			exportType = PathObject.class;
-		} else if(measDetMenuItem.selectedProperty().get() && !measAnnotMenuItem.selectedProperty().get()){
-			//	only export detections
-			exportType = PathDetectionObject.class;
-		} else{
-			//  last option, export annotations. Also is kinda the default
-			exportType = PathAnnotationObject.class;
-		}
-
-		// Create the measurementExporter and start the export
-		MeasurementExporter exporter = new MeasurementExporter()
-							.imageList(imagesToExport)            // Images from which measurements will be exported
-							.separator(separator)                 // Character that separates values
-			//                  .includeOnlyColumns()
-							.excludeColumns(excludeColumns)                     // Columns are case-sensitive
-							.exportType(exportType);               // Type of objects to export
-
-		// Start the export process
-		CompletableFuture.runAsync(()->exporter.exportMeasurements(outputFile))
-				.exceptionally(ex -> {ex.printStackTrace(); return null;})
-				.thenRun(()->{
-					Platform.runLater(()->{
-						progressLabel.setText("Completed exporting measurements");
-						quantProgressBar.setProgress(1.0);
-						exportMeasButton.setDisable(false);
-						exportMeasMenuItem.setDisable(false);
-					});
-				});
-	}
 	void exportMasksButton(ActionEvent e) {
 		logger.info("Opening dialog to export masks for project...");
 	}

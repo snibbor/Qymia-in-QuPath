@@ -27,7 +27,7 @@
         <menus>
             <Menu mnemonicParsing="false" text="File">
               <items>
-                <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export All Measurements" />
+                <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Grid as Overlay" />
@@ -39,15 +39,6 @@
                <items>
                   <Menu mnemonicParsing="false" text="Export Settings...">
                     <items>
-                        <Menu mnemonicParsing="false" text="Measurements...">
-                          <items>
-                              <CheckMenuItem fx:id="measEssentialMenuItem" mnemonicParsing="false" text="Essential fields" />
-                              <CheckMenuItem fx:id="measAllMenuItem" mnemonicParsing="false" selected="true" text="All fields" />
-                              <SeparatorMenuItem mnemonicParsing="false" />
-                              <CheckMenuItem fx:id="measAnnotMenuItem" mnemonicParsing="false" text="Annotations" />
-                              <CheckMenuItem fx:id="measDetMenuItem" mnemonicParsing="false" text="Detections/Cells" />
-                          </items>
-                        </Menu>
                         <Menu mnemonicParsing="false" text="Masks...">
                           <items>
                             <MenuItem mnemonicParsing="false" text="????" />
