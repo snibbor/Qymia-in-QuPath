@@ -1379,11 +1379,15 @@ public class CompQuantBackend {
     public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject parentObject, Map<PathClass, ROI> intersectROIs) throws IOException {
         //get params required
         double downsample;
+        int tileSize = -1;
         boolean rescaleScore;
         boolean normalizeScore;
         double maxFloatValue;
         try {
             downsample = (double) params.get("downsample");
+            if(parentObject.isTile()) {
+                tileSize = (int) params.get("tileSize");
+            }
             rescaleScore = (boolean) params.get("rescaleScore");
             normalizeScore = (boolean) params.get("normalizeScore");
             maxFloatValue = (double) params.get("maxFloatValue");
@@ -1392,7 +1396,7 @@ public class CompQuantBackend {
             throw new RuntimeException(ex);
         }
         return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, cellCompartments, measurements,
-                downsample, rescaleScore, normalizeScore, maxFloatValue);
+                downsample, tileSize, rescaleScore, normalizeScore, maxFloatValue);
 
     }
 
@@ -1404,7 +1408,7 @@ public class CompQuantBackend {
                                                     Map<ColorTransforms.ColorTransform, Double> targets,
                                                     Collection<Compartments> cellCompartments,
                                                     Collection<Measurements> measurements,
-                                                    double downsample, boolean rescaleScore, boolean normalizeScore,
+                                                    double downsample, int tileSize, boolean rescaleScore, boolean normalizeScore,
                                                     double maxFloatValue) throws IOException {
 //			It would be nice to close the server after use, but doing this also closes the main server across all threads....
         try {
@@ -1426,6 +1430,7 @@ public class CompQuantBackend {
             // get the parent pathObject measurement list
             MeasurementList measList = parentObject.getMeasurementList();
             // add basic metadata
+            measList.putMeasurement("Tile Size px", tileSize);
             measList.putMeasurement("MPP^2", mppSq);
             measList.putMeasurement("Channel bitdepth", bitDepth);
             int bitDepthVal = (int) Math.pow(2, bitDepth);

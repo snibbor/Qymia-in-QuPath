@@ -788,7 +788,7 @@ public class CompQuantPanelController implements Initializable{
 
 		int inputGridSize;
 		if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
-			inputGridSize = defaultGridSize;
+			inputGridSize = 0;
 		else
 			inputGridSize = Integer.parseInt(gridSizeTextField.getText());
 
