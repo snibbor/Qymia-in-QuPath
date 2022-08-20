@@ -71,6 +71,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Cancelled message --> progress value is set to 0, no color change
       
   - #### Fix known bugs/problems, improve backend
+    - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
     - [ ] On switching projects or images, make sure GUI is updated. Handle running tasks.
       - [ ] Restrict switching projects during a run? Dialog box to cancel tasks?
