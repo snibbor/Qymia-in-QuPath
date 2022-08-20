@@ -1395,6 +1395,8 @@ public class CompQuantBackend {
 
     }
 
+
+
     public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server,
                                                     PathObject parentObject,
                                                     Map<PathClass, ROI> intersectROIs,
@@ -1490,6 +1492,13 @@ public class CompQuantBackend {
 //					For mean, median, stdev, etc.
 //					measureCells_OpenCV(nucBytes, cellBytes, Map.of(1.0, cell), channels, cellCompartments, measurements);
             } else {
+//                TODO: This code will be slow for many intersections, very big ROIs, and quantifying many targets
+//                 how to parallelize these operations in a thread safe way?
+//                 Should it even be considered when this function is already being executed as a parallelStream?
+//                 Should I be creating several deep copies of image servers for the thread pool and then closing them after use?
+//                 How does the imageServer handle being hit with multiple readBufferedImage requests?
+//                 How does the PixelClassifier classes perform region requests so quickly?
+//                 Maybe there is a way to refactor this whole thing into a set of ImageOps? and then process the stats? --> This is the way
                 for(Map.Entry<PathClass, ROI> interROI: intersectROIs.entrySet()) {
                     ROI roi = interROI.getValue();
                     PathClass pathClass = interROI.getKey();
@@ -1504,6 +1513,11 @@ public class CompQuantBackend {
                     if (rois.size() > 1)
                         logger.info("Splitting {} into {} tiles for intensity measurements", roi, rois.size());
 
+//                    Maybe should:
+//                    1) iterate through rois to create binary masks. Store region requests?
+//                    2) apply binary masks to image region(s) with an ImageOp bitwise operation the target channels simultaneously
+//                    3) add all non-zero values into each target DescriptiveStats object for each roi
+
                     for (ROI pathROI : rois) {
 
                         if (Thread.currentThread().isInterrupted()) {
@@ -1513,6 +1527,7 @@ public class CompQuantBackend {
 
                         // Get bounds
                         RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
+//                        This is likely a very slow step across threads if only one image server resource is used....
                         BufferedImage img = server.readBufferedImage(region);
                         if (img == null) {
                             logger.error("Could not read image - unable to compute intensity feature");
@@ -1531,6 +1546,7 @@ public class CompQuantBackend {
                         int h = img.getHeight();
                         float[] pixels = null;
 
+//                        should apply the same mask to all target channels simultaneously. How to combine transforms into a Mat?
                         for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
                             ColorTransforms.ColorTransform transform = tar.getKey();
 //								double expTime = tar.getValue();
