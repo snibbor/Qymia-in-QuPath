@@ -1,5 +1,8 @@
-# CompAnalysis-in-QuPath
-Molecular Compartment Quantification of Immunofluorescence/Immunohistochemistry Images in QuPath
+# CompAnalysis-in-QuPath (QIIMA, "kee-ma" or "k-eye-ma")
+Molecular Compartment Quantification of Immunofluorescence/Immunohistochemistry Images in QuPath.
+
+New name?
+Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA)?
 
 CompAnalysis is currently designed as a 2 part GUI extension where you make compartments with CompMaker and quantify the target expression within these compartments with CompQuant. The CompMaker portion of the extension is under construction.
 
