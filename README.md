@@ -14,8 +14,9 @@ This workflow uses the QuPath built-in SimpleThresholder as well as CompQuant
 
 ### 1) Thresholding Whole Tissue Section with PixelClassifiers
 
-<video width="300" height="300" controls><source src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" type="video/mp4"></video>
+<!-- <video width="50%" height="50%" src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" type="video/mp4"></video> -->
 
+<!-- <video src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" controls="controls" style="max-width:640px;max-height:200px;"></video> -->
 https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4
 
 ### 2) Within each user-annotated Regions of Interest (ROIs), quantify expression of targets for each compartment
