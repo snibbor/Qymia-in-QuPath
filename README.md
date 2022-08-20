@@ -1,10 +1,9 @@
-# Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA, "kee-ma" or "k-EYE-ma") in QuPath
+# QIIMA in QuPath
+### Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA, "kee-ma" or "k-EYE-ma") in QuPath
 
 Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole slide images) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
 QIIMA is currently designed as a 2 part GUI extension where you make compartments with QIIMA-Comp and quantify the target expression within these compartments with QIIMA-Quant. The QIIMA-Comp portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
-
-Workflow examples and demonstrations are shown below.
 
 ## Workflow Demo Version 0.0.1:
 
