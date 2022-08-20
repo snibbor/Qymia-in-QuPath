@@ -48,7 +48,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Export measurements to tab delim .csv ~~or .json?~~
     - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
       - OpenCV implementation reduced memory consumption ~ same speed
-    - [x] Need to fix memory leak from ForkJoinPool --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
+    - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
   
   - #### Advanced settings
     - [ ] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
