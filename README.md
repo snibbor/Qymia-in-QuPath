@@ -88,7 +88,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   - #### Test for more bugs and interface & workflow usability
 
 - ### QIIMA Compartment Builder
-  - [ ] Streamline CompMaker UI, integrate with PixelClassificationOverlays, work on backend functions
+  - [ ] Streamline Compartment Builder UI, integrate with PixelClassificationOverlays, work on backend functions
     - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
     - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
     - [ ] Make any new operations fully scriptable in QuPath outside GUI backend
@@ -99,6 +99,6 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Handle drag and drop of operations?
 
 - ### Future workflows
-  - Integrate cell segmentation and subcellular compartment tools into QuPath-CompAnalysis workflow
-  - Integrate custom or ML-generated segmentation masks into QuPath-CompAnalysis workflow
+  - Integrate cell segmentation and subcellular compartment tools into QIIMA workflow
+  - Integrate custom or ML-generated segmentation masks into QIIMA workflow
 
