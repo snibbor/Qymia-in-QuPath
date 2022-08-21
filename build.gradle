@@ -23,9 +23,9 @@ repositories {
   
 }
 
-ext.moduleName = 'qupath.extension.companalysis'
-archivesBaseName = 'qupath-extension-companalysis'
-description = 'Molecular Compartment Analysis in QuPath'
+ext.moduleName = 'qupath.extension.qiima'
+archivesBaseName = 'qupath-extension-qiima'
+description = 'Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis in QuPath'
 
 //version = "0.3.0"
 

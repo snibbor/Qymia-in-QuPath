@@ -9,7 +9,7 @@ import com.google.gson.Gson;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableMap;
-import qupath.extension.companalysis.operations.CombineOperation;
+import qupath.extension.qiima.operations.CombineOperation;
 
 class CombineOperationTest {
 	private String maskID = "1";
