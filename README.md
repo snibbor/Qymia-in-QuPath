@@ -46,6 +46,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   - #### Main features
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
       - [x] Export measurements to tab delim .csv ~~or .json?~~
+      - [ ] Grid/Tile calculation is very very slow for TMA because of the merge annotations step, which is unnecessary --> write a slightly different method for Grid/Tile calculation for TMA where the Tile bounds are for each TMA Core Objects and the computeTiledROIs are parallelized per core.
     - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
       - OpenCV implementation reduced memory consumption ~ same speed
     - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
@@ -64,6 +65,8 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Change ignore classes
     - [x] Simpler measurement export options
       - [x] Change GUI controls to use the default QuPath measurement exporter.
+      - [ ] Put current opened image inside selected export list automatically.
+      - [ ] Save dialog (if project entry not saved) before export measurements dialog opens.
     - [ ] Export measurement maps/heatmaps for project
       - [ ] Extend QuPath measurement map UI to export map images for project
     - [ ] Modifiable rescale value (if image data was already normalized but rescaled to an unsigned integer)
@@ -73,6 +76,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Cancelled message --> progress value is set to 0, no color change
       
   - #### Fix known bugs/problems, improve backend
+    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately.
     - [ ] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
     - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
