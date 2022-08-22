@@ -78,6 +78,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   - #### Fix known bugs/problems, improve backend
     - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately.
       - [ ] Debug why cancelling sometimes causes image server exceptions for later runs...
+      - [ ] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools.
     - [ ] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
     - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
