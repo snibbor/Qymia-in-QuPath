@@ -3,11 +3,11 @@
 
 Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
-QIIMA is currently designed as a 2 part GUI extension where you make compartments with QIIMA-Comp and quantify the target expression within these compartments with QIIMA-Quant. The QIIMA-Comp portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
+QIIMA is currently designed as a 2 part GUI extension where you make compartments with QIIMA Compartment Builder and quantify the target expression within these compartments with QIIMA-Quant. The QIIMA Compartment Builder portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
 
 ## Workflow Demo Version 0.0.1:
 
-This workflow uses the QuPath built-in SimpleThresholder as well as CompQuant
+This workflow uses the QuPath built-in SimpleThresholder as well as QIIMA-Quant
 
 ## Whole Tissue Sections:
 
@@ -46,6 +46,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   - #### Main features
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
       - [x] Export measurements to tab delim .csv ~~or .json?~~
+      - [ ] Grid/Tile calculation is very very slow for TMA because of the merge annotations step, which is unnecessary --> write a slightly different method for Grid/Tile calculation for TMA where the Tile bounds are for each TMA Core Objects and the computeTiledROIs are parallelized per core.
     - [x] Minimize ImageJ, OpenCV image/matrix datatype conversions 
       - OpenCV implementation reduced memory consumption ~ same speed
     - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
@@ -63,14 +64,22 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
           - [ ] Interactive GUI to select images for each conversion function
     - [ ] Change ignore classes
     - [x] Simpler measurement export options
-      - [ ] Change GUI controls to use the default QuPath measurement exporter.
-    - [ ] Change rescale value (if image data was already normalized but rescaled to an unsigned integer)
+      - [x] Change GUI controls to use the default QuPath measurement exporter.
+      - [ ] Put current opened image inside selected export list automatically.
+      - [ ] Save dialog (if project entry not saved) before export measurements dialog opens.
+    - [ ] Export measurement maps/heatmaps for project
+      - [ ] Extend QuPath measurement map UI to export map images for project
+    - [ ] Modifiable rescale value (if image data was already normalized but rescaled to an unsigned integer)
     - [ ] Export masks as binary masks or segmentation masks for downstream applications
     - [x] Improve "finished" asthetics/state of progress bar
       - [x] Completed message for task --> used CompletableFutures to do this
       - [x] Cancelled message --> progress value is set to 0, no color change
       
   - #### Fix known bugs/problems, improve backend
+    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately.
+      - [ ] Debug why cancelling sometimes causes image server exceptions for later runs...
+      - [ ] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools.
+    - [ ] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
     - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
     - [ ] On switching projects or images, make sure GUI is updated. Handle running tasks.
@@ -84,8 +93,8 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   
   - #### Test for more bugs and interface & workflow usability
 
-- ### QIIMA-Comp
-  - [ ] Streamline CompMaker UI, integrate with PixelClassificationOverlays, work on backend functions
+- ### QIIMA Compartment Builder
+  - [ ] Streamline Compartment Builder UI, integrate with PixelClassificationOverlays, work on backend functions
     - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
     - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
     - [ ] Make any new operations fully scriptable in QuPath outside GUI backend
@@ -96,6 +105,6 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Handle drag and drop of operations?
 
 - ### Future workflows
-  - Integrate cell segmentation and subcellular compartment tools into QuPath-CompAnalysis workflow
-  - Integrate custom or ML-generated segmentation masks into QuPath-CompAnalysis workflow
+  - Integrate cell segmentation and subcellular compartment tools into QIIMA workflow
+  - Integrate custom or ML-generated segmentation masks into QIIMA workflow
 
