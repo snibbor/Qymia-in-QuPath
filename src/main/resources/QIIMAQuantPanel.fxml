@@ -30,7 +30,7 @@
                 <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" />
                   <SeparatorMenuItem mnemonicParsing="false" />
-                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Grid as Overlay" />
+                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Overlay" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>
@@ -135,12 +135,12 @@
                         <Insets left="7.0" right="7.0" />
                      </GridPane.margin>
                   </Button>
-                  <Label fx:id="gridSizeLabel" disable="true" text="Grid Size:" GridPane.rowIndex="1">
+                  <Label fx:id="tileSizeLabel" disable="true" text="Tile Size:" GridPane.rowIndex="1">
                      <GridPane.margin>
                         <Insets left="7.0" />
                      </GridPane.margin>
                   </Label>
-                  <TextField fx:id="gridSizeTextField" disable="true" prefHeight="25.0" prefWidth="100.0" promptText="px" GridPane.halignment="RIGHT" GridPane.rowIndex="1" GridPane.valignment="CENTER">
+                  <TextField fx:id="tileSizeTextField" disable="true" prefHeight="25.0" prefWidth="100.0" promptText="px" GridPane.halignment="RIGHT" GridPane.rowIndex="1" GridPane.valignment="CENTER">
                      <opaqueInsets>
                         <Insets />
                      </opaqueInsets>

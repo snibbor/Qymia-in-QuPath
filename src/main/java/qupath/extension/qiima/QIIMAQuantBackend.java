@@ -493,7 +493,11 @@ public class QIIMAQuantBackend {
                         }
                     })
                     .exceptionally(ex -> {
-                        ex.printStackTrace();
+                        if (ex.getCause() instanceof CancellationException){
+                            logger.warn("Run cancelled?");
+                        } else {
+                            ex.printStackTrace();
+                        }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("getTargetScoresForROIs: " + ex);
                         logger.warn(ex.toString());
@@ -1029,6 +1033,7 @@ public class QIIMAQuantBackend {
                         .filter(p-> c == p.getPathClass())
                         .map(p -> p.getROI())
                         .collect(Collectors.toList())).get();
+                logger.info("Combining all {} annotations...", c.toString());
                 ROI combinedC = RoiTools.union(theseCROIs);
                 if(combinedC!=null && !combinedC.isEmpty()){
                     if (doAdjust.get() && combinedC.getGeometry().intersects(combinedExcludeGeom)) {
@@ -1117,7 +1122,11 @@ public class QIIMAQuantBackend {
                         }
                     })
                     .exceptionally(ex -> {
-                        ex.printStackTrace();
+                        if (ex.getCause() instanceof CancellationException){
+                            logger.warn("Run cancelled?");
+                        } else {
+                            ex.printStackTrace();
+                        }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("TileRecalcCompartmentsAndScores: " + ex);
                         return null;
@@ -1267,7 +1276,11 @@ public class QIIMAQuantBackend {
                         }
                     })
                     .exceptionally(ex -> {
-                        ex.printStackTrace();
+                        if (ex.getCause() instanceof CancellationException){
+                            logger.warn("Run cancelled?");
+                        } else {
+                            ex.printStackTrace();
+                        }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("TMARecalcCompartmentsAndScores: " + ex);
                         return null;
@@ -1431,6 +1444,8 @@ public class QIIMAQuantBackend {
             MeasurementList measList = parentObject.getMeasurementList();
             // add basic metadata
             measList.putMeasurement("Tile Size px", tileSize);
+            measList.putMeasurement("MPPx", pc.getPixelWidthMicrons());
+            measList.putMeasurement("MPPy", pc.getPixelHeightMicrons());
             measList.putMeasurement("MPP^2", mppSq);
             measList.putMeasurement("Channel bitdepth", bitDepth);
             int bitDepthVal = (int) Math.pow(2, bitDepth);

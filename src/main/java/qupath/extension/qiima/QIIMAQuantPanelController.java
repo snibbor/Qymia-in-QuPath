@@ -36,6 +36,8 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.scripting.ScriptTab;
+import qupath.lib.gui.viewer.QuPathViewer;
+import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
@@ -46,12 +48,15 @@ import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 
 import static qupath.lib.common.Prefs.getNumThreads;
+import static qupath.lib.gui.commands.Commands.reloadImageData;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.clearMeasurements;
+import static qupath.lib.scripting.QP.fireHierarchyUpdate;
 
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.util.*;
 import java.util.List;
@@ -83,8 +88,8 @@ public class QIIMAQuantPanelController implements Initializable{
 	private final Set<PathClass> roiClasses = Set.of(new PathClass[]{getPathClass("ROI")});
 
 	//default params
-	private final int defaultGridSize = 512;
-	private final ObjectProperty<Integer> gridSize = new SimpleObjectProperty(defaultGridSize);
+	private final int defaultTileSize = 512;
+	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
 
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
 	// target and exposure time if IF image
@@ -116,17 +121,18 @@ public class QIIMAQuantPanelController implements Initializable{
 	ListView<ColorTransform> targetListView;
 	@FXML
 	ComboBox<String> resultTypeComboBox;
-	private final String[] resultTypesTMA = {"TMA + ROIs", "Grids + ROIs", "TMA + Grids + ROIs", "TMA only", "Grids only", "ROIs only"};
-	private final String[] resultTypesWTS = {"Grids + ROIs", "Grids only", "ROIs only"};
+//	private final String[] resultTypesTMA = {"TMA + ROIs", "Grids + ROIs", "TMA + Grids + ROIs", "TMA only", "Grids only", "ROIs only"};
+	private final String[] resultTypesTMA = {"TMA + ROIs", "TMA only", "ROIs only"};
+	private final String[] resultTypesWTS = {"Tiles + ROIs", "Tiles only", "ROIs only"};
 	private ReadOnlyObjectProperty<String> selectedResultType;
 	@FXML
 	Button startQuantButton;
 	@FXML
 	Button cancelButton;
 	@FXML
-	TextField gridSizeTextField;
+	TextField tileSizeTextField;
 	@FXML
-	Label gridSizeLabel;
+	Label tileSizeLabel;
 	@FXML
 	Label progressLabel;
 	@FXML
@@ -172,21 +178,21 @@ public class QIIMAQuantPanelController implements Initializable{
 		setupComboBoxes();
 		setupListViews();
 		exportMeasButton.setOnAction(EXPORT);
-		gridSizeTextField = formatTextFields(gridSizeTextField, "integer", String.valueOf(defaultGridSize));
-		gridSizeTextField.textProperty().bindBidirectional(gridSize, new IntegerStringConverter());
-		gridSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+		tileSizeTextField = formatTextFields(tileSizeTextField, "integer", String.valueOf(defaultTileSize));
+		tileSizeTextField.textProperty().bindBidirectional(tileSize, new IntegerStringConverter());
+		tileSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
 			@Override
 			public void handle(KeyEvent ke) {
 				if (ke.getCode().equals(KeyCode.ENTER)) {
-					logger.info("gridSize property: " + gridSize.getValue());
-					logger.info("textfield property: " + gridSizeTextField.getText());
+					logger.info("tileSize property: " + tileSize.getValue());
+					logger.info("textfield property: " + tileSizeTextField.getText());
 				}
 			}
 		});
-		gridSizeTextField.focusedProperty().addListener((ov, oldV, newV) -> {
+		tileSizeTextField.focusedProperty().addListener((ov, oldV, newV) -> {
 			if (!newV) { // focus lost
-				logger.info("gridSize property: " + gridSize.getValue());
-				logger.info("textfield property: " + gridSizeTextField.getText());
+				logger.info("tileSize property: " + tileSize.getValue());
+				logger.info("textfield property: " + tileSizeTextField.getText());
 			}
 		});
 		startQuantButton.setOnAction(this::startQuant);
@@ -471,12 +477,12 @@ public class QIIMAQuantPanelController implements Initializable{
 		runForProjectMenuItem.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 		cancelButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 
-		if(result != null && result.toLowerCase().contains("grid")){
-			gridSizeTextField.setDisable(false);
-			gridSizeLabel.setDisable(false);
+		if(result != null && result.toLowerCase().contains("tile")){
+			tileSizeTextField.setDisable(false);
+			tileSizeLabel.setDisable(false);
 		} else {
-			gridSizeTextField.setDisable(true);
-			gridSizeLabel.setDisable(true);
+			tileSizeTextField.setDisable(true);
+			tileSizeLabel.setDisable(true);
 		}
 	}
 
@@ -546,7 +552,7 @@ public class QIIMAQuantPanelController implements Initializable{
 
 		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
 
-		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, doSave);
+		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, doSave, true);
 
 
 		ProgressDialog progress = new ProgressDialog(worker);
@@ -579,11 +585,17 @@ public class QIIMAQuantPanelController implements Initializable{
 		private ScriptTab tab;
 		private boolean quietCancel = false;
 		private boolean doSave = true;
+		private boolean reload = false;
 
-		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave) {
+		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave, final boolean reload) {
 			this.project = project;
 			this.imagesToProcess = imagesToProcess;
 			this.doSave = doSave;
+			if(imagesToProcess.size()==1){
+				this.reload = true;
+			} else {
+				this.reload = reload;
+			}
 		}
 
 		public void quietCancel() {
@@ -606,6 +618,13 @@ public class QIIMAQuantPanelController implements Initializable{
 					e->e.getValue())
 			);
 			Set<PathClass> selCompartments = selectedCompartments.parallelStream().collect(Collectors.toSet());
+
+			var viewersList = qupath.getViewers();
+			QuPathViewerPlus currentViewer = null;
+			if (viewersList.size() == 1){
+				logger.info("Only one viewer found! Setting current viewer.");
+				currentViewer = viewersList.get(0);
+			}
 
 			int counter = 0;
 			for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
@@ -630,6 +649,10 @@ public class QIIMAQuantPanelController implements Initializable{
 						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
 						continue;
 					}
+					if(viewersList.size()>1 && reload){
+						logger.info("getting viewer for imagedata...");
+						currentViewer = viewersList.stream().filter(v -> v.getImageData() == imageData).findFirst().orElse(null);
+					}
 
 					QIIMAQuantBackend qiimaQuant = new QIIMAQuantBackend(
 							imageData,
@@ -647,10 +670,26 @@ public class QIIMAQuantPanelController implements Initializable{
 					);
 
 					runQuant(qiimaQuant).get();
+					fireHierarchyUpdate(imageData.getHierarchy());
 
-					if (doSave)
+					if (doSave) {
+						logger.info("saving image data...");
 						entry.saveImageData(imageData);
-					imageData.getServer().close();
+					}
+
+					if (currentViewer != null && reload){
+						logger.info("reloading image data in viewer...");
+//						need to run on the JavaFX application thread to avoid throwing errors
+						QuPathViewerPlus finalCurrentViewer = currentViewer;
+						Platform.runLater(()->{
+							finalCurrentViewer.setImageData(imageData);
+						});
+					}
+
+					if (imagesToProcess.size() > 1) {
+						logger.warn("Closing server {}", imageData.toString());
+						imageData.getServer().close();
+					}
 
 //					might be redundant because already checking to clear cache inside each QIIMAQuantBackend object after closing...
 					try {
@@ -724,15 +763,15 @@ public class QIIMAQuantPanelController implements Initializable{
 			sourceType = PathAnnotationObject.class;
 		}
 
-		int inputGridSize;
-		if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null)
-			inputGridSize = 0;
+		int inputTileSize;
+		if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null)
+			inputTileSize = 0;
 		else
-			inputGridSize = Integer.parseInt(gridSizeTextField.getText());
+			inputTileSize = Integer.parseInt(tileSizeTextField.getText());
 
 		Map<String, Object> params = new ConcurrentHashMap<>(Map.ofEntries(
 				Map.entry("downsample", downsample),
-				Map.entry("tileSize", inputGridSize),
+				Map.entry("tileSize", inputTileSize),
 				Map.entry("sourceType", sourceType),
 				Map.entry("rescaleScore", rescaleScore),
 				Map.entry("normalizeScore", normalizeScore),
@@ -760,25 +799,27 @@ public class QIIMAQuantPanelController implements Initializable{
 			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
 					.collect(Collectors.toList());
 			hierarchy.removeObjects(notCells, true);
-			clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
+			if(!result.toLowerCase().contains("roi"))
+				clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
 		} else if(source.equals(PathCellObject.class)){
 			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
 					.collect(Collectors.toList());
 			hierarchy.removeObjects(notCells, true);
-			clearMeasurements(hierarchy, hierarchy.getCellObjects());
+			if(!result.toLowerCase().contains("roi"))
+				clearMeasurements(hierarchy, hierarchy.getCellObjects());
 		}
 		CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
 			}
-			if(result.toLowerCase().contains("grid")){
-				if(gridSizeTextField.getText().isEmpty() || gridSizeTextField.getText() == null) {
-					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
-				}else if(gridSizeTextField.getText() != null && Integer.parseInt(gridSizeTextField.getText()) == 0) {
-					logger.warn("Gridsize textfield cannot be 0 or empty when trying to compute grid results!");
+			if(result.toLowerCase().contains("tile")){
+				if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null) {
+					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
+				}else if(tileSizeTextField.getText() != null && Integer.parseInt(tileSizeTextField.getText()) == 0) {
+					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
 				}else {
 					Platform.runLater(()->{
-						progressLabel.setText("Quantifying Grid Tiles...");
+						progressLabel.setText("Quantifying Tiles...");
 					});
 					try{
 //						If you are making grids/tiles, delete any old tiles?
@@ -843,14 +884,24 @@ public class QIIMAQuantPanelController implements Initializable{
 			}
 		})
 		.exceptionally(ex -> {
-//			ex.printStackTrace();
-//			logger.warn(Arrays.toString(ex.getStackTrace()));
+			if (ex.getCause() instanceof CancellationException){
+				logger.warn("Run cancelled?");
+				Platform.runLater(() ->{
+					progressLabel.setText("Run cancelled..");
+					quantProgressBar.setProgress(1);
+				});
+			} else {
+				Platform.runLater(() ->{
+					progressLabel.setText(ex.getCause().toString());
+				});
+				ex.printStackTrace();
+			}
+			logger.warn(ex.toString());
 			try {
 				qiimaQuant.cancelTasks().get();
 			} catch (InterruptedException | ExecutionException exc) {
 				throw new RuntimeException(exc);
 			}
-			logger.warn(ex.toString());
 			return null;
 		})
 		.thenRun(()->{
@@ -889,28 +940,41 @@ public class QIIMAQuantPanelController implements Initializable{
 	//Main panel and button commands
 	public void startQuant(ActionEvent e){
 //		Wrap all this into a task
-		Map<String, Object> params = setupQuantParams();
-		if(params==null)
+		Project<BufferedImage> project = qupath.getProject();
+		if (project == null) {
+			Dialogs.showNoProjectError("QIIMA-Quant");
 			return;
-		QIIMAQuantBackend qiimaQuant = new QIIMAQuantBackend(
-				qupath.getImageData(),
-				selectedTargets,
-				selectedCompartments,
-				ignoreClasses,
-				roiClasses,
-				params,
-				getNumThreads()-3,
-				runCancelled,
-				controlListToToggle,
-				menuItemListToToggle,
-				quantProgressBar,
-				progressLabel
-		);
-		try {
-			runQuant(qiimaQuant).get();
-		} catch (InterruptedException | ExecutionException ex) {
-			throw new RuntimeException(ex);
 		}
+		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(List.of(project.getEntry(qupath.getImageData())));
+		if (imagesToProcess.isEmpty()){
+			Dialogs.showErrorMessage("QIIMA-Quant", "No image data found. Make sure image in project is opened.");
+			return;
+		}
+
+		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, true, true);
+		// Create & run task
+		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
+
+
+//		Map<String, Object> params = setupQuantParams();
+//		if(params==null)
+//			return;
+//		QIIMAQuantBackend qiimaQuant = new QIIMAQuantBackend(
+//				qupath.getImageData(),
+//				selectedTargets,
+//				selectedCompartments,
+//				ignoreClasses,
+//				roiClasses,
+//				params,
+//				getNumThreads()-3,
+//				runCancelled,
+//				controlListToToggle,
+//				menuItemListToToggle,
+//				quantProgressBar,
+//				progressLabel
+//		);
+//		runQuant(qiimaQuant);
+
 	}
 
 	public void runForProject(ActionEvent e){
@@ -920,15 +984,15 @@ public class QIIMAQuantPanelController implements Initializable{
 
 	public void cancelQuant(ActionEvent e){
 		runCancelled.set(true);
-		cancelRunningTask();
-		exportMeasButton.setDisable(false);
-		exportMeasMenuItem.setDisable(false);
-		startQuantButton.setDisable(false);
-		runForProjectMenuItem.setDisable(false);
+//		cancelRunningTask();
+//		exportMeasButton.setDisable(false);
+//		exportMeasMenuItem.setDisable(false);
+//		startQuantButton.setDisable(false);
+//		runForProjectMenuItem.setDisable(false);
 
-		progressLabel.setText("Canceled task...");
+		progressLabel.setText("Cancelling task...");
 //		would be cool to make progress bar red or something
-		quantProgressBar.setProgress(0);
+		quantProgressBar.setProgress(-1);
 	}
 	
 	void advancedSettings(ActionEvent e) {

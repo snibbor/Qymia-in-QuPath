@@ -103,6 +103,8 @@ public class QIIMAMeasurementExportCommand implements Runnable {
 
 	@Override
 	public void run() {
+//		Add to previous images the current image data if not null
+		previousImages.clear();
 		createAndShowDialog();
 	}
 	
@@ -126,6 +128,11 @@ public class QIIMAMeasurementExportCommand implements Runnable {
 		pathObjectCombo = new ComboBox<>();
 		separatorCombo = new ComboBox<>();
 		includeCombo = new CheckComboBox<String>();
+
+		ProjectImageEntry<BufferedImage> currentEntry = project.getEntry(qupath.getImageData());
+		if (previousImages.isEmpty() || !previousImages.contains(currentEntry))
+			previousImages.add(currentEntry);
+
 		String sameImageWarning = "A selected image is open in the viewer!\nData should be saved before exporting.";
 		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
 		
@@ -154,7 +161,7 @@ public class QIIMAMeasurementExportCommand implements Runnable {
 
 		Label pathObjectLabel = new Label("Export type");
 		pathObjectLabel.setLabelFor(pathObjectCombo);
-		pathObjectCombo.getItems().setAll("Image", "Annotations", "Detections", "Tiles", "Cells", "TMA cores");
+		pathObjectCombo.getItems().setAll("Image", "Annotations", "Detections", "ROIs", "Tiles", "Cells", "TMA cores");
 		pathObjectCombo.getSelectionModel().selectFirst();
 		pathObjectCombo.valueProperty().addListener((v, o, n) -> {
 			if (n != null)
@@ -337,6 +344,9 @@ public class QIIMAMeasurementExportCommand implements Runnable {
 				type = PathAnnotationObject.class;
 				break;
 			case "Detections":
+				type = PathDetectionObject.class;
+				break;
+			case "ROIs":
 				type = PathDetectionObject.class;
 				break;
 			case "Tiles":
