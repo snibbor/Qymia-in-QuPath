@@ -15,7 +15,7 @@
 <?import javafx.scene.layout.GridPane?>
 <?import javafx.scene.layout.RowConstraints?>
 
-<TitledPane fx:id="resultantProtocolPane" animated="false" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiima.ResultantPaneController">
+<TitledPane fx:id="resultantProtocolPane" animated="false" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiimia.ResultantPaneController">
    <content>
       <AnchorPane fx:id="resultantAnchorPane">
          <children>
