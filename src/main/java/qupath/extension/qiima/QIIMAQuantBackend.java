@@ -64,6 +64,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
+import static qupath.lib.scripting.QP.fireHierarchyUpdate;
 
 //	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
 public class QIIMAQuantBackend {
@@ -411,8 +412,7 @@ public class QIIMAQuantBackend {
                                         // Record null/none values for compartments not within ROI
 //											logger.info(f.getName());
                                         if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
-                                            f.setName("ROI_" + roiNumber.get());
-                                            roiNumber.incrementAndGet();
+                                            f.setName("ROI_" + roiNumber.getAndIncrement());
                                         }
 
                                         PathObject adjpathObj = null;
@@ -437,8 +437,7 @@ public class QIIMAQuantBackend {
                                         }
 
                                         // this might work but does it scale for lots of ROIs?
-                                        totalROIs.incrementAndGet();
-                                        setEstNumTasks(totalROIs.get());
+                                        setEstNumTasks(totalROIs.incrementAndGet());
                                         return adjpathObj;
                                     })
                                     .filter(p -> p != null)
@@ -491,6 +490,7 @@ public class QIIMAQuantBackend {
                                 }
                             });
                         }
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                     })
                     .exceptionally(ex -> {
                         if (ex.getCause() instanceof CancellationException){
@@ -501,6 +501,7 @@ public class QIIMAQuantBackend {
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("getTargetScoresForROIs: " + ex);
                         logger.warn(ex.toString());
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                         return null;
                     });
 
@@ -1120,6 +1121,7 @@ public class QIIMAQuantBackend {
                                 }
                             });
                         }
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                     })
                     .exceptionally(ex -> {
                         if (ex.getCause() instanceof CancellationException){
@@ -1129,6 +1131,7 @@ public class QIIMAQuantBackend {
                         }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("TileRecalcCompartmentsAndScores: " + ex);
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                         return null;
                     });
         } catch (ExecutionException | InterruptedException ex) {
@@ -1274,6 +1277,7 @@ public class QIIMAQuantBackend {
                                 }
                             });
                         }
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                     })
                     .exceptionally(ex -> {
                         if (ex.getCause() instanceof CancellationException){
@@ -1283,6 +1287,7 @@ public class QIIMAQuantBackend {
                         }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("TMARecalcCompartmentsAndScores: " + ex);
+                        fireHierarchyUpdate(bImageData.getHierarchy());
                         return null;
                     });
         } catch (Exception ex) {

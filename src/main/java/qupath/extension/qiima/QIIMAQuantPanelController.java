@@ -552,7 +552,7 @@ public class QIIMAQuantPanelController implements Initializable{
 
 		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
 
-		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, doSave, true);
+		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, doSave, false);
 
 
 		ProgressDialog progress = new ProgressDialog(worker);
@@ -591,11 +591,12 @@ public class QIIMAQuantPanelController implements Initializable{
 			this.project = project;
 			this.imagesToProcess = imagesToProcess;
 			this.doSave = doSave;
-			if(imagesToProcess.size()==1){
-				this.reload = true;
-			} else {
-				this.reload = reload;
-			}
+			this.reload = reload;
+//			if(imagesToProcess.size()==1){
+//				this.reload = true;
+//			} else {
+//				this.reload = reload;
+//			}
 		}
 
 		public void quietCancel() {
@@ -649,7 +650,8 @@ public class QIIMAQuantPanelController implements Initializable{
 						logger.warn("Unable to open {} - will be skipped", entry.getImageName());
 						continue;
 					}
-					if(viewersList.size()>1 && reload){
+
+					if(reload && viewersList.size()>1){
 						logger.info("getting viewer for imagedata...");
 						currentViewer = viewersList.stream().filter(v -> v.getImageData() == imageData).findFirst().orElse(null);
 					}
@@ -670,14 +672,13 @@ public class QIIMAQuantPanelController implements Initializable{
 					);
 
 					runQuant(qiimaQuant).get();
-					fireHierarchyUpdate(imageData.getHierarchy());
 
-					if (doSave) {
+					if (doSave && !runCancelled.get()) {
 						logger.info("saving image data...");
 						entry.saveImageData(imageData);
 					}
 
-					if (currentViewer != null && reload){
+					if (reload && currentViewer != null){
 						logger.info("reloading image data in viewer...");
 //						need to run on the JavaFX application thread to avoid throwing errors
 						QuPathViewerPlus finalCurrentViewer = currentViewer;
@@ -838,7 +839,7 @@ public class QIIMAQuantPanelController implements Initializable{
 				}
 
 			}
-		}, startRunFJP)
+		})
 		.thenRun(()->{
 			if(runCancelled.get()){
 				throw new CancellationException();
@@ -945,13 +946,20 @@ public class QIIMAQuantPanelController implements Initializable{
 			Dialogs.showNoProjectError("QIIMA-Quant");
 			return;
 		}
-		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(List.of(project.getEntry(qupath.getImageData())));
+		var entry = project == null ? null : project.getEntry(qupath.getImageData());
+//		Make sure to save image data before starting or else reload doesn't work properly
+		try {
+			entry.saveImageData(qupath.getImageData());
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(List.of(entry));
 		if (imagesToProcess.isEmpty()){
 			Dialogs.showErrorMessage("QIIMA-Quant", "No image data found. Make sure image in project is opened.");
 			return;
 		}
 
-		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, true, true);
+		QIIMAQuantPanelController.ProjectTask worker = new QIIMAQuantPanelController.ProjectTask(project, imagesToProcess, false, true);
 		// Create & run task
 		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
 
