@@ -65,10 +65,15 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Change ignore classes
     - [x] Simpler measurement export options
       - [x] Change GUI controls to use the default QuPath measurement exporter.
-      - [ ] Put current opened image inside selected export list automatically.
+      - [x] Put current opened image inside selected export list automatically.
       - [ ] Save dialog (if project entry not saved) before export measurements dialog opens.
+      - [ ] Option to export measurements as separate files for project entries.
+      - [ ] Customize measurement exporter class to:
+        - [ ] Export ROI class of annotations/detections only --> filter by PathObject.class and PathClass(es)
+        - [ ] Remove empty/unscored measurement entries before export
     - [ ] Export measurement maps/heatmaps for project
       - [ ] Extend QuPath measurement map UI to export map images for project
+    - [ ] Export ROI annotation classes as images
     - [ ] Modifiable rescale value (if image data was already normalized but rescaled to an unsigned integer)
     - [ ] Export masks as binary masks or segmentation masks for downstream applications
     - [x] Improve "finished" asthetics/state of progress bar
@@ -76,9 +81,10 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Cancelled message --> progress value is set to 0, no color change
       
   - #### Fix known bugs/problems, improve backend
-    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately.
-      - [ ] Debug why cancelling sometimes causes image server exceptions for later runs...
-      - [ ] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools.
+    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately. --> imediate cancellation can cause errors still
+      - [x] Debug why cancelling sometimes causes image server exceptions for later runs... --> works after wrapping inside task
+      - [x] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools. --> yes
+      - [x] Bug with reloading images because task execution occurs on thread separate from JavaFX
     - [ ] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
     - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
@@ -86,6 +92,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [ ] Restrict switching projects during a run? Dialog box to cancel tasks?
       - [ ] Restrict swithing images during a run? Dialog box to cancel tasks?
     - [ ] Check for problems on missing target channels (ColorTransforms)
+      - [ ] Bug with channel name not found when switching projects, although GUI displays correct channel name. resolves on switching images within project. --> is targetTransforms list updated after switching projects?
     - [ ] Improve scoring (getTargetsIntensity function) to be even faster through ImageOps? Notes in code.
     - [ ] Make the backend more accessible outside GUI for use in scripting
       - [x] Separated QIIMAQuantBackend into it's own class. 
