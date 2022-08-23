@@ -1,13 +1,13 @@
-# QIIMA in QuPath
-### Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis (QIIMA, "kee-ma" or "k-EYE-ma") in QuPath
+# Qiimia in QuPath
+### Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (QIIMIA, Qiimia, "kee-m-ee-a" or "k-EYE-m-ee-a") in QuPath
 
 Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
-QIIMA is currently designed as a 2 part GUI extension where you make compartments with QIIMA Compartment Builder and quantify the target expression within these compartments with QIIMA-Quant. The QIIMA Compartment Builder portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
+Qiimia is currently designed as a 2 part GUI extension where you make compartments with Qiimia Compartment Builder and quantify the target expression within these compartments with Qiimia Quant. The Qiimia Compartment Builder portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
 
 ## Workflow Demo Version 0.0.1:
 
-This workflow uses the QuPath built-in SimpleThresholder as well as QIIMA-Quant
+This workflow uses the QuPath built-in SimpleThresholder as well as Qiimia Quant
 
 ## Whole Tissue Sections:
 
@@ -42,7 +42,7 @@ https://user-images.githubusercontent.com/28576964/183575198-896ba7da-dab5-4433-
 https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-adf5-6118fc9ada42.mp4
 
 ## TODO:
-- ### QIIMA-Quant
+- ### Qiimia Quant
   - #### Main features
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
       - [x] Export measurements to tab delim .csv ~~or .json?~~
@@ -95,12 +95,12 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [ ] Bug with channel name not found when switching projects, although GUI displays correct channel name. resolves on switching images within project. --> is targetTransforms list updated after switching projects?
     - [ ] Improve scoring (getTargetsIntensity function) to be even faster through ImageOps? Notes in code.
     - [ ] Make the backend more accessible outside GUI for use in scripting
-      - [x] Separated QIIMAQuantBackend into it's own class. 
-      - [ ] Make a QIIMAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
+      - [x] Separated QIIMIAQuantBackend into it's own class. 
+      - [ ] Make a QIIMIAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
   
   - #### Test for more bugs and interface & workflow usability
 
-- ### QIIMA Compartment Builder
+- ### Qiimia Compartment Builder
   - [ ] Streamline Compartment Builder UI, integrate with PixelClassificationOverlays, work on backend functions
     - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
     - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
@@ -112,6 +112,6 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Handle drag and drop of operations?
 
 - ### Future workflows
-  - Integrate cell segmentation and subcellular compartment tools into QIIMA workflow
-  - Integrate custom or ML-generated segmentation masks into QIIMA workflow
+  - Integrate cell segmentation and subcellular compartment tools into Qiimia workflow
+  - Integrate custom or ML-generated segmentation masks into Qiimia workflow
 
