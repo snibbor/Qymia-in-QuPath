@@ -649,7 +649,8 @@ public class QiimiaQuantPanelController implements Initializable{
 						continue;
 					}
 
-					if(reload && viewersList.size()>1){
+//					This works but not sure when there would be more than 1 viewer...
+					if(reload && viewersList.size() >= 1 && imagesToProcess.size() > 1){
 						logger.info("getting viewer for imagedata...");
 						currentViewer = viewersList.stream().filter(v -> v.getImageData() == imageData).findFirst().orElse(null);
 					}

@@ -98,6 +98,105 @@ public class QiimiaQuantBackend {
     private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
     private final AtomicReference<Boolean> isCancelled;
 
+    //  options for tile calculations
+    public enum TileOption{
+        FULL_IMAGE,
+        ROI_ONLY,
+        ROI_AND_IMAGE,
+        TMA,
+        ROI_AND_TMA
+    }
+    public enum Compartments {
+        /**
+         * Nucleus only
+         */
+        NUCLEUS,
+        /**
+         * Full cell region, with nucleus removed
+         */
+        CYTOPLASM,
+        /**
+         * Full cell region
+         */
+        CELL,
+        /**
+         * Cell boundary, with interior removed
+         */
+        MEMBRANE
+
+    }
+
+    /**
+     * Requested intensity measurements.
+     */
+    public enum Measurements {
+        /**
+         * Arithmetic mean
+         */
+        MEAN,
+        /**
+         * Median value
+         */
+        MEDIAN,
+        /**
+         * Minimum value
+         */
+        MIN,
+        /**
+         * Maximum value
+         */
+        MAX,
+        /**
+         * Standard deviation value
+         */
+        STD_DEV,
+        /**
+         * Variance value
+         */
+        VARIANCE;
+
+        private String getMeasurementName() {
+            switch (this) {
+                case MAX:
+                    return "Max";
+                case MEAN:
+                    return "Mean";
+                case MEDIAN:
+                    return "Median";
+                case MIN:
+                    return "Min";
+                case STD_DEV:
+                    return "Std.Dev.";
+                case VARIANCE:
+                    return "Variance";
+                default:
+                    throw new IllegalArgumentException("Unknown measurement " + this);
+            }
+        }
+
+        private double getMeasurement(StatisticalSummary stats) {
+            switch (this) {
+                case MAX:
+                    return stats.getMax();
+                case MEAN:
+                    return stats.getMean();
+                case MEDIAN:
+                    if (stats instanceof DescriptiveStatistics)
+                        return ((DescriptiveStatistics) stats).getPercentile(50.0);
+                    else
+                        return Double.NaN;
+                case MIN:
+                    return stats.getMin();
+                case STD_DEV:
+                    return stats.getStandardDeviation();
+                case VARIANCE:
+                    return stats.getVariance();
+                default:
+                    throw new IllegalArgumentException("Unknown measurement " + this);
+            }
+        }
+    }
+
 
 //    Not for GUI
     QiimiaQuantBackend(ImageData<BufferedImage> bImageData,
@@ -107,6 +206,7 @@ public class QiimiaQuantBackend {
                        Set<PathClass> roiClasses,
                        double downsample,
                        int tileSize,
+                       TileOption tileOption,
                        Class<? extends PathObject> sourceType,
                        boolean rescaleScore,
                        boolean normalizeScore,
@@ -121,6 +221,7 @@ public class QiimiaQuantBackend {
         this.params = new ConcurrentHashMap<>(Map.ofEntries(
                 Map.entry("downsample", downsample),
                 Map.entry("tileSize", tileSize),
+                Map.entry("tileOption", tileOption),
                 Map.entry("sourceType", sourceType),
                 Map.entry("rescaleScore", rescaleScore),
                 Map.entry("normalizeScore", normalizeScore),
@@ -362,11 +463,12 @@ public class QiimiaQuantBackend {
 
         setupNewForkJoinPool(numThreads);
 
-        AtomicInteger totalROIs = new AtomicInteger(0);
+
         Integer progAmount = 1;
         progressValue.set(BigInteger.valueOf(0));
 
         // Used for placing child objects inside ROI
+        AtomicInteger totalROIs = new AtomicInteger(0);
         AtomicInteger roiNumber = new AtomicInteger(1);
         AtomicReference<Boolean> doAdjust = new AtomicReference<>(false);
         ROI combinedExcludeROI;
@@ -411,7 +513,8 @@ public class QiimiaQuantBackend {
                                     .map(f -> {
                                         // Record null/none values for compartments not within ROI
 //											logger.info(f.getName());
-                                        if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+//                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+                                        if (f.getName() == null || f.getName().isBlank()) {
                                             f.setName("ROI_" + roiNumber.getAndIncrement());
                                         }
 
@@ -420,7 +523,7 @@ public class QiimiaQuantBackend {
                                         if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
                                             adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
                                             if (adjpathObjROI.isEmpty()) {
-                                                logger.info("ROI {} is now empty, skipping AQUA metrics...", f.getName());
+                                                logger.info("ROI {} is now empty, skipping scoring metrics...", f.getName());
                                                 return null;
                                             } else {
                                                 logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
@@ -723,7 +826,7 @@ public class QiimiaQuantBackend {
                                                                                 boolean fixedSize,
                                                                                 int overlap) throws ExecutionException, InterruptedException {
 
-//			Bound for entire image
+//			Bound for entire image or ROI annotation
 
 //			if (pathArea == null || (bounds.getWidth() <= sizeMax.width && bounds.getHeight() <= sizeMax.height)) {
 //				return Collections.singletonList(parentROI);
@@ -899,8 +1002,7 @@ public class QiimiaQuantBackend {
 
         // Generate all the rectangles as geometries
 //			Map<Geometry, Geometry> tileGeometries = new LinkedHashMap<>();
-        Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = new ConcurrentHashMap<>();
-
+        ConcurrentHashMap<PathObject, Map<PathClass, ROI>> tileIntersectROIs = new ConcurrentHashMap<>();
 
         ConcurrentHashMap<Integer, ConcurrentHashMap<PathClass, Geometry>> finalLocalGeoms = localGeoms;
 
@@ -977,18 +1079,58 @@ public class QiimiaQuantBackend {
 //					.collect(Collectors.toList());
     }
 
-    public CompletableFuture<Void>  TileRecalcCompartmentsAndScores() throws RuntimeException {
-        return TileRecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"),
-                (double) params.get("downsample"),  (int) params.get("tileSize"), numThreads);
+    public Map<PathClass, ROI> combineAnnotationsIntoMap(
+            List<PathObject> compartmentObjs,
+            Geometry combinedExcludeGeom,
+            ROI combinedExcludeROI,
+            Boolean doAdjust) throws ExecutionException, InterruptedException {
+        // TODO: is there a simpler way to get this Map<PathClass, List<ROI>> from one stream, and then combine if there are multiple entries in the List<ROI>?
+        // combine compartments into path objects
+        Map<PathClass, ROI> combCompartmentROIMap = new HashMap<>();
+        for(PathClass c : compartments){
+            List<ROI> theseCROIs = forkJoinPool.submit(()->compartmentObjs.parallelStream()
+                    .filter(p-> c == p.getPathClass())
+                    .map(p -> p.getROI())
+                    .collect(Collectors.toList())).get();
+            logger.info("Combining all {} annotations...", c.toString());
+            ROI combinedC = RoiTools.union(theseCROIs);
+            if(combinedC!=null && !combinedC.isEmpty()){
+                if (doAdjust && combinedC.getGeometry().intersects(combinedExcludeGeom)) {
+                    combinedC = RoiTools.combineROIs(combinedC, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+                    if(combinedC.isEmpty()){
+                        continue;
+                    }
+                }
+                // Do not remake the pathObject
+                combCompartmentROIMap.put(c, combinedC);
+            }
+        }
+        return combCompartmentROIMap;
     }
 
-    public CompletableFuture<Void> TileRecalcCompartmentsAndScores(Set<PathClass> ignoreClasses,
-                                                                   Map<ColorTransforms.ColorTransform, Double> targets,
-                                                                   Set<PathClass> compartments,
-                                                                   Class<? extends PathObject> sourceType,
-                                                                   double downsample,
-                                                                   int tileSize,
-                                                                   int numThreads
+    public CompletableFuture<Void>  TileRecalcCompartmentsAndScores() throws RuntimeException {
+        return TileRecalcCompartmentsAndScores(
+                ignoreClasses,
+//                targets,
+                compartments,
+                roiClasses,
+                (Class<? extends PathObject>) params.get("sourceType"),
+//                (double) params.get("downsample"),
+                (int) params.get("tileSize"),
+                (TileOption) params.get("tileOption"),
+                numThreads);
+    }
+
+    public CompletableFuture<Void> TileRecalcCompartmentsAndScores(
+            Set<PathClass> ignoreClasses,
+//            Map<ColorTransforms.ColorTransform, Double> targets,
+            Set<PathClass> compartments,
+            Set<PathClass> rois,
+            Class<? extends PathObject> sourceType,
+//            double downsample,
+            int tileSize,
+            TileOption tileOption,
+            int numThreads
     ) throws RuntimeException{
 
         if (numThreads <= 0)
@@ -1006,8 +1148,6 @@ public class QiimiaQuantBackend {
         PathObjectHierarchy hierarchy = bImageData.getHierarchy();
         var pathObjs = hierarchy.getObjects(null, PathObject.class);
         ImageServer<BufferedImage> server = bImageData.getServer();
-        Rectangle2D bounds = new Rectangle2D.Double();
-        bounds.setFrame(0.0, 0.0, server.getWidth(), server.getHeight());
         CompletableFuture<Void> result = null;
         try {
             List<ROI> allIgnoreROIs = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream()
@@ -1022,70 +1162,123 @@ public class QiimiaQuantBackend {
             if (combinedExcludeROI != null && !combinedExcludeROI.isEmpty()) {
                 doAdjust.set(true);
                 combinedExcludeGeom = combinedExcludeROI.getGeometry();
-            } else{
+            } else {
                 doAdjust.set(false);
                 combinedExcludeGeom = null;
             }
-            // TODO: is there a simpler way to get this Map<PathClass, List<ROI>> from one stream, and then combine if there are multiple entries in the List<ROI>?
-            // combine compartments into path objects
-            Map<PathClass, ROI> combCompartmentROIMap = new HashMap<>();
-            for(PathClass c : compartments){
-                List<ROI> theseCROIs = forkJoinPool.submit(()->compartmentObjs.parallelStream()
-                        .filter(p-> c == p.getPathClass())
-                        .map(p -> p.getROI())
-                        .collect(Collectors.toList())).get();
-                logger.info("Combining all {} annotations...", c.toString());
-                ROI combinedC = RoiTools.union(theseCROIs);
-                if(combinedC!=null && !combinedC.isEmpty()){
-                    if (doAdjust.get() && combinedC.getGeometry().intersects(combinedExcludeGeom)) {
-                        combinedC = RoiTools.combineROIs(combinedC, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-                        if(combinedC.isEmpty()){
-                            continue;
-                        }
+
+            Map<PathObject, Map<PathObject, Map<PathClass, ROI>>> allTileIntersectROIs = new HashMap<>();
+
+            switch (tileOption) {
+                case ROI_AND_IMAGE:
+                case ROI_ONLY: {
+                    logger.info("Computing tiles for {} ROIs", "X");
+//                    AtomicInteger totalROIs = new AtomicInteger(0);
+//                    AtomicInteger roiNumber = new AtomicInteger(1);
+//                    pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
+//                            .map(f -> {
+//                                // Record null/none values for compartments not within ROI
+////											logger.info(f.getName());
+////                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+//                                if (f.getName() == null || f.getName().isBlank()) {
+//                                    f.setName("ROI_" + roiNumber.getAndIncrement());
+//                                }
+//
+//                                PathObject adjpathObj = null;
+//                                ROI adjpathObjROI = f.getROI();
+//                                if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
+//                                    adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+//                                    if (adjpathObjROI.isEmpty()) {
+//                                        logger.info("ROI {} is now empty, skipping scoring metrics...", f.getName());
+//                                        return null;
+//                                    } else {
+//                                        logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
+//
+//                                        adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+////													Do I need to set the name again?
+//                                        adjpathObj.setName(f.getName());
+//                                        hierarchy.addPathObject(adjpathObj);
+////													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+//                                        hierarchy.removeObject(f, true);
+//                                    }
+//                                } else {
+//                                    adjpathObj = f;
+//                                }
+//
+//                                // this might work but does it scale for lots of ROIs?
+//                                setEstNumTasks(totalROIs.incrementAndGet());
+//                                return adjpathObj;
+//                            })
+//                            .filter(p -> p != null)
+                }
+                case FULL_IMAGE: {
+                    logger.info("Computing tiles for FULL_IMAGE");
+                    Rectangle2D bounds = new Rectangle2D.Double();
+                    bounds.setFrame(0.0, 0.0, server.getWidth(), server.getHeight());
+
+                    Map<PathClass, ROI> combCompartmentROIMap = combineAnnotationsIntoMap(
+                            compartmentObjs, combinedExcludeGeom, combinedExcludeROI, doAdjust.get());
+
+                    if (combCompartmentROIMap.isEmpty()) {
+                        logger.error("Combining compartments resulted in null? Check compartment annotations/sources...");
+                        return null;
                     }
-                    // Do not remake the pathObject
-                    combCompartmentROIMap.put(c, combinedC);
+
+//				    Uses default image plane, will not work for timeseries or z slices
+                    Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
+                            bounds,
+                            combCompartmentROIMap,
+                            ImmutableDimension.getInstance(tileSize, tileSize),
+                            true,
+                            0);
+                    allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                    break;
                 }
             }
-            if(combCompartmentROIMap.isEmpty()){
-                logger.error("Combining compartments resulted in null? Check compartment annotations/sources...");
-                return null;
-            }
 
-//				Uses default image plane, will not work for timeseries or z slices
-            Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(bounds,
-                    combCompartmentROIMap,
-                    ImmutableDimension.getInstance(tileSize, tileSize),
-                    true,
-                    0);
-
-
-//				Make pathObjects out of intersections and add to tileObj as children
+//          Make pathObjects out of intersections and add to tileObj as children
             progressValue.set(BigInteger.valueOf(0));
             logger.info("Creating tile objects... (3/4)");
-            if(progressBar!=null) {
+            if (progressBar != null) {
                 Platform.runLater(() -> {
                     progressLabel.setText("Creating tile objects... (3/4)");
                     progressBar.setProgress(-1);
                 });
             }
-//				I don't like how this blocks the main thread and GUI, can freeze up the UI easily.... should wrap inside the completable future?
-            forkJoinPool.submit(()->tileIntersectROIs.entrySet().parallelStream()
-                    .forEach(tileM ->{
-                        List<PathObject> intersectChildren = null;
-                        try {
-                            intersectChildren = forkJoinPool.submit(()->tileM.getValue().entrySet().parallelStream()
-                                    .map(m -> PathObjects.createTileObject(m.getValue(), m.getKey(), null))
-                                    .collect(Collectors.toList())).get();
-                        } catch (InterruptedException | ExecutionException e) {
-                            logger.error("Could not create tile children....");
-                            throw new RuntimeException(e);
-                        }
-                        PathObject tileObj = tileM.getKey();
-                        tileObj.addPathObjects(intersectChildren);
-                        hierarchy.addPathObject(tileObj);
-                    })
-            ).get();
+//		    I don't like how this blocks the main thread and GUI, can freeze up the UI easily.... should wrap inside the completable future?
+            ConcurrentHashMap<PathObject, Map<PathClass, ROI>> combinedTileIntersectROIs = new ConcurrentHashMap<>();
+            int totalParents = allTileIntersectROIs.entrySet().size();
+            int p = 1;
+            for (Map.Entry<PathObject, Map<PathObject, Map<PathClass, ROI>>> tEntry : allTileIntersectROIs.entrySet()){
+                PathObject parentObject = tEntry.getKey();
+                ConcurrentHashMap<PathObject, Map<PathClass, ROI>> tileIntersectROIs = new ConcurrentHashMap<>(tEntry.getValue());
+                forkJoinPool.submit(() -> tileIntersectROIs.entrySet().parallelStream()
+                        .forEach(tileM -> {
+                            List<PathObject> intersectChildren = null;
+                            try {
+                                intersectChildren = forkJoinPool.submit(() -> tileM.getValue().entrySet().parallelStream()
+                                        .map(m -> PathObjects.createTileObject(m.getValue(), m.getKey(), null))
+                                        .collect(Collectors.toList())).get();
+                            } catch (InterruptedException | ExecutionException e) {
+                                logger.error("Could not create tile children....");
+                                throw new RuntimeException(e);
+                            }
+                            PathObject tileObj = tileM.getKey();
+                            tileObj.addPathObjects(intersectChildren);
+                            hierarchy.addPathObjectBelowParent(parentObject, tileObj, true);
+//                            parentObject.addPathObject(tileObj);
+                        })
+                ).get();
+                logger.info("{} of {} completed with creating tiles", p, totalParents);
+                combinedTileIntersectROIs.putAll(tileIntersectROIs);
+                if (progressBar != null) {
+                    int finalP = p;
+                    Platform.runLater(() -> {
+                        progressBar.setProgress(finalP/totalParents);
+                    });
+                }
+                p++;
+            }
 
             logger.info("Scoring tiles... (4/4)");
 
@@ -1094,8 +1287,9 @@ public class QiimiaQuantBackend {
                     progressLabel.setText("Scoring tiles... (4/4)");
                 });
             }
-            setEstNumTasks(tileIntersectROIs.size());
-            result = CompletableFuture.runAsync(() -> tileIntersectROIs.entrySet().parallelStream().forEach(tileM ->{
+
+            setEstNumTasks(combinedTileIntersectROIs.size());
+            result = CompletableFuture.runAsync(() -> combinedTileIntersectROIs.entrySet().parallelStream().forEach(tileM ->{
                                 if (isCancelled.get()) {
                                     throw new CancellationException();
                                 }
@@ -1297,97 +1491,6 @@ public class QiimiaQuantBackend {
             forkJoinPool.shutdown();
         }
         return result;
-    }
-
-    public enum Compartments {
-        /**
-         * Nucleus only
-         */
-        NUCLEUS,
-        /**
-         * Full cell region, with nucleus removed
-         */
-        CYTOPLASM,
-        /**
-         * Full cell region
-         */
-        CELL,
-        /**
-         * Cell boundary, with interior removed
-         */
-        MEMBRANE
-
-    }
-
-    /**
-     * Requested intensity measurements.
-     */
-    public enum Measurements {
-        /**
-         * Arithmetic mean
-         */
-        MEAN,
-        /**
-         * Median value
-         */
-        MEDIAN,
-        /**
-         * Minimum value
-         */
-        MIN,
-        /**
-         * Maximum value
-         */
-        MAX,
-        /**
-         * Standard deviation value
-         */
-        STD_DEV,
-        /**
-         * Variance value
-         */
-        VARIANCE;
-
-        private String getMeasurementName() {
-            switch (this) {
-                case MAX:
-                    return "Max";
-                case MEAN:
-                    return "Mean";
-                case MEDIAN:
-                    return "Median";
-                case MIN:
-                    return "Min";
-                case STD_DEV:
-                    return "Std.Dev.";
-                case VARIANCE:
-                    return "Variance";
-                default:
-                    throw new IllegalArgumentException("Unknown measurement " + this);
-            }
-        }
-
-        private double getMeasurement(StatisticalSummary stats) {
-            switch (this) {
-                case MAX:
-                    return stats.getMax();
-                case MEAN:
-                    return stats.getMean();
-                case MEDIAN:
-                    if (stats instanceof DescriptiveStatistics)
-                        return ((DescriptiveStatistics) stats).getPercentile(50.0);
-                    else
-                        return Double.NaN;
-                case MIN:
-                    return stats.getMin();
-                case STD_DEV:
-                    return stats.getStandardDeviation();
-                case VARIANCE:
-                    return stats.getVariance();
-                default:
-                    throw new IllegalArgumentException("Unknown measurement " + this);
-            }
-        }
     }
 
     public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server, PathObject pathObject) throws IOException {
