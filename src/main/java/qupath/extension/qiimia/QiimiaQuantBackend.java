@@ -35,10 +35,7 @@ import qupath.lib.images.servers.ImageServer;
 import qupath.lib.images.servers.PixelCalibration;
 import qupath.lib.images.servers.PixelType;
 import qupath.lib.measurements.MeasurementList;
-import qupath.lib.objects.PathCellObject;
-import qupath.lib.objects.PathObject;
-import qupath.lib.objects.PathObjects;
-import qupath.lib.objects.TMACoreObject;
+import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.TMAGrid;
@@ -104,7 +101,8 @@ public class QiimiaQuantBackend {
         ROI_ONLY,
         ROI_AND_IMAGE,
         TMA,
-        ROI_AND_TMA
+        ROI_AND_TMA,
+        SELECTED_TILES
     }
     public enum Compartments {
         /**
@@ -1093,7 +1091,12 @@ public class QiimiaQuantBackend {
                     .map(p -> p.getROI())
                     .collect(Collectors.toList())).get();
             logger.info("Combining all {} annotations...", c.toString());
-            ROI combinedC = RoiTools.union(theseCROIs);
+            ROI combinedC;
+            if (theseCROIs.size() == 1) {
+                combinedC = theseCROIs.get(0);
+            } else{
+                combinedC = RoiTools.union(theseCROIs);
+            }
             if(combinedC!=null && !combinedC.isEmpty()){
                 if (doAdjust && combinedC.getGeometry().intersects(combinedExcludeGeom)) {
                     combinedC = RoiTools.combineROIs(combinedC, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
@@ -1434,12 +1437,17 @@ public class QiimiaQuantBackend {
                                     if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
                                         adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
                                         if (adjpathObjROI.isEmpty()) {
-                                            logger.info("Detection {} compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString());
+                                            logger.info("{} compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString());
                                             //removeObject(detection, true);
                                             return;
                                         } else {
-                                            logger.info("Adjusting {} compartment based on new annotations...", pathObj.getPathClass().toString());
-                                            adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+                                            if (sourceType == PathDetectionObject.class){
+                                                logger.info("Adjusting {} compartment [Detection] based on new/ignore annotations...", pathObj.getPathClass().toString());
+                                                adjpathObj = PathObjects.createDetectionObject(adjpathObjROI, pathObj.getPathClass());
+                                            } else {
+                                                logger.info("Adjusting {} compartment [Annotation] based on new/ignore annotations...", pathObj.getPathClass().toString());
+                                                adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+                                            }
                                             hierarchy.addPathObject(adjpathObj);
                                             bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
                                             hierarchy.removeObject(pathObj, true);
@@ -1771,17 +1779,18 @@ public class QiimiaQuantBackend {
             measList = null;
             measNames = null;
             allStats = null;
-            System.gc();
+//            System.gc();
 
         } catch (Exception e) {
             throw new RuntimeException(e);
-        } finally {
-//			clean up vars?
-//			targets = null;
-//			measurements = null;
-//			cellCompartments = null;
-            System.gc();
         }
+//        finally {
+////			clean up vars?
+////			targets = null;
+////			measurements = null;
+////			cellCompartments = null;
+//            System.gc();
+//        }
         return true;
     }
 

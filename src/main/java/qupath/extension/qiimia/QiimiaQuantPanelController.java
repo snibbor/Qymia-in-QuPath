@@ -107,7 +107,7 @@ public class QiimiaQuantPanelController implements Initializable{
 	private ReadOnlyObjectProperty<String> selectedStainType;
 	@FXML
 	ComboBox<String> sourceComboBox;
-	private final String[] compartmentSources = {"Annotations", "Cells"};
+	private final String[] compartmentSources = {"Detections", "Annotations", "Cells"};
 	private ReadOnlyObjectProperty<String> selectedSource;
 	@FXML
 	ScrollPane compartmentScrollPane;
@@ -737,6 +737,8 @@ public class QiimiaQuantPanelController implements Initializable{
 		String stain = selectedStainType.get();
 		String source = selectedSource.get();
 		String result = selectedResultType.get();
+//		Need to allow user to select what they want to tile....
+		var tileOption = QiimiaQuantBackend.TileOption.FULL_IMAGE;
 		//check if something is selected for compartments and targets....
 		if(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0) {
 //			throw new Exception("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
@@ -759,7 +761,9 @@ public class QiimiaQuantPanelController implements Initializable{
 		Class<? extends PathObject> sourceType;
 		if(source.equals("Cells")){
 			sourceType = PathCellObject.class;
-		} else{
+		} else if (source.equals("Detections")){
+			sourceType = PathDetectionObject.class;
+		} else {
 			sourceType = PathAnnotationObject.class;
 		}
 
@@ -772,6 +776,7 @@ public class QiimiaQuantPanelController implements Initializable{
 		Map<String, Object> params = new ConcurrentHashMap<>(Map.ofEntries(
 				Map.entry("downsample", downsample),
 				Map.entry("tileSize", inputTileSize),
+				Map.entry("tileOption", tileOption),
 				Map.entry("sourceType", sourceType),
 				Map.entry("rescaleScore", rescaleScore),
 				Map.entry("normalizeScore", normalizeScore),
@@ -794,19 +799,23 @@ public class QiimiaQuantPanelController implements Initializable{
 		String slide = (String) params.get("slide");
 		Class<? extends PathObject> source = (Class<? extends PathObject>) params.get("sourceType");
 		String result = (String) params.get("result");
-//		Remove detection objects that are not cells, clear source measurements
-		if(source.equals(PathAnnotationObject.class)) {
-			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
+//		Remove detection objects within any ROIs that are not cells, clear source measurements
+		if(result.toLowerCase().contains("roi")){
+			List<PathObject> oldROIComps = hierarchy.getDetectionObjects().parallelStream()
+					.filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile() && roiClasses.contains(p.getParent().getPathClass()))
 					.collect(Collectors.toList());
-			hierarchy.removeObjects(notCells, true);
+			hierarchy.removeObjects(oldROIComps, true);
+		}
+
+		if(source.equals(PathAnnotationObject.class)) {
 			if(!result.toLowerCase().contains("roi"))
 				clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
 		} else if(source.equals(PathCellObject.class)){
-			List<PathObject> notCells = hierarchy.getDetectionObjects().parallelStream().filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile())
-					.collect(Collectors.toList());
-			hierarchy.removeObjects(notCells, true);
 			if(!result.toLowerCase().contains("roi"))
 				clearMeasurements(hierarchy, hierarchy.getCellObjects());
+		} else if(source.equals(PathDetectionObject.class)){
+			if(!result.toLowerCase().contains("roi"))
+				clearMeasurements(hierarchy, hierarchy.getDetectionObjects());
 		}
 		CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
 			if(runCancelled.get()){
