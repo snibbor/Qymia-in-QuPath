@@ -39,6 +39,7 @@ import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.objects.hierarchy.TMAGrid;
+import qupath.lib.objects.hierarchy.events.PathObjectSelectionModel;
 import qupath.lib.regions.ImagePlane;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.GeometryTools;
@@ -62,6 +63,7 @@ import java.util.stream.IntStream;
 
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.fireHierarchyUpdate;
+import static qupath.lib.scripting.QP.getSelectedObjects;
 
 //	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
 public class QiimiaQuantBackend {
@@ -102,7 +104,19 @@ public class QiimiaQuantBackend {
         ROI_AND_IMAGE,
         TMA,
         ROI_AND_TMA,
-        SELECTED_TILES
+        SELECTED_OBJS;
+        @Override
+        public String toString() {
+            switch(this) {
+                case FULL_IMAGE: return "Full image";
+                case ROI_ONLY: return "ROIs only";
+                case ROI_AND_IMAGE: return "Full image + ROIs";
+                case SELECTED_OBJS: return "Selected objects";
+                case TMA: return "TMA cores";
+                case ROI_AND_TMA: return "TMA and ROIs";
+                default: throw new IllegalArgumentException();
+            }
+        }
     }
     public enum Compartments {
         /**
@@ -205,6 +219,7 @@ public class QiimiaQuantBackend {
                        double downsample,
                        int tileSize,
                        TileOption tileOption,
+                       Collection<PathObject> selectedObjs,
                        Class<? extends PathObject> sourceType,
                        boolean rescaleScore,
                        boolean normalizeScore,
@@ -220,6 +235,7 @@ public class QiimiaQuantBackend {
                 Map.entry("downsample", downsample),
                 Map.entry("tileSize", tileSize),
                 Map.entry("tileOption", tileOption),
+                Map.entry("selectedObjects", selectedObjs),
                 Map.entry("sourceType", sourceType),
                 Map.entry("rescaleScore", rescaleScore),
                 Map.entry("normalizeScore", normalizeScore),
@@ -1121,6 +1137,7 @@ public class QiimiaQuantBackend {
 //                (double) params.get("downsample"),
                 (int) params.get("tileSize"),
                 (TileOption) params.get("tileOption"),
+                (Collection<PathObject>) params.get("selectedObjects"),
                 numThreads);
     }
 
@@ -1133,6 +1150,7 @@ public class QiimiaQuantBackend {
 //            double downsample,
             int tileSize,
             TileOption tileOption,
+            Collection<PathObject> selectedObjs,
             int numThreads
     ) throws RuntimeException{
 
@@ -1171,61 +1189,126 @@ public class QiimiaQuantBackend {
             }
 
             Map<PathObject, Map<PathObject, Map<PathClass, ROI>>> allTileIntersectROIs = new HashMap<>();
+            Map<PathClass, ROI> combCompartmentROIMap = combineAnnotationsIntoMap(
+                    compartmentObjs, combinedExcludeGeom, combinedExcludeROI, doAdjust.get());
+
+            if (combCompartmentROIMap.isEmpty()) {
+                logger.error("Combining compartments resulted in null? Check compartment annotations/sources...");
+                return null;
+            }
 
             switch (tileOption) {
-                case ROI_AND_IMAGE:
-                case ROI_ONLY: {
-                    logger.info("Computing tiles for {} ROIs", "X");
-//                    AtomicInteger totalROIs = new AtomicInteger(0);
-//                    AtomicInteger roiNumber = new AtomicInteger(1);
-//                    pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
-//                            .map(f -> {
-//                                // Record null/none values for compartments not within ROI
-////											logger.info(f.getName());
-////                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
-//                                if (f.getName() == null || f.getName().isBlank()) {
-//                                    f.setName("ROI_" + roiNumber.getAndIncrement());
-//                                }
-//
-//                                PathObject adjpathObj = null;
-//                                ROI adjpathObjROI = f.getROI();
-//                                if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
-//                                    adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-//                                    if (adjpathObjROI.isEmpty()) {
-//                                        logger.info("ROI {} is now empty, skipping scoring metrics...", f.getName());
-//                                        return null;
-//                                    } else {
-//                                        logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
-//
-//                                        adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
-////													Do I need to set the name again?
-//                                        adjpathObj.setName(f.getName());
-//                                        hierarchy.addPathObject(adjpathObj);
-////													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-//                                        hierarchy.removeObject(f, true);
-//                                    }
-//                                } else {
-//                                    adjpathObj = f;
-//                                }
-//
-//                                // this might work but does it scale for lots of ROIs?
-//                                setEstNumTasks(totalROIs.incrementAndGet());
-//                                return adjpathObj;
-//                            })
-//                            .filter(p -> p != null)
-                }
-                case FULL_IMAGE: {
-                    logger.info("Computing tiles for FULL_IMAGE");
+                case ROI_AND_IMAGE: {
+                    logger.info("Computing tiles for full image [ROI_AND_IMAGE]");
                     Rectangle2D bounds = new Rectangle2D.Double();
                     bounds.setFrame(0.0, 0.0, server.getWidth(), server.getHeight());
 
-                    Map<PathClass, ROI> combCompartmentROIMap = combineAnnotationsIntoMap(
-                            compartmentObjs, combinedExcludeGeom, combinedExcludeROI, doAdjust.get());
+//				    Uses default image plane, will not work for timeseries or z slices
+                    Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
+                            bounds,
+                            combCompartmentROIMap,
+                            ImmutableDimension.getInstance(tileSize, tileSize),
+                            true,
+                            0);
+                    allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                }
+                case ROI_ONLY: {
+                    logger.info("Computing tiles for ROIs [ROI_ONLY || ROI_AND_IMAGE]");
+                    AtomicInteger totalROIs = new AtomicInteger(0);
+                    AtomicInteger roiNumber = new AtomicInteger(1);
+                    List<PathObject> roiObjs = pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
+                            .map(f -> {
+                                // Record null/none values for compartments not within ROI
+//											logger.info(f.getName());
+//                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
+                                if (f.getName() == null || f.getName().isBlank()) {
+                                    f.setName("ROI_" + roiNumber.getAndIncrement());
+                                }
+                                PathObject adjpathObj = null;
+                                ROI adjpathObjROI = f.getROI();
+                                if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
+                                    adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+                                    if (adjpathObjROI.isEmpty()) {
+                                        logger.info("ROI {} is now empty, skipping scoring metrics...", f.getName());
+                                        return null;
+                                    } else {
+                                        logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
 
-                    if (combCompartmentROIMap.isEmpty()) {
-                        logger.error("Combining compartments resulted in null? Check compartment annotations/sources...");
+                                        adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+//													Do I need to set the name again?
+                                        adjpathObj.setName(f.getName());
+                                        hierarchy.addPathObject(adjpathObj);
+//													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+                                        hierarchy.removeObject(f, true);
+                                    }
+                                } else {
+                                    adjpathObj = f;
+                                }
+
+                                // this might work but does it scale for lots of ROIs?
+                                setEstNumTasks(totalROIs.incrementAndGet());
+                                return adjpathObj;
+                            })
+                            .filter(p -> p != null)
+                            .collect(Collectors.toList());
+//                  Do this part sequentially so that you don't mess up the tiling
+                    int i = 1;
+                    for (PathObject roiObj : roiObjs){
+                        logger.info("Computing tiles for roi ({}/{})", i, totalROIs.get());
+                        Rectangle2D bounds = new Rectangle2D.Double();
+                        ROI roi = roiObj.getROI();
+                        bounds.setFrame(roi.getBoundsX(), roi.getBoundsY(), roi.getBoundsWidth(), roi.getBoundsHeight());
+
+//				        Uses default image plane, will not work for timeseries or z slices
+                        Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
+                                bounds,
+                                combCompartmentROIMap,
+                                ImmutableDimension.getInstance(tileSize, tileSize),
+                                true,
+                                0);
+                        allTileIntersectROIs.put(roiObj, tileIntersectROIs);
+                        i++;
+                    }
+                    break;
+                }
+                case SELECTED_OBJS: {
+//                    List<PathObject> selectedObjs = pathObjs.parallelStream().filter(p -> hierarchy.getSelectionModel().isSelected(p))
+//                            .collect(Collectors.toList());
+////                    Collection<PathObject> selectedObjs = getSelectedObjects();
+                    if (selectedObjs.isEmpty() || selectedObjs == null || selectedObjs.size() == 0){
+                        logger.error("No objects selected! Cannot compute tiles");
                         return null;
                     }
+                    logger.info(selectedObjs.toString());
+//                    hierarchy.removeObjects(selectedObjs, false);
+
+//                  Do this part sequentially so that you don't mess up the tiling
+                    int i = 1;
+                    int totalSelectedObjs = selectedObjs.size();
+                    logger.info("Total selected objects: {}", totalSelectedObjs);
+                    for (PathObject sObj : selectedObjs){
+                        hierarchy.updateObject(sObj, true);
+                        logger.info("Computing tiles for selected objects ({}/{})", i, totalSelectedObjs);
+                        Rectangle2D bounds = new Rectangle2D.Double();
+                        ROI roi = sObj.getROI();
+                        bounds.setFrame(roi.getBoundsX(), roi.getBoundsY(), roi.getBoundsWidth(), roi.getBoundsHeight());
+
+//				        Uses default image plane, will not work for timeseries or z slices
+                        Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
+                                bounds,
+                                combCompartmentROIMap,
+                                ImmutableDimension.getInstance(tileSize, tileSize),
+                                true,
+                                0);
+                        allTileIntersectROIs.put(sObj, tileIntersectROIs);
+                        i++;
+                    }
+                    break;
+                }
+                case FULL_IMAGE: {
+                    logger.info("Computing tiles for full image [FULL_IMAGE]");
+                    Rectangle2D bounds = new Rectangle2D.Double();
+                    bounds.setFrame(0.0, 0.0, server.getWidth(), server.getHeight());
 
 //				    Uses default image plane, will not work for timeseries or z slices
                     Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
@@ -1266,6 +1349,7 @@ public class QiimiaQuantBackend {
                                 logger.error("Could not create tile children....");
                                 throw new RuntimeException(e);
                             }
+//                            hierarchy.updateObject(parentObject, true);
                             PathObject tileObj = tileM.getKey();
                             tileObj.addPathObjects(intersectChildren);
                             hierarchy.addPathObjectBelowParent(parentObject, tileObj, true);
@@ -1318,7 +1402,7 @@ public class QiimiaQuantBackend {
                                 }
                             });
                         }
-                        fireHierarchyUpdate(bImageData.getHierarchy());
+                        fireHierarchyUpdate(hierarchy);
                     })
                     .exceptionally(ex -> {
                         if (ex.getCause() instanceof CancellationException){
@@ -1328,7 +1412,7 @@ public class QiimiaQuantBackend {
                         }
 //							logger.warn(Arrays.toString(ex.getStackTrace()));
                         logger.warn("TileRecalcCompartmentsAndScores: " + ex);
-                        fireHierarchyUpdate(bImageData.getHierarchy());
+                        fireHierarchyUpdate(hierarchy);
                         return null;
                     });
         } catch (ExecutionException | InterruptedException ex) {

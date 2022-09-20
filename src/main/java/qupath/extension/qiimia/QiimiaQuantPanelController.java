@@ -43,13 +43,14 @@ import qupath.lib.images.servers.ColorTransforms.ColorTransform;
 import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
+import qupath.lib.objects.hierarchy.events.PathObjectSelectionModel;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 
+import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.*;
 import static qupath.lib.common.Prefs.getNumThreads;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
-import static qupath.lib.scripting.QP.clearMeasurements;
-import static qupath.lib.scripting.QP.fireHierarchyUpdate;
+import static qupath.lib.scripting.QP.*;
 
 
 import java.awt.image.BufferedImage;
@@ -123,6 +124,11 @@ public class QiimiaQuantPanelController implements Initializable{
 	private final String[] resultTypesTMA = {"TMA + ROIs", "TMA only", "ROIs only"};
 	private final String[] resultTypesWTS = {"Tiles + ROIs", "Tiles only", "ROIs only"};
 	private ReadOnlyObjectProperty<String> selectedResultType;
+
+	@FXML
+	ComboBox<QiimiaQuantBackend.TileOption> tileOptionComboBox;
+	private final QiimiaQuantBackend.TileOption[] tileOptions = {FULL_IMAGE, ROI_ONLY, ROI_AND_IMAGE, SELECTED_OBJS};
+	private ReadOnlyObjectProperty<QiimiaQuantBackend.TileOption> selectedTileOption;
 	@FXML
 	Button startQuantButton;
 	@FXML
@@ -222,8 +228,14 @@ public class QiimiaQuantPanelController implements Initializable{
 		selectedSource = sourceComboBox.getSelectionModel().selectedItemProperty();
 		selectedSource.addListener((v, o, n) -> updateGUI(false));
 
+		tileOptionComboBox.getItems().addAll(tileOptions);
+		selectedTileOption = tileOptionComboBox.getSelectionModel().selectedItemProperty();
+		selectedTileOption.addListener((v, o, n) -> updateGUI(false));
+
 		selectedResultType = resultTypeComboBox.getSelectionModel().selectedItemProperty();
 		selectedResultType.addListener((v, o, n) -> updateGUI(false));
+
+
 	}
 
 //	https://stackoverflow.com/questions/44022381/keep-listview-with-checkboxes-synchronized-with-a-list-of-strings
@@ -470,6 +482,7 @@ public class QiimiaQuantPanelController implements Initializable{
 		String stain = selectedStainType.get();
 		String source = selectedSource.get();
 		String result = selectedResultType.get();
+		QiimiaQuantBackend.TileOption tileOption = selectedTileOption.get();
 		//check if something is selected for compartments and targets....
 		startQuantButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 		runForProjectMenuItem.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
@@ -478,9 +491,16 @@ public class QiimiaQuantPanelController implements Initializable{
 		if(result != null && result.toLowerCase().contains("tile")){
 			tileSizeTextField.setDisable(false);
 			tileSizeLabel.setDisable(false);
+			tileOptionComboBox.setDisable(false);
+			if(tileOption == null){
+				startQuantButton.setDisable(true);
+				runForProjectMenuItem.setDisable(true);
+				cancelButton.setDisable(true);
+			}
 		} else {
 			tileSizeTextField.setDisable(true);
 			tileSizeLabel.setDisable(true);
+			tileOptionComboBox.setDisable(true);
 		}
 	}
 
@@ -738,7 +758,21 @@ public class QiimiaQuantPanelController implements Initializable{
 		String source = selectedSource.get();
 		String result = selectedResultType.get();
 //		Need to allow user to select what they want to tile....
-		var tileOption = QiimiaQuantBackend.TileOption.FULL_IMAGE;
+		QiimiaQuantBackend.TileOption tileOption = selectedTileOption.get();
+//		PathObjectSelectionModel selModel;
+		List<PathObject> selectedObjs;
+		if (tileOption == SELECTED_OBJS) {
+			var selModel = qupath.getViewer().getHierarchy().getSelectionModel();
+			var pathObjs = qupath.getViewer().getHierarchy().getObjects(null, PathObject.class);
+			selectedObjs = pathObjs.parallelStream().filter(p -> selModel.isSelected(p))
+					.collect(Collectors.toList());
+////			selectedObjs = qupath.getViewer().getAllSelectedObjects();
+//			selModel.clearSelection();
+			logger.info("selected objects:\n{}", selectedObjs.toString());
+		} else {
+			selectedObjs = Collections.emptyList();
+		}
+		logger.info("Using tile option: {}", tileOption.toString());
 		//check if something is selected for compartments and targets....
 		if(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0) {
 //			throw new Exception("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
@@ -777,6 +811,7 @@ public class QiimiaQuantPanelController implements Initializable{
 				Map.entry("downsample", downsample),
 				Map.entry("tileSize", inputTileSize),
 				Map.entry("tileOption", tileOption),
+				Map.entry("selectedObjects", selectedObjs),
 				Map.entry("sourceType", sourceType),
 				Map.entry("rescaleScore", rescaleScore),
 				Map.entry("normalizeScore", normalizeScore),
