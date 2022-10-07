@@ -154,6 +154,8 @@ public class QiimiaQuantPanelController implements Initializable{
 	@FXML
 	CheckMenuItem normalizeMenuItem;
 	@FXML
+	CheckMenuItem deleteTilesMenuItem;
+	@FXML
 	CheckMenuItem rescaleMenuItem;
 	// rescale scores using maxFloatValue and bitdepth
 	private double maxFloatValue = 1000.0/4.0;
@@ -865,10 +867,14 @@ public class QiimiaQuantPanelController implements Initializable{
 					Platform.runLater(()->{
 						progressLabel.setText("Quantifying Tiles...");
 					});
-					try{
+
+					if(deleteTilesMenuItem.selectedProperty().get()){
 //						If you are making grids/tiles, delete any old tiles?
 						logger.warn("Deleting any tile objects!!");
 						hierarchy.removeObjects(hierarchy.getTileObjects(), true);
+					}
+
+					try{
 						qiimiaQuant.TileRecalcCompartmentsAndScores().get();
 					}catch (ExecutionException | InterruptedException | CancellationException ex){
 						Platform.runLater(()-> {
