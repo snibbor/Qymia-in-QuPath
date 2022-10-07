@@ -761,6 +761,9 @@ public class QiimiaQuantPanelController implements Initializable{
 		String result = selectedResultType.get();
 //		Need to allow user to select what they want to tile....
 		QiimiaQuantBackend.TileOption tileOption = selectedTileOption.get();
+		if (tileOption == null){
+			tileOption = FULL_IMAGE;
+		}
 //		PathObjectSelectionModel selModel;
 		List<PathObject> selectedObjs;
 		if (tileOption == SELECTED_OBJS) {
