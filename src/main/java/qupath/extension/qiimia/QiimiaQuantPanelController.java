@@ -5,6 +5,7 @@ import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.*;
+import javafx.collections.transformation.FilteredList;
 import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
@@ -63,6 +64,7 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class QiimiaQuantPanelController implements Initializable{
 
@@ -90,6 +92,7 @@ public class QiimiaQuantPanelController implements Initializable{
 	private final int defaultTileSize = 512;
 	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
 
+	private FilteredList<PathClass> compartmentList;
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
 	// target and exposure time if IF image
 	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<>());
@@ -152,6 +155,10 @@ public class QiimiaQuantPanelController implements Initializable{
 	@FXML
 	MenuItem runForProjectMenuItem;
 	@FXML
+	CheckMenuItem tileUnitIsMicronsMenuItem;
+	@FXML
+	CheckMenuItem verboseMeasuresMenuItem;
+	@FXML
 	CheckMenuItem normalizeMenuItem;
 	@FXML
 	CheckMenuItem deleteTilesMenuItem;
@@ -208,12 +215,22 @@ public class QiimiaQuantPanelController implements Initializable{
 		controlListToToggle.addAll(exportMeasButton, startQuantButton);
 		menuItemListToToggle.addAll(exportMeasMenuItem);
 
+		compartmentList = qupath.getAvailablePathClasses().filtered(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
+
 		updateGUI(true);
 	}
 
 	private void setupMenu(){
 		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
+		tileUnitIsMicronsMenuItem.selectedProperty().addListener((obs, oldVal, newVal) -> {
+//			Check and set prompt text for tile size if the unit is changed to microns
+			if(obs.getValue()){
+				tileSizeTextField.setPromptText("um");
+			} else {
+				tileSizeTextField.setPromptText("px");
+			}
+		});
 	}
 
 	private void setupComboBoxes(){
@@ -460,8 +477,11 @@ public class QiimiaQuantPanelController implements Initializable{
 		logger.info("updating GUI...");
 		var viewer = qupath.getViewer();
 		var imageData = viewer.getImageData();
-
-		compartmentListView.setItems(qupath.getAvailablePathClasses());
+//		https://stackoverflow.com/questions/9062574/is-there-a-better-way-to-combine-two-string-sets-in-java
+//		Set<PathClass> combinedRemove = Stream.concat(ignoreClasses.stream(), roiClasses.stream()).collect(Collectors.toSet());
+//		May need to update filtered list predicate if ignoreClasses/roiClasses change
+//		https://stackoverflow.com/questions/53075175/observablelist-returns-sublist-that-matches
+		compartmentListView.setItems(compartmentList);
 		if (imageData == null) {
 			targetListView.getItems().clear();
 			targetListView.setDisable(true);
@@ -795,6 +815,8 @@ public class QiimiaQuantPanelController implements Initializable{
 		});
 		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
 		boolean rescaleScore = rescaleMenuItem.selectedProperty().get();
+		boolean verboseMeasures = verboseMeasuresMenuItem.selectedProperty().get();
+		boolean tileUnitIsMicrons = tileUnitIsMicronsMenuItem.selectedProperty().get();
 
 		double downsample = 1.0;
 		Class<? extends PathObject> sourceType;
@@ -815,9 +837,11 @@ public class QiimiaQuantPanelController implements Initializable{
 		Map<String, Object> params = new ConcurrentHashMap<>(Map.ofEntries(
 				Map.entry("downsample", downsample),
 				Map.entry("tileSize", inputTileSize),
+				Map.entry("tileUnitIsMicrons", tileUnitIsMicrons),
 				Map.entry("tileOption", tileOption),
 				Map.entry("selectedObjects", selectedObjs),
 				Map.entry("sourceType", sourceType),
+				Map.entry("verboseMeasures", verboseMeasures),
 				Map.entry("rescaleScore", rescaleScore),
 				Map.entry("normalizeScore", normalizeScore),
 				Map.entry("maxFloatValue", maxFloatValue),

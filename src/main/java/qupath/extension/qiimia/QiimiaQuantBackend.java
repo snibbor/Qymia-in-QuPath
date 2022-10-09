@@ -142,31 +142,12 @@ public class QiimiaQuantBackend {
      * Requested intensity measurements.
      */
     public enum Measurements {
-        /**
-         * Arithmetic mean
-         */
         MEAN,
-        /**
-         * Median value
-         */
         MEDIAN,
-        /**
-         * Minimum value
-         */
         MIN,
-        /**
-         * Maximum value
-         */
         MAX,
-        /**
-         * Standard deviation value
-         */
         STD_DEV,
-        /**
-         * Variance value
-         */
         VARIANCE;
-
         private String getMeasurementName() {
             switch (this) {
                 case MAX:
@@ -221,6 +202,7 @@ public class QiimiaQuantBackend {
                        TileOption tileOption,
                        Collection<PathObject> selectedObjs,
                        Class<? extends PathObject> sourceType,
+                       boolean verboseMeasures,
                        boolean rescaleScore,
                        boolean normalizeScore,
                        double maxFloatValue,
@@ -237,6 +219,7 @@ public class QiimiaQuantBackend {
                 Map.entry("tileOption", tileOption),
                 Map.entry("selectedObjects", selectedObjs),
                 Map.entry("sourceType", sourceType),
+                Map.entry("verboseMeasures", verboseMeasures),
                 Map.entry("rescaleScore", rescaleScore),
                 Map.entry("normalizeScore", normalizeScore),
                 Map.entry("maxFloatValue", maxFloatValue)
@@ -1142,6 +1125,7 @@ public class QiimiaQuantBackend {
                 (Class<? extends PathObject>) params.get("sourceType"),
 //                (double) params.get("downsample"),
                 (int) params.get("tileSize"),
+                (boolean) params.get("tileUnitIsMicrons"),
                 (TileOption) params.get("tileOption"),
                 (Collection<PathObject>) params.get("selectedObjects"),
                 numThreads);
@@ -1155,6 +1139,7 @@ public class QiimiaQuantBackend {
             Class<? extends PathObject> sourceType,
 //            double downsample,
             int tileSize,
+            boolean tileUnitIsMicrons,
             TileOption tileOption,
             Collection<PathObject> selectedObjs,
             int numThreads
@@ -1175,6 +1160,26 @@ public class QiimiaQuantBackend {
         PathObjectHierarchy hierarchy = bImageData.getHierarchy();
         var pathObjs = hierarchy.getObjects(null, PathObject.class);
         ImageServer<BufferedImage> server = bImageData.getServer();
+//      Getting tile size if the unit is microns
+        int tileSizeX = tileSize;
+        int tileSizeY = tileSize;
+        if(tileUnitIsMicrons) {
+            PixelCalibration pixCal = server.getPixelCalibration();
+//          get microns per pixel in x and y from current image data
+            double MPPx = pixCal.getPixelWidthMicrons();
+            double MPPy = pixCal.getPixelHeightMicrons();
+            double MPPavg = pixCal.getAveragedPixelSizeMicrons();
+            if(MPPx != Double.NaN && MPPy != Double.NaN) {
+                tileSizeX = (int) Math.ceil(tileSize / MPPx);
+                tileSizeY = (int) Math.ceil(tileSize / MPPy);
+            } else if (MPPavg != Double.NaN){
+                tileSizeX = (int) Math.ceil(tileSize / MPPavg);
+                tileSizeY = (int) Math.ceil(tileSize / MPPavg);
+            } else {
+                logger.warn("Could not find micron per pixel value for image, defaulting to tileSize in pixels...");
+            }
+        }
+
         CompletableFuture<Void> result = null;
         try {
             List<ROI> allIgnoreROIs = forkJoinPool.submit(() -> hierarchy.getAnnotationObjects().parallelStream()
@@ -1213,7 +1218,7 @@ public class QiimiaQuantBackend {
                     Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                             bounds,
                             combCompartmentROIMap,
-                            ImmutableDimension.getInstance(tileSize, tileSize),
+                            ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                             true,
                             0);
                     allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
@@ -1269,7 +1274,7 @@ public class QiimiaQuantBackend {
                         Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                                 bounds,
                                 combCompartmentROIMap,
-                                ImmutableDimension.getInstance(tileSize, tileSize),
+                                ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
 //                      Check that tile objects are within ROI object
@@ -1308,7 +1313,7 @@ public class QiimiaQuantBackend {
                         Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                                 bounds,
                                 combCompartmentROIMap,
-                                ImmutableDimension.getInstance(tileSize, tileSize),
+                                ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
                         //                      Check that tile objects are within ROI object
@@ -1330,7 +1335,7 @@ public class QiimiaQuantBackend {
                     Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                             bounds,
                             combCompartmentROIMap,
-                            ImmutableDimension.getInstance(tileSize, tileSize),
+                            ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                             true,
                             0);
                     allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
@@ -1609,6 +1614,8 @@ public class QiimiaQuantBackend {
         //get params required
         double downsample;
         int tileSize = -1;
+        boolean tileUnitIsMicrons = false;
+        boolean verboseMeasures;
         boolean rescaleScore;
         boolean normalizeScore;
         double maxFloatValue;
@@ -1616,7 +1623,9 @@ public class QiimiaQuantBackend {
             downsample = (double) params.get("downsample");
             if(parentObject.isTile()) {
                 tileSize = (int) params.get("tileSize");
+                tileUnitIsMicrons = (boolean) params.get("tileUnitIsMicrons");
             }
+            verboseMeasures = (boolean) params.get("verboseMeasures");
             rescaleScore = (boolean) params.get("rescaleScore");
             normalizeScore = (boolean) params.get("normalizeScore");
             maxFloatValue = (double) params.get("maxFloatValue");
@@ -1624,8 +1633,17 @@ public class QiimiaQuantBackend {
 //				ex.printStackTrace();
             throw new RuntimeException(ex);
         }
-        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, cellCompartments, measurements,
-                downsample, tileSize, rescaleScore, normalizeScore, maxFloatValue);
+//      Specify measurements if verbose or not
+
+        Set<Measurements> theseMeasurements;
+        if(!verboseMeasures){
+            theseMeasurements = Collections.singleton(Measurements.MEAN);
+        }else{
+            theseMeasurements = measurements;
+        }
+
+        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, cellCompartments, theseMeasurements,
+                downsample, tileSize, tileUnitIsMicrons, rescaleScore, normalizeScore, maxFloatValue);
 
     }
 
@@ -1637,7 +1655,8 @@ public class QiimiaQuantBackend {
                                                     Map<ColorTransforms.ColorTransform, Double> targets,
                                                     Collection<Compartments> cellCompartments,
                                                     Collection<Measurements> measurements,
-                                                    double downsample, int tileSize, boolean rescaleScore, boolean normalizeScore,
+                                                    double downsample, int tileSize, boolean tileUnitIsMicrons,
+                                                    boolean rescaleScore, boolean normalizeScore,
                                                     double maxFloatValue) throws IOException {
 //			It would be nice to close the server after use, but doing this also closes the main server across all threads....
         try {
@@ -1659,7 +1678,11 @@ public class QiimiaQuantBackend {
             // get the parent pathObject measurement list
             MeasurementList measList = parentObject.getMeasurementList();
             // add basic metadata
-            measList.putMeasurement("Tile Size px", tileSize);
+            if(tileUnitIsMicrons){
+                measList.putMeasurement("Tile Size (um)", tileSize);
+            } else{
+                measList.putMeasurement("Tile Size (px)", tileSize);
+            }
             measList.putMeasurement("MPPx", pc.getPixelWidthMicrons());
             measList.putMeasurement("MPPy", pc.getPixelHeightMicrons());
             measList.putMeasurement("MPP^2", mppSq);
@@ -1838,10 +1861,11 @@ public class QiimiaQuantBackend {
                     // double QIF_area = targetMean/mppSq;
                     // measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
                     //if pixelType float, skip [vetra Polaris data]
-                    if (pixType.isFloatingPoint()) {
-                        double QIF_areaS = (targetMean / mppSq);
-                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-                    } else if (rescaleScore && !normalizeScore) {
+//                    if (pixType.isFloatingPoint()) {
+//                        double QIF_areaS = (targetMean / mppSq);
+//                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+//                    } else
+                    if (rescaleScore && !normalizeScore) {
                         //assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
                         //using bitdepth and maxFloatValue to rescale
                         double rescaleFactor = (maxFloatValue / bitDepthVal);

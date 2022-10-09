@@ -114,6 +114,11 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 			Dialogs.showNoProjectError("Export measurements");
 			return;
 		}
+//		Check to save current imageData opened if there are changes
+		if (!QiimiaQuantCommands.checkSaveChangesPrompt(qupath.getImageData(), project)){
+//			If the prompt was cancelled by user or it returns false for some reason, do not create and show measurement dialog
+			return;
+		}
 		
 		BorderPane mainPane = new BorderPane();
 		
@@ -124,12 +129,12 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 		
 		
 		// TOP PANE (SELECT PROJECT ENTRY FOR EXPORT)
-		project = qupath.getProject();
 		pathObjectCombo = new ComboBox<>();
 		separatorCombo = new ComboBox<>();
 		includeCombo = new CheckComboBox<String>();
 
 		ProjectImageEntry<BufferedImage> currentEntry = project.getEntry(qupath.getImageData());
+//		Add to list of images
 		if (previousImages.isEmpty() || !previousImages.contains(currentEntry))
 			previousImages.add(currentEntry);
 
@@ -200,6 +205,7 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 						progressIndicator.setOpacity(100);
 						ImageData<?> imageData = entry.readImageData();
 						ObservableMeasurementTableData model = new ObservableMeasurementTableData();
+//						Edit to filter out pathObject sources that are unnecessary (Ignore/ROI compartments, only detections within ROIs, TMA
 						model.setImageData(imageData, imageData == null ? Collections.emptyList() : imageData.getHierarchy().getObjects(null, type));
 						allColumnsForCombo.addAll(model.getAllNames());
 						imageData.getServer().close();

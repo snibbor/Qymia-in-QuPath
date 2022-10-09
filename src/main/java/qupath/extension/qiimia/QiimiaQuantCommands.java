@@ -11,6 +11,7 @@ import javafx.scene.text.TextAlignment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.common.GeneralTools;
+import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.commands.Commands;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.images.servers.RenderedImageServer;
@@ -18,12 +19,16 @@ import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.tools.GuiTools;
 import qupath.lib.gui.tools.PaneTools;
 import qupath.lib.gui.viewer.QuPathViewer;
+import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
 import qupath.lib.images.servers.ImageServers;
 import qupath.lib.images.servers.ServerTools;
 import qupath.lib.images.writers.ImageWriter;
 import qupath.lib.images.writers.ImageWriterTools;
+import qupath.lib.io.PathIO;
 import qupath.lib.objects.PathObject;
+import qupath.lib.projects.Project;
+import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.regions.RegionRequest;
 import qupath.lib.roi.interfaces.ROI;
 
@@ -40,6 +45,39 @@ public class QiimiaQuantCommands {
     private static DoubleProperty exportDownsample = PathPrefs.createPersistentPreference("exportRegionDownsample", 1.0);
 
     private static ImageWriter<BufferedImage> lastWriter = null;
+
+    public static boolean checkSaveChangesPrompt(ImageData<BufferedImage> imageData, Project<BufferedImage> project){
+        if (!imageData.isChanged())
+            return true;
+        ProjectImageEntry<BufferedImage> entry = (project == null ? null : project.getEntry(imageData));
+        String name = entry == null ? ServerTools.getDisplayableImageName(imageData.getServer()) : entry.getImageName();
+        var response = Dialogs.showYesNoCancelDialog("Save changes", "Save changes to " + name + "?");
+        if (response == Dialogs.DialogButton.CANCEL)
+            return false;
+        if (response == Dialogs.DialogButton.NO)
+            return true;
+
+        try {
+            if (entry == null) {
+                String lastPath = imageData.getLastSavedPath();
+                File lastFile = lastPath == null ? null : new File(lastPath);
+                File dirBase = lastFile == null ? null : lastFile.getParentFile();
+                String defaultName = lastFile == null ? null : lastFile.getName();
+                File file = Dialogs.promptToSaveFile("Save data", dirBase, defaultName, "QuPath data files", PathPrefs.getSerializationExtension());
+                if (file == null)
+                    return false;
+                PathIO.writeImageData(file, imageData);
+            } else {
+                entry.saveImageData(imageData);
+                if (project != null)
+                    project.syncChanges();
+            }
+            return true;
+        } catch (IOException e) {
+            Dialogs.showErrorMessage("Save ImageData", e);
+            return false;
+        }
+    }
 
     public static void promptToExportAllROIImages(QuPathViewer viewer, boolean renderedImage, Collection<PathObject> roiPathObjs) {
         if (viewer == null || viewer.getServer() == null) {

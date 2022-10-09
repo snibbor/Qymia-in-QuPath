@@ -47,10 +47,13 @@
                     </items>
                   </Menu>
                   <SeparatorMenuItem mnemonicParsing="false" />
+                  <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" selected="true" text="Verbose measurements" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize" />
                   <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="deleteTilesMenuItem" mnemonicParsing="false" selected="true" text="Delete tiles before run" />
+                  <CheckMenuItem fx:id="tileUnitIsMicronsMenuItem" mnemonicParsing="false" text="Tile unit in microns" />
                </items>
             </Menu>
           <Menu fx:id="helpMenu" mnemonicParsing="false" text="Help">
@@ -161,7 +164,7 @@
             </GridPane>
             <VBox alignment="TOP_CENTER" spacing="3.0">
                <children>
-                  <Label fx:id="progressLabel" alignment="BOTTOM_CENTER" minHeight="25.0" prefHeight="25.0" text="progress">
+                  <Label fx:id="progressLabel" alignment="BOTTOM_CENTER" minHeight="25.0" prefHeight="25.0">
                      <font>
                         <Font size="14.0" />
                      </font>
