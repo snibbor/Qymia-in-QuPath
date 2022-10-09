@@ -44,6 +44,9 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
 ## TODO:
 - ### Qiimia Quant
   - #### Main features
+    - [ ] Fast cell & subcellular compartment intensity quantification
+      - [ ] Cell, nuclei, cytoplasm, and membrane.
+      - [ ] Ability to quantify custom subcellular compartment definitions --> e.g. mitochondria (labeled with TOM20) compartments for every cell object. EE, MVE, RE, LE, & lysosomes for every cell object.
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
       - [x] Export measurements to tab delim .csv ~~or .json?~~
       - [ ] Grid/Tile calculation is very very slow for TMA because of the merge annotations step, which is unnecessary --> write a slightly different method for Grid/Tile calculation for TMA where the Tile bounds are for each TMA Core Objects and the computeTiledROIs are parallelized per core.
@@ -52,6 +55,10 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
   
   - #### Advanced settings
+    - [ ] Improve score normalization for all aspects of image brightness for fluoresence & trans-illumination microscopy. (Source intensity, transmission/fluorophore quantum efficiency, light collection, what else?)
+      - [ ] Normalize image brightness for fluorescence by microscope objective NA & Mag. (Brightness ~ (NA^2/M)^2 Because the objective is also the condenser lens)
+      - [ ] Does it matter if you calculate DAB OD for different NA/Mag objectives? Condenser optics? How to normalize brightness here?
+      - [ ] Is there a way to make a normalized score for different microscopes with different optical systems (NA/Mag objective/condenser combinations)? Unlikely to be simple, but the scores likely would regress by a proportionality constant.
     - [ ] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
       - [ ] Regression options to calculate conversion function using standard index array
         - [ ] Visuallization of regression fit in QuPath
@@ -62,7 +69,10 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
         - [ ] Load conversion function parameters from file --> apply based mapping of imagePath -> function name
           - [ ] Map functions and images based on CSV/TSV/Excel file
           - [ ] Interactive GUI to select images for each conversion function
-    - [ ] Change ignore classes
+    - [ ] Tile size option for px and um
+    - [ ] Calculate verbose/extra measurements option
+    - [ ] Permanent user settings/preferences
+    - [ ] Changeable ignore classes
     - [x] Simpler measurement export options
       - [x] Change GUI controls to use the default QuPath measurement exporter.
       - [x] Put current opened image inside selected export list automatically.
@@ -79,9 +89,11 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [x] Improve "finished" asthetics/state of progress bar
       - [x] Completed message for task --> used CompletableFutures to do this
       - [x] Cancelled message --> progress value is set to 0, no color change
+    - [ ] Tooltips
+    - [ ] Help > About & Docs link
       
   - #### Fix known bugs/problems, improve backend
-    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately. --> imediate cancellation can cause errors still
+    - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately. --> immediate cancellation can cause errors still
       - [x] Debug why cancelling sometimes causes image server exceptions for later runs... --> works after wrapping inside task
       - [x] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools. --> yes
       - [x] Bug with reloading images because task execution occurs on thread separate from JavaFX
