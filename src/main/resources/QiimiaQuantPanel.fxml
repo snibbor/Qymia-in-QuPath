@@ -13,6 +13,7 @@
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.SeparatorMenuItem?>
 <?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.Tooltip?>
 <?import javafx.scene.layout.AnchorPane?>
 <?import javafx.scene.layout.ColumnConstraints?>
 <?import javafx.scene.layout.GridPane?>
@@ -49,8 +50,8 @@
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" selected="true" text="Verbose measurements" />
                   <SeparatorMenuItem mnemonicParsing="false" />
-                  <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize" />
-                  <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale" />
+                  <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize Qiimia Scores" />
+                  <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale previously normalized data (old PM2000)" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="deleteTilesMenuItem" mnemonicParsing="false" selected="true" text="Delete tiles before run" />
                   <CheckMenuItem fx:id="tileUnitIsMicronsMenuItem" mnemonicParsing="false" text="Tile unit in microns" />
@@ -79,16 +80,25 @@
                      <GridPane.margin>
                         <Insets left="7.0" right="7.0" />
                      </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="Whole tissue section or tissue microarray" />
+                     </tooltip>
                   </ComboBox>
                   <ComboBox fx:id="stainComboBox" prefWidth="150.0" promptText="Stain" GridPane.columnIndex="1" GridPane.halignment="CENTER" GridPane.valignment="TOP">
                      <GridPane.margin>
                         <Insets left="7.0" right="7.0" />
                      </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="Stain type of slide" />
+                     </tooltip>
                   </ComboBox>
                   <ComboBox fx:id="sourceComboBox" layoutX="17.0" layoutY="11.0" prefWidth="150.0" promptText="Source" GridPane.halignment="CENTER" GridPane.rowIndex="1" GridPane.valignment="BOTTOM">
                      <GridPane.margin>
                         <Insets left="7.0" right="7.0" />
                      </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="PathObject source of compartments" />
+                     </tooltip>
                   </ComboBox>
                </children>
             </GridPane>
@@ -96,7 +106,10 @@
                <children>
                   <VBox>
                      <children>
-                        <Label text="Compartments" />
+                        <Label text="Compartments">
+                           <tooltip>
+                              <Tooltip text="Select compartments (PathClass)" />
+                           </tooltip></Label>
                         <ScrollPane fx:id="compartmentScrollPane" fitToHeight="true" fitToWidth="true" prefWidth="200.0" VBox.vgrow="ALWAYS">
                            <content>
                               <ListView fx:id="compartmentListView" />
@@ -106,7 +119,10 @@
                   </VBox>
                   <VBox>
                      <children>
-                        <Label text="Targets" />
+                        <Label text="Targets">
+                           <tooltip>
+                              <Tooltip text="Select the channels/transforms that are targets to quantify" />
+                           </tooltip></Label>
                         <ScrollPane fx:id="targetScrollPane" fitToHeight="true" fitToWidth="true" prefWidth="200.0" VBox.vgrow="ALWAYS">
                            <content>
                               <ListView fx:id="targetListView" />
@@ -159,6 +175,9 @@
                      <GridPane.margin>
                         <Insets left="7.0" right="7.0" />
                      </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="Select where tiles are created" />
+                     </tooltip>
                   </ComboBox>
                </children>
             </GridPane>

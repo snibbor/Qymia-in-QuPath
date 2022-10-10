@@ -36,6 +36,7 @@ import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
+import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.scripting.ScriptTab;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
@@ -156,14 +157,19 @@ public class QiimiaQuantPanelController implements Initializable{
 	MenuItem runForProjectMenuItem;
 	@FXML
 	CheckMenuItem tileUnitIsMicronsMenuItem;
+	private static BooleanProperty tileUnitIsMicronsProperty = PathPrefs.createPersistentPreference("tileUnitIsMicronsQiimiaQuant", false);
 	@FXML
 	CheckMenuItem verboseMeasuresMenuItem;
+	private static BooleanProperty verboseMeasuresProperty = PathPrefs.createPersistentPreference("verboseMeasuresQiimiaQuant", true);
 	@FXML
 	CheckMenuItem normalizeMenuItem;
+	private static BooleanProperty normalizeProperty = PathPrefs.createPersistentPreference("normalizeQiimiaQuant", true);
 	@FXML
 	CheckMenuItem deleteTilesMenuItem;
+	private static BooleanProperty deleteTilesProperty = PathPrefs.createPersistentPreference("deleteTilesQiimiaQuant", true);
 	@FXML
 	CheckMenuItem rescaleMenuItem;
+	private static BooleanProperty rescaleProperty = PathPrefs.createPersistentPreference("rescaleQiimiaQuant", false);
 	// rescale scores using maxFloatValue and bitdepth
 	private double maxFloatValue = 1000.0/4.0;
 
@@ -223,6 +229,10 @@ public class QiimiaQuantPanelController implements Initializable{
 	private void setupMenu(){
 		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
+		normalizeMenuItem.selectedProperty().bindBidirectional(normalizeProperty);
+		rescaleMenuItem.selectedProperty().bindBidirectional(rescaleProperty);
+		deleteTilesMenuItem.selectedProperty().bindBidirectional(deleteTilesProperty);
+		tileUnitIsMicronsMenuItem.selectedProperty().bindBidirectional(tileUnitIsMicronsProperty);
 		tileUnitIsMicronsMenuItem.selectedProperty().addListener((obs, oldVal, newVal) -> {
 //			Check and set prompt text for tile size if the unit is changed to microns
 			if(obs.getValue()){
