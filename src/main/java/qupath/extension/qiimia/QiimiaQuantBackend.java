@@ -842,10 +842,10 @@ public class QiimiaQuantBackend {
                             if (m.getValue().getNumPoints() > 1000) {
                                 return Map.entry(m.getKey(), PreparedGeometryFactory.prepare(m.getValue()));
                             } else {
-                                return Map.entry(m.getKey(), null);
+                                return null;
                             }
                         })
-                        //					.filter(m -> m.getValue() != null)
+                        .filter(m -> m != null)
                         .collect(Collectors.toMap(
                                         m -> m.getKey(),
                                         m -> (PreparedGeometry) m.getValue()
@@ -1227,6 +1227,7 @@ public class QiimiaQuantBackend {
                     logger.info("Computing tiles for ROIs [ROI_ONLY || ROI_AND_IMAGE]");
                     AtomicInteger totalROIs = new AtomicInteger(0);
                     AtomicInteger roiNumber = new AtomicInteger(1);
+//                    Might be unnecessary since I subtract the ignore regions from the compartments before this
                     List<PathObject> roiObjs = pathObjs.parallelStream().filter(p -> p.getPathClass() != null && rois.contains(p.getPathClass()) && p.hasROI())
                             .map(f -> {
                                 // Record null/none values for compartments not within ROI
@@ -1269,11 +1270,21 @@ public class QiimiaQuantBackend {
                         Rectangle2D bounds = new Rectangle2D.Double();
                         ROI roi = roiObj.getROI();
                         bounds.setFrame(roi.getBoundsX(), roi.getBoundsY(), roi.getBoundsWidth(), roi.getBoundsHeight());
-
+                        Map<PathClass, ROI> simpleComparmentROIMap = new HashMap<>();
+//                      Make ROI intersected compartments here?
+                        for(Map.Entry<PathClass, ROI> c : combCompartmentROIMap.entrySet()){
+                            ROI compInterROI = RoiTools.combineROIs(c.getValue(), roi, RoiTools.CombineOp.INTERSECT);
+                            if(!compInterROI.isEmpty()){
+                                logger.info("Adding simple intersection... compartment {}", c.getKey());
+                                simpleComparmentROIMap.put(c.getKey(), compInterROI);
+                            } else{
+                                logger.info("No intersection with {} compartment for ROI... skipping.", c.getKey().toString());
+                            }
+                        }
 //				        Uses default image plane, will not work for timeseries or z slices
                         Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                                 bounds,
-                                combCompartmentROIMap,
+                                simpleComparmentROIMap,
                                 ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
@@ -1308,11 +1319,20 @@ public class QiimiaQuantBackend {
                         Rectangle2D bounds = new Rectangle2D.Double();
                         ROI roi = sObj.getROI();
                         bounds.setFrame(roi.getBoundsX(), roi.getBoundsY(), roi.getBoundsWidth(), roi.getBoundsHeight());
-
+                        Map<PathClass, ROI> simpleComparmentROIMap = new HashMap<>();
+//                      Make ROI intersected compartments here?
+                        for(Map.Entry<PathClass, ROI> c : combCompartmentROIMap.entrySet()){
+                            ROI compInterROI = RoiTools.combineROIs(c.getValue(), roi, RoiTools.CombineOp.INTERSECT);
+                            if(!compInterROI.isEmpty()){
+                                simpleComparmentROIMap.put(c.getKey(), compInterROI);
+                            } else{
+                                logger.info("No intersection with {} compartment for Selected Object... skipping.", c.getKey().toString());
+                            }
+                        }
 //				        Uses default image plane, will not work for timeseries or z slices
                         Map<PathObject, Map<PathClass, ROI>> tileIntersectROIs = computeTiledROIsForCompartments(
                                 bounds,
-                                combCompartmentROIMap,
+                                simpleComparmentROIMap,
                                 ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
