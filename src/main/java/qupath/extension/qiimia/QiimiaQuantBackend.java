@@ -16,6 +16,7 @@ import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
 import org.slf4j.Logger;
@@ -829,26 +830,22 @@ public class QiimiaQuantBackend {
 
         if (compartmentGeoms.size() <= 0) {
             logger.warn("Found no valid geometries for compartment PathObjects...");
-            return Map.ofEntries(
-                    Map.entry(null,
-                            Map.ofEntries(Map.entry(getPathClass("null"), ROIs.createEmptyROI()))
-                    )
-            );
+            return null;
         }
 
-        ConcurrentHashMap<PathClass, PreparedGeometry> preparedGeoms = new ConcurrentHashMap<>(
+        ConcurrentHashMap<PathClass, Optional<PreparedGeometry>> preparedGeoms = new ConcurrentHashMap<>(
                 forkJoinPool.submit(()->compartmentGeoms.entrySet().parallelStream()
                         .map(m -> {
                             if (m.getValue().getNumPoints() > 1000) {
-                                return Map.entry(m.getKey(), PreparedGeometryFactory.prepare(m.getValue()));
+                                return Map.entry(m.getKey(), Optional.of(PreparedGeometryFactory.prepare(m.getValue())));
                             } else {
-                                return null;
+                                return Map.entry(m.getKey(), Optional.empty());
                             }
                         })
-                        .filter(m -> m != null)
+//                        .filter(m -> m != null)
                         .collect(Collectors.toMap(
                                         m -> m.getKey(),
-                                        m -> (PreparedGeometry) m.getValue()
+                                        m -> (Optional<PreparedGeometry>) m.getValue()
                                 )
                         )
                 ).get());
@@ -913,13 +910,14 @@ public class QiimiaQuantBackend {
                                             return new ConcurrentHashMap<PathClass, Geometry>(
                                                 preparedGeoms.entrySet().parallelStream()
                                                     .map(prep -> {
-                                                        var prepared2 = prep.getValue();
+                                                        var preparedOpt = prep.getValue();
                                                         var geometry = compartmentGeoms.get(prep.getKey());
-                                                        if (prepared2 == null) {
+                                                        if (preparedOpt.isEmpty()) {
                                                             // This would happen if the geometry was too small to be prepared
                                                             // use the compartment geometry in this case
                                                             return Map.entry(prep.getKey(), geometry);
                                                         }
+                                                        var prepared2 = preparedOpt.get();
                                                         var envelope = compartmentEnvel.get(prep.getKey());
                                                         var row = GeometryTools.createRectangle(
                                                                 envelope.getMinX(),
@@ -960,13 +958,14 @@ public class QiimiaQuantBackend {
                                         return new ConcurrentHashMap<PathClass, Geometry>(
                                             preparedGeoms.entrySet().parallelStream()
                                                 .map(prep -> {
-                                                    var prepared2 = prep.getValue();
+                                                    var preparedOpt = prep.getValue();
                                                     var geometry = compartmentGeoms.get(prep.getKey());
-                                                    if (prepared2 == null) {
+                                                    if (preparedOpt.isEmpty()) {
                                                         // This would happen if the geometry was too small to be prepared
                                                         // use the compartment geometry in this case
                                                         return Map.entry(prep.getKey(), geometry);
                                                     }
+                                                    var prepared2 = preparedOpt.get();
                                                     var envelope = compartmentEnvel.get(prep.getKey());
                                                     var col = GeometryTools.createRectangle(
                                                             x,
