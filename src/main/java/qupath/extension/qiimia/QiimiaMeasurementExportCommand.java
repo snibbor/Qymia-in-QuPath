@@ -133,10 +133,12 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 		separatorCombo = new ComboBox<>();
 		includeCombo = new CheckComboBox<String>();
 
-		ProjectImageEntry<BufferedImage> currentEntry = project.getEntry(qupath.getImageData());
-//		Add to list of images
-		if (previousImages.isEmpty() || !previousImages.contains(currentEntry))
-			previousImages.add(currentEntry);
+		if(qupath.getImageData() != null) {
+			ProjectImageEntry<BufferedImage> currentEntry = project.getEntry(qupath.getImageData());
+			//		Add to list of images
+			if (previousImages.isEmpty() || !previousImages.contains(currentEntry))
+				previousImages.add(currentEntry);
+		}
 
 		String sameImageWarning = "A selected image is open in the viewer!\nData should be saved before exporting.";
 		var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
@@ -150,10 +152,10 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 			String extSelected = separatorCombo.getSelectionModel().getSelectedItem();
 			String ext = extSelected.equals("Tab (.tsv)") ? ".tsv" : ".csv";
 			String extDesc = ext.equals(".tsv") ? "TSV (Tab delimited)" : "CSV (Comma delimited)";
-			File pathOut = Dialogs.promptToSaveFile("Output file", Projects.getBaseDirectory(project), "measurements" + ext, extDesc, ext);
+			File pathOut = Dialogs.promptToSaveFile("Output file", Projects.getBaseDirectory(project), "QiimiaScores" + ext, extDesc, ext);
 			if (pathOut != null) {
 				if (pathOut.isDirectory())
-					pathOut = new File(pathOut.getAbsolutePath() + File.separator + "measurements" + ext);
+					pathOut = new File(pathOut.getAbsolutePath() + File.separator + "QiimiaScores" + ext);
 				outputText.setText(pathOut.getAbsolutePath());
 			}
 		});

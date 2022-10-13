@@ -1519,10 +1519,12 @@ public class QiimiaQuantBackend {
                     .map(p -> p.getROI())
                     .collect(Collectors.toList())).get();
             List<PathObject> tmaCoreChildren = Collections.synchronizedList(forkJoinPool.submit(() -> tmaCores.parallelStream()
+                    .filter(core -> !core.isMissing())
                     .flatMap(core -> core.getChildObjects().stream())
                     .collect(Collectors.toList())).get());
 
             if(tmaCoreChildren.size() < 1){
+                logger.error("No valid TMA cores found or");
                 logger.error("Compartments and annotations must be inserted into TMA hierarchy before scoring!");
                 return result;
             }

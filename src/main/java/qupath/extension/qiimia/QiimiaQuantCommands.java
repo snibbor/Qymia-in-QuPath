@@ -47,6 +47,9 @@ public class QiimiaQuantCommands {
     private static ImageWriter<BufferedImage> lastWriter = null;
 
     public static boolean checkSaveChangesPrompt(ImageData<BufferedImage> imageData, Project<BufferedImage> project){
+//      Conditions to ignore this prompt
+        if (imageData == null)
+            return true;
         if (!imageData.isChanged())
             return true;
         ProjectImageEntry<BufferedImage> entry = (project == null ? null : project.getEntry(imageData));
