@@ -1298,7 +1298,8 @@ public class QiimiaQuantBackend {
                     break;
                 }
                 case SELECTED_OBJS: {
-//                    List<PathObject> selectedObjs = pathObjs.parallelStream().filter(p -> hierarchy.getSelectionModel().isSelected(p))
+
+//                    selectedObjs = pathObjs.parallelStream().filter(p -> hierarchy.getSelectionModel().isSelected(p))
 //                            .collect(Collectors.toList());
 ////                    Collection<PathObject> selectedObjs = getSelectedObjects();
                     if (selectedObjs.isEmpty() || selectedObjs == null || selectedObjs.size() == 0){

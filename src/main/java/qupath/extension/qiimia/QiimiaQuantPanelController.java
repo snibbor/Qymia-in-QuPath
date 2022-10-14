@@ -10,7 +10,10 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.scene.Node;
+import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -24,6 +27,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
@@ -98,8 +102,17 @@ public class QiimiaQuantPanelController implements Initializable{
 	// target and exposure time if IF image
 	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<>());
 
+
+	@FXML
+	MenuItem switchToQuantMenuItem;
+
+	@FXML
+	Button calcRegButton;
+
 	@FXML
 	Menu settingsMenu;
+	@FXML
+	Menu toolsMenu;
 	@FXML
 	Menu helpMenu;
 	@FXML
@@ -176,6 +189,11 @@ public class QiimiaQuantPanelController implements Initializable{
 	FileChooser fileSelector = new FileChooser();
 	File initialFileDirectory;
 
+	@FXML
+	MenuItem standardCurveMenuItem;
+	@FXML
+	MenuItem comparisonMenuItem;
+
 //	don't like how I need two observable lists to do this... because MenuItem doesn't inherit from Control.......
 	private ObservableList<Control> controlListToToggle = FXCollections.observableArrayList();
 	private ObservableList<MenuItem> menuItemListToToggle = FXCollections.observableArrayList();
@@ -219,16 +237,42 @@ public class QiimiaQuantPanelController implements Initializable{
 		cancelButton.setOnAction(this::cancelQuant);
 //		setup controls list to disable during quantification
 		controlListToToggle.addAll(exportMeasButton, startQuantButton);
-		menuItemListToToggle.addAll(exportMeasMenuItem);
+		menuItemListToToggle.addAll(exportMeasMenuItem, standardCurveMenuItem, comparisonMenuItem);
 
 		compartmentList = qupath.getAvailablePathClasses().filtered(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
 
 		updateGUI(true);
 	}
 
-	private void setupMenu(){
+	private void setupMenu() {
 		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
+		standardCurveMenuItem.setOnAction(e -> {
+				try{
+					switchToAnalysisMode(e, "standardCurve");
+				} catch (IOException ex) {
+					throw new RuntimeException(ex);
+				}
+		});
+		comparisonMenuItem.setOnAction(e -> {
+			try{
+				switchToAnalysisMode(e, "comparison");
+			} catch (IOException ex) {
+				throw new RuntimeException(ex);
+			}
+		});
+
+		if(switchToQuantMenuItem != null) {
+			logger.info("setting up switch to quant menu item....");
+			switchToQuantMenuItem.setOnAction(e -> {
+				try {
+					switchToQuantMode(e);
+				} catch (IOException ex) {
+					throw new RuntimeException(ex);
+				}
+			});
+		}
+
 		normalizeMenuItem.selectedProperty().bindBidirectional(normalizeProperty);
 		rescaleMenuItem.selectedProperty().bindBidirectional(rescaleProperty);
 		deleteTilesMenuItem.selectedProperty().bindBidirectional(deleteTilesProperty);
@@ -671,10 +715,10 @@ public class QiimiaQuantPanelController implements Initializable{
 			Set<PathClass> selCompartments = selectedCompartments.parallelStream().collect(Collectors.toSet());
 
 			var viewersList = qupath.getViewers();
-			QuPathViewerPlus currentViewer = null;
+			List<QuPathViewerPlus> currentViewers = new ArrayList<>();
 			if (viewersList.size() == 1){
 				logger.info("Only one viewer found! Setting current viewer.");
-				currentViewer = viewersList.get(0);
+				currentViewers.add(viewersList.get(0));
 			}
 
 			int counter = 0;
@@ -701,10 +745,11 @@ public class QiimiaQuantPanelController implements Initializable{
 						continue;
 					}
 
-//					This works but not sure when there would be more than 1 viewer...
-					if(reload && viewersList.size() >= 1 && imagesToProcess.size() > 1){
-						logger.info("getting viewer for imagedata...");
-						currentViewer = viewersList.stream().filter(v -> v.getImageData() == imageData).findFirst().orElse(null);
+					if(reload && viewersList.size() > 1){
+						logger.info("trying to get viewer for imagedata...");
+//						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
+						currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+						logger.info(currentViewers.toString());
 					}
 
 					QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
@@ -714,7 +759,7 @@ public class QiimiaQuantPanelController implements Initializable{
 							ignoreClasses,
 							roiClasses,
 							params,
-							getNumThreads()-3,
+							getNumThreads()-2,
 							runCancelled,
 							controlListToToggle,
 							menuItemListToToggle,
@@ -729,13 +774,14 @@ public class QiimiaQuantPanelController implements Initializable{
 						entry.saveImageData(imageData);
 					}
 
-					if (reload && currentViewer != null){
-						logger.info("reloading image data in viewer...");
-//						need to run on the JavaFX application thread to avoid throwing errors
-						QuPathViewerPlus finalCurrentViewer = currentViewer;
-						Platform.runLater(()->{
-							finalCurrentViewer.setImageData(imageData);
-						});
+					if (reload && !currentViewers.isEmpty()){
+						logger.info("reloading image data in viewer(s)...");
+						for(var openViewer : currentViewers){
+//							need to run on the JavaFX application thread to avoid throwing errors
+							Platform.runLater(()->{
+								openViewer.setImageData(imageData);
+							});
+						}
 					}
 
 					if (imagesToProcess.size() > 1) {
@@ -794,14 +840,16 @@ public class QiimiaQuantPanelController implements Initializable{
 		if (tileOption == null){
 			tileOption = FULL_IMAGE;
 		}
+//		TODO: If this is a task for the project, this will fail outright after the images with no selected objects.
+//		TODO: fix this so that it throws an error dialog if the run for project option was chosen
 //		PathObjectSelectionModel selModel;
 		List<PathObject> selectedObjs;
 		if (tileOption == SELECTED_OBJS) {
-			var selModel = qupath.getViewer().getHierarchy().getSelectionModel();
-			var pathObjs = qupath.getViewer().getHierarchy().getObjects(null, PathObject.class);
-			selectedObjs = pathObjs.parallelStream().filter(p -> selModel.isSelected(p))
-					.collect(Collectors.toList());
-////			selectedObjs = qupath.getViewer().getAllSelectedObjects();
+//			var selModel = qupath.getViewer().getHierarchy().getSelectionModel();
+//			var pathObjs = qupath.getViewer().getHierarchy().getObjects(null, PathObject.class);
+//			selectedObjs = pathObjs.parallelStream().filter(p -> selModel.isSelected(p))
+//					.collect(Collectors.toList());
+			selectedObjs = qupath.getViewer().getAllSelectedObjects().stream().toList();
 //			selModel.clearSelection();
 			logger.info("selected objects:\n{}", selectedObjs.toString());
 		} else {
@@ -1099,6 +1147,24 @@ public class QiimiaQuantPanelController implements Initializable{
 
 	void exportMasksButton(ActionEvent e) {
 		logger.info("Opening dialog to export masks for project...");
+	}
+
+	void switchToAnalysisMode(ActionEvent e, String tabName) throws IOException {
+		FXMLLoader analysisSceneLoader = new FXMLLoader(getClass().getResource("/analysis-pane.fxml"));
+		logger.info("starting analysis pane from tab: {}", tabName);
+		analysisSceneLoader.setControllerFactory(controllerClass -> this);
+		Parent newRoot = analysisSceneLoader.load();
+//		just a hack to get the current Quant scene easily
+		exportMeasButton.getScene().setRoot(newRoot);
+	}
+
+	void switchToQuantMode(ActionEvent e) throws IOException {
+		FXMLLoader quantSceneLoader = new FXMLLoader(getClass().getResource("/QiimiaQuantPanel.fxml"));
+		quantSceneLoader.setControllerFactory(controllerClass -> this);
+		Parent newRoot = quantSceneLoader.load();
+
+		calcRegButton.getScene().setRoot(newRoot);
+
 	}
 	
 	//Overload these methods depending on input arguments. Export data dialog may just run these commands in isolation
