@@ -1,14 +1,10 @@
 package qupath.extension.qiimia;
 
-import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
-import javafx.scene.Scene;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
-
-import java.io.IOException;
 
 
 public class QiimiaQuantPanel implements Runnable{
@@ -21,6 +17,7 @@ public class QiimiaQuantPanel implements Runnable{
 	private Parent panel;
 
 	private QiimiaQuantPanelController qiimiaQuantPanelController;
+	private SceneManager sceneManager;
 
 	public QiimiaQuantPanel(final QuPathGUI qupath) {
 		this.qupath = qupath;
@@ -39,31 +36,38 @@ public class QiimiaQuantPanel implements Runnable{
 				stage.initOwner(qupath.getStage());
 			
 			stage.setTitle("Qiimia Quant");
-			try {
-				logger.info("Starting Qiimia Quant panel...");
-				FXMLLoader loader = new FXMLLoader(getClass().getResource("/QiimiaQuantPanel.fxml"));
-				loader.setControllerFactory(controllerClass -> new QiimiaQuantPanelController(qupath));
-				Parent panel = loader.load();
-				this.qiimiaQuantPanelController = loader.getController();
-				Scene scene = new Scene(panel);
-				scene.getStylesheets().add(getClass().getResource("/application.css").toExternalForm());
-				stage.setScene(scene);
-				stage.setMinHeight(350);
-				stage.setMinWidth(300);
-				stage.setMaxWidth(500);
+//			try {
+			logger.info("Starting Qiimia Quant panel...");
+			stage.setMinHeight(350);
+			stage.setMinWidth(300);
+			stage.setMaxWidth(800);
+
+			sceneManager = new SceneManager(stage);
+			sceneManager.preloadScene("/QiimiaQuantPanel.fxml", new QiimiaQuantPanelController(qupath));
+			sceneManager.setCSSStyle("/QiimiaQuantPanel.fxml", "/application.css");
+			sceneManager.preloadScene("/QiimiaAnalysisPanel.fxml", new QiimiaAnalysisPanelController(qupath));
+			sceneManager.setCSSStyle("/QiimiaAnalysisPanel.fxml", "/application.css");
+
+			sceneManager.switchScene("/QiimiaQuantPanel.fxml");
+
+//				FXMLLoader loader = new FXMLLoader(getClass().getResource("/QiimiaQuantPanel.fxml"));
+//				loader.setControllerFactory(controllerClass -> new QiimiaQuantPanelController(qupath));
+//				Parent panel = loader.load();
+//				this.qiimiaQuantPanelController = loader.getController();
+//				Scene scene = new Scene(panel);
+//				stage.setScene(scene);
+			// Closing the dialog
+			stage.setOnCloseRequest(e -> {
+				resetPanel();
+				return;
+			});
+
+			stage.show();
 				
-				// Closing the dialog
-				stage.setOnCloseRequest(e -> {
-					resetPanel();
-					return;
-				});
-				
-				stage.show();			
-				
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+//			} catch (IOException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
 			
 		} else {
 			// update GUI based on changes to color transforms, path classes, etc.

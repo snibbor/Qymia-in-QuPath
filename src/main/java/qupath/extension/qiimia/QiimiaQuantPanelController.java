@@ -10,10 +10,7 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
-import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Node;
-import javafx.scene.Parent;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -27,7 +24,6 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
-import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
@@ -49,7 +45,6 @@ import qupath.lib.images.servers.ColorTransforms.ColorTransform;
 import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
-import qupath.lib.objects.hierarchy.events.PathObjectSelectionModel;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 
@@ -69,9 +64,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class QiimiaQuantPanelController implements Initializable{
+public class QiimiaQuantPanelController extends BaseController implements Initializable {
 
 	// Every class need a logger...
 	private static final Logger logger = LoggerFactory.getLogger(QiimiaQuantPanelController.class);
@@ -101,13 +95,6 @@ public class QiimiaQuantPanelController implements Initializable{
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
 	// target and exposure time if IF image
 	private final ObservableMap<ColorTransform, Double> selectedTargets = FXCollections.observableMap(new LinkedHashMap<>());
-
-
-	@FXML
-	MenuItem switchToQuantMenuItem;
-
-	@FXML
-	Button calcRegButton;
 
 	@FXML
 	Menu settingsMenu;
@@ -261,17 +248,6 @@ public class QiimiaQuantPanelController implements Initializable{
 				throw new RuntimeException(ex);
 			}
 		});
-
-		if(switchToQuantMenuItem != null) {
-			logger.info("setting up switch to quant menu item....");
-			switchToQuantMenuItem.setOnAction(e -> {
-				try {
-					switchToQuantMode(e);
-				} catch (IOException ex) {
-					throw new RuntimeException(ex);
-				}
-			});
-		}
 
 		normalizeMenuItem.selectedProperty().bindBidirectional(normalizeProperty);
 		rescaleMenuItem.selectedProperty().bindBidirectional(rescaleProperty);
@@ -609,8 +585,6 @@ public class QiimiaQuantPanelController implements Initializable{
 		return validChannels.keySet();
 	}
 
-
-
 	/**
 	 * Request project image entries to run script for.
 	 * @param doSave
@@ -883,7 +857,7 @@ public class QiimiaQuantPanelController implements Initializable{
 		} else if (source.equals("Detections")){
 			sourceType = PathDetectionObject.class;
 		} else {
-			sourceType = PathAnnotationObject.class;
+			sourceType = PathObject.class;
 		}
 
 		int inputTileSize;
@@ -1150,21 +1124,13 @@ public class QiimiaQuantPanelController implements Initializable{
 	}
 
 	void switchToAnalysisMode(ActionEvent e, String tabName) throws IOException {
-		FXMLLoader analysisSceneLoader = new FXMLLoader(getClass().getResource("/analysis-pane.fxml"));
-		logger.info("starting analysis pane from tab: {}", tabName);
-		analysisSceneLoader.setControllerFactory(controllerClass -> this);
-		Parent newRoot = analysisSceneLoader.load();
-//		just a hack to get the current Quant scene easily
-		exportMeasButton.getScene().setRoot(newRoot);
-	}
-
-	void switchToQuantMode(ActionEvent e) throws IOException {
-		FXMLLoader quantSceneLoader = new FXMLLoader(getClass().getResource("/QiimiaQuantPanel.fxml"));
-		quantSceneLoader.setControllerFactory(controllerClass -> this);
-		Parent newRoot = quantSceneLoader.load();
-
-		calcRegButton.getScene().setRoot(newRoot);
-
+//		FXMLLoader analysisSceneLoader = new FXMLLoader(getClass().getResource("/QiimiaAnalysisPanel.fxml"));
+//		logger.info("starting analysis pane from tab: {}", tabName);
+//		analysisSceneLoader.setControllerFactory(controllerClass -> this);
+//		Parent newRoot = analysisSceneLoader.load();
+////		just a hack to get the current Quant scene easily
+//		exportMeasButton.getScene().setRoot(newRoot);
+		sceneManager.switchScene("/QiimiaAnalysisPanel.fxml");
 	}
 	
 	//Overload these methods depending on input arguments. Export data dialog may just run these commands in isolation

@@ -20,8 +20,7 @@
 <?import javafx.scene.layout.RowConstraints?>
 <?import javafx.scene.layout.VBox?>
 
-
-<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="500.0" prefWidth="400.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiimia.QiimiaQuantPanelController">
+<AnchorPane maxHeight="-Infinity" maxWidth="-Infinity" minHeight="-Infinity" minWidth="-Infinity" prefHeight="500.0" prefWidth="400.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiimia.QiimiaAnalysisPanelController">
    <children>
       <MenuBar>
         <menus>
@@ -86,7 +85,7 @@
                                     </HBox>
                                  </children>
                               </GridPane>
-                              <LineChart prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                              <LineChart fx:id="regLineChart" prefHeight="200.0" prefWidth="200.0" VBox.vgrow="ALWAYS">
                                  <xAxis>
                                     <CategoryAxis side="BOTTOM" />
                                  </xAxis>
@@ -106,13 +105,13 @@
                                     <HBox prefHeight="100.0" prefWidth="200.0" spacing="7.0">
                                        <children>
                                           <Label text="R2:" />
-                                          <Label text="NA" />
+                                          <Label fx:id="rSquaredLabel" text="NA" />
                                        </children>
                                     </HBox>
                                     <HBox prefHeight="100.0" prefWidth="200.0" spacing="7.0" GridPane.columnIndex="1">
                                        <children>
                                           <Label text="Eq:" />
-                                          <Label text="NA" />
+                                          <Label fx:id="regEqLabel" text="NA" />
                                        </children>
                                     </HBox>
                                  </children>
