@@ -96,6 +96,8 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Help > About & Docs link
       
   - #### Fix known bugs/problems, improve backend
+    - [ ] Ignore/exclude annotations displaces causes parent/child objects to be displaced when calculating ROI + Tile quantifications. The result is that either the ROI detection or Tile detections are displaced (not in propper parent/child object hierarchy). This is a problem because tiles are referenced by their parent object in downstream analysis.
+      - [x] temporary solution --> run ROI then Tile quantification separately when ignore/exclude annotations are used. This displaces the ROI detection (which is named) and places the Tile detections under the parent ROI/object.
     - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately. --> immediate cancellation can cause errors still
       - [x] Debug why cancelling sometimes causes image server exceptions for later runs... --> works after wrapping inside task
       - [x] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools. --> yes
