@@ -3,6 +3,7 @@ package qupath.extension.qiimia;
 import com.google.common.eventbus.EventBus;
 import javafx.application.Platform;
 import javafx.beans.property.*;
+import javafx.beans.value.ObservableDoubleValue;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.*;
 import javafx.collections.transformation.FilteredList;
@@ -10,7 +11,10 @@ import javafx.concurrent.Task;
 import javafx.event.ActionEvent;
 import javafx.event.EventHandler;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
@@ -24,6 +28,7 @@ import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
+import javafx.stage.Stage;
 import javafx.util.Callback;
 import javafx.util.StringConverter;
 import javafx.util.converter.DoubleStringConverter;
@@ -37,7 +42,6 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.prefs.PathPrefs;
-import qupath.lib.gui.scripting.ScriptTab;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
@@ -47,6 +51,7 @@ import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
+import qupath.lib.projects.Projects;
 
 import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.*;
 import static qupath.lib.common.Prefs.getNumThreads;
@@ -56,8 +61,11 @@ import static qupath.lib.scripting.QP.*;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
@@ -82,12 +90,28 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 	//will be in settings menu
 
-	private final Set<PathClass> ignoreClasses = Set.of(new PathClass[]{getPathClass("Ignore*"),
-																		getPathClass("Necrosis"),
-																		getPathClass("Other")});
-	private final Set<PathClass> roiClasses = Set.of(new PathClass[]{getPathClass("ROI")});
+	private final ObservableSet<PathClass> ignoreClasses = FXCollections.observableSet();
+	private List<PathClass> defaultIgnoreClasses = new ArrayList<>(
+			List.of(
+					getPathClass("Ignore*"),
+					getPathClass("Necrosis"),
+					getPathClass("Other")
+			)
+	);
+	private final ObservableSet<PathClass> roiClasses = FXCollections.observableSet();
+	private List<PathClass> defaultRoiClasses = new ArrayList<>(
+			List.of(
+					getPathClass("ROI")
+			)
+	);
 
 	//default params
+	private static DoubleProperty refNAProperty = PathPrefs.createPersistentPreference("refNAQiimiaQuant", 0.75);
+	private static DoubleProperty refMagProperty = PathPrefs.createPersistentPreference("refMagQiimiaQuant", 20.0);
+
+	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQiimiaQuant", 0.75);
+	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQiimiaQuant", 20.0);
+
 	private final int defaultTileSize = 512;
 	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
 
@@ -173,9 +197,17 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	// rescale scores using maxFloatValue and bitdepth
 	private double maxFloatValue = 1000.0/4.0;
 
-	FileChooser fileSelector = new FileChooser();
-	File initialFileDirectory;
+	@FXML
+	MenuItem selectBatchMapMenuItem;
+	private String defaultBatchMapFolder = "batch_map";
+	private String batchMapPath = "";
+	private String defaultMeasConvFolder = "measurement_converters";
+	@FXML
+	CheckMenuItem convertMeasMenuItem;
+	private static BooleanProperty convertMeasurementsProperty = new SimpleBooleanProperty(false);
 
+	@FXML
+	MenuItem advancedSettingsMenuItem;
 	@FXML
 	MenuItem standardCurveMenuItem;
 	@FXML
@@ -226,6 +258,25 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		controlListToToggle.addAll(exportMeasButton, startQuantButton);
 		menuItemListToToggle.addAll(exportMeasMenuItem, standardCurveMenuItem, comparisonMenuItem);
 
+//		setup PathClass sets
+		ignoreClasses.addAll(defaultIgnoreClasses);
+		roiClasses.addAll(defaultRoiClasses);
+		ignoreClasses.addListener(new SetChangeListener<PathClass>() {
+			@Override
+			public void onChanged(Change<? extends PathClass> change) {
+				compartmentList.setPredicate(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
+				updateGUI(false);
+			}
+		});
+
+		roiClasses.addListener(new SetChangeListener<PathClass>() {
+			@Override
+			public void onChanged(Change<? extends PathClass> change) {
+				compartmentList.setPredicate(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
+				updateGUI(false);
+			}
+		});
+
 		compartmentList = qupath.getAvailablePathClasses().filtered(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
 
 		updateGUI(true);
@@ -259,6 +310,21 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				tileSizeTextField.setPromptText("um");
 			} else {
 				tileSizeTextField.setPromptText("px");
+			}
+		});
+		convertMeasMenuItem.selectedProperty().bindBidirectional(convertMeasurementsProperty);
+		selectBatchMapMenuItem.setOnAction(e->{
+			File dirBase = qupath.getProject() != null ? Projects.getBaseDirectory(qupath.getProject()) : new File(System.getProperty("user.home"));
+			File batchMapFile = Dialogs.promptForFile("Staining Batch Map File", dirBase, "CSV (.csv)", ".csv");
+			if (batchMapPath != null) {
+				this.batchMapPath = batchMapFile.getAbsolutePath();
+			}
+		});
+		advancedSettingsMenuItem.setOnAction(e->{
+			try{
+				showAdvancedSettingsMenu(e);
+			} catch (IOException ex){
+				throw new RuntimeException(ex);
 			}
 		});
 	}
@@ -505,12 +571,15 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 	public void updateGUI(Boolean forceUpdateTransforms) {
 		logger.info("updating GUI...");
+		logger.info("ignore classes: {}", ignoreClasses.toString());
+		logger.info("roi classes: {}", roiClasses.toString());
 		var viewer = qupath.getViewer();
 		var imageData = viewer.getImageData();
 //		https://stackoverflow.com/questions/9062574/is-there-a-better-way-to-combine-two-string-sets-in-java
 //		Set<PathClass> combinedRemove = Stream.concat(ignoreClasses.stream(), roiClasses.stream()).collect(Collectors.toSet());
 //		May need to update filtered list predicate if ignoreClasses/roiClasses change
 //		https://stackoverflow.com/questions/53075175/observablelist-returns-sublist-that-matches
+//		compartmentList.setPredicate(p -> !ignoreClasses.contains(p) && !roiClasses.contains(p) && p != null);
 		compartmentListView.setItems(compartmentList);
 		if (imageData == null) {
 			targetListView.getItems().clear();
@@ -620,7 +689,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
 
-		QiimiaQuantPanelController.ProjectTask worker = new QiimiaQuantPanelController.ProjectTask(project, imagesToProcess, doSave, false);
+		QuantTask worker = new QuantTask(project, imagesToProcess, doSave, false);
 
 
 		ProgressDialog progress = new ProgressDialog(worker);
@@ -642,20 +711,21 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 
 		// Create & run task
+//		ExecutorService es = qupath.createSingleThreadExecutor(this);
+//		es.submit(worker);
 		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
 		progress.show();
 	}
 
-	class ProjectTask extends Task<Void> {
+	class QuantTask extends Task<Void> {
 
 		private Project<BufferedImage> project;
 		private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
-		private ScriptTab tab;
 		private boolean quietCancel = false;
 		private boolean doSave = true;
 		private boolean reload = false;
 
-		ProjectTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave, final boolean reload) {
+		QuantTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave, final boolean reload) {
 			this.project = project;
 			this.imagesToProcess = imagesToProcess;
 			this.doSave = doSave;
@@ -688,12 +758,46 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			);
 			Set<PathClass> selCompartments = selectedCompartments.parallelStream().collect(Collectors.toSet());
 
+//			Vars for batch Map measurement conversion
+			File pathMeasConvs = new File(Projects.getBaseDirectory(project) + File.separator + defaultMeasConvFolder);
+			FilenameFilter jsonFilefilter = new FilenameFilter() {
+				public boolean accept(File dir, String name) {
+					String lowercaseName = name.toLowerCase();
+					if (lowercaseName.endsWith(".json")) {
+						return true;
+					} else {
+						return false;
+					}
+				}
+			};
+			File[] allMeasConvs = pathMeasConvs.listFiles(jsonFilefilter);
+			List<File> allMeasConvList = new ArrayList<>();
+			if(allMeasConvs!=null){
+				allMeasConvList = new ArrayList<>(List.of(allMeasConvs));
+			}
+
+			Map<String, String> batchMap = null;
+			if(convertMeasurementsProperty.get()){
+				if(!batchMapPath.isEmpty()){
+					batchMap = QiimiaAnalysisPanelController.loadBatchMap(batchMapPath);
+				}else{
+//					trying to find the batchMap file in the default folder if there is one....
+					File batchMapParent = new File(Projects.getBaseDirectory(project)+File.separator+defaultBatchMapFolder);
+					File[] batchMapFiles = batchMapParent.listFiles();
+					if(batchMapFiles!=null){
+						batchMapPath = batchMapFiles[0].getAbsolutePath();
+						logger.info("setting new project batchMapPath to {}", batchMapPath);
+						batchMap = QiimiaAnalysisPanelController.loadBatchMap(batchMapPath);
+					}
+				}
+			}
+
 			var viewersList = qupath.getViewers();
 			List<QuPathViewerPlus> currentViewers = new ArrayList<>();
-			if (viewersList.size() == 1){
-				logger.info("Only one viewer found! Setting current viewer.");
-				currentViewers.add(viewersList.get(0));
-			}
+//			if (viewersList.size() == 1){
+//				logger.info("Only one viewer found! Setting current viewer.");
+//				currentViewers.add(viewersList.get(0));
+//			}
 
 			int counter = 0;
 			for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
@@ -719,7 +823,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						continue;
 					}
 
-					if(reload && viewersList.size() > 1){
+					if(reload){
 						logger.info("trying to get viewer for imagedata...");
 //						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
 						currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
@@ -742,6 +846,24 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 					);
 
 					runQuant(qiimiaQuant).get();
+
+					if(convertMeasurementsProperty.get()){
+						if(batchMap != null && !allMeasConvList.isEmpty()){
+							logger.info("trying to convert measurements for {}", entry.getImageName());
+							List<QiimiaAnalysisPanelController.MeasurementConverter> currentMeasConvs = QiimiaAnalysisPanelController.getMeasConvsFromBatchMap(
+									entry.getImageName(),
+									batchMap,
+									allMeasConvList
+							);
+							if (currentMeasConvs != null) {
+								QiimiaAnalysisPanelController.calculateMeasurementConversions(imageData, currentMeasConvs);
+							} else{
+								logger.error("Measurement converters for {} are null", entry.getImageName());
+							}
+						} else {
+							logger.error("Batch map is null or PROJ/measurement_converters contains no measurement converter files\nCannot convert measurements.");
+						}
+					}
 
 					if (doSave && !runCancelled.get()) {
 						logger.info("saving image data...");
@@ -769,11 +891,13 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						if (store != null)
 							store.clearCache();
 						System.gc();
-					} catch (Exception e) {
-
+					} catch (Exception ex) {
+						logger.error("Error clearing tile cache");
+						ex.printStackTrace();
 					}
-				} catch (Exception e) {
-					logger.error("Error running batch script: {}", e);
+				} catch (Exception ex) {
+					logger.error("Error running batch script");
+					ex.printStackTrace();
 				}
 			}
 			updateProgress(imagesToProcess.size(), imagesToProcess.size());
@@ -857,7 +981,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		} else if (source.equals("Detections")){
 			sourceType = PathDetectionObject.class;
 		} else {
-			sourceType = PathObject.class;
+			sourceType = PathAnnotationObject.class;
 		}
 
 		int inputTileSize;
@@ -1067,29 +1191,11 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			return;
 		}
 
-		QiimiaQuantPanelController.ProjectTask worker = new QiimiaQuantPanelController.ProjectTask(project, imagesToProcess, false, true);
+		QuantTask worker = new QuantTask(project, imagesToProcess, false, true);
 		// Create & run task
+//		ExecutorService es = qupath.createSingleThreadExecutor(this);
+//		es.submit(worker);
 		runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
-
-
-//		Map<String, Object> params = setupQuantParams();
-//		if(params==null)
-//			return;
-//		QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
-//				qupath.getImageData(),
-//				selectedTargets,
-//				selectedCompartments,
-//				ignoreClasses,
-//				roiClasses,
-//				params,
-//				getNumThreads()-3,
-//				runCancelled,
-//				controlListToToggle,
-//				menuItemListToToggle,
-//				quantProgressBar,
-//				progressLabel
-//		);
-//		runQuant(qiimiaQuant);
 
 	}
 
@@ -1131,6 +1237,23 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 ////		just a hack to get the current Quant scene easily
 //		exportMeasButton.getScene().setRoot(newRoot);
 		sceneManager.switchScene("/QiimiaAnalysisPanel.fxml");
+	}
+
+	void showAdvancedSettingsMenu(ActionEvent e) throws IOException{
+		final Stage dialog = new Stage();
+		dialog.initModality(Modality.APPLICATION_MODAL);
+		dialog.initOwner(qupath.getStage());
+		FXMLLoader loader = new FXMLLoader(getClass().getResource("/QiimiaQuantSettings.fxml"));
+		loader.setControllerFactory(controllerClass -> new QiimiaQuantSettingsController(
+				qupath, ignoreClasses, roiClasses,
+				refNAProperty, refMagProperty, workingNAProperty, workingMagProperty
+				)
+		);
+		Parent panel = loader.load();
+//		this.qiimiaQuantPanelController = loader.getController();
+		Scene scene = new Scene(panel);
+		dialog.setScene(scene);
+		dialog.show();
 	}
 	
 	//Overload these methods depending on input arguments. Export data dialog may just run these commands in isolation

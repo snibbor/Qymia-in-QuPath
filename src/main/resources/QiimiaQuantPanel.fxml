@@ -22,32 +22,22 @@
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.text.Font?>
 
-<AnchorPane maxWidth="500.0" minHeight="300.0" prefHeight="600.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiimia.QiimiaQuantPanelController">
+<AnchorPane maxWidth="500.0" minHeight="300.0" prefHeight="600.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/18" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qiimia.QiimiaQuantPanelController">
    <children>
       <MenuBar layoutY="-36.0" prefHeight="25.0" prefWidth="323.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
         <menus>
             <Menu mnemonicParsing="false" text="File">
               <items>
                 <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
-                  <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" />
-                  <SeparatorMenuItem mnemonicParsing="false" />
-                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Overlay" />
+                  <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
+                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Overlay" visible="false" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>
             </Menu>
             <Menu fx:id="settingsMenu" mnemonicParsing="false" text="Settings">
                <items>
-                  <Menu mnemonicParsing="false" text="Export Settings...">
-                    <items>
-                        <Menu mnemonicParsing="false" text="Masks...">
-                          <items>
-                            <MenuItem mnemonicParsing="false" text="????" />
-                          </items>
-                        </Menu>
-                    </items>
-                  </Menu>
-                  <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" selected="true" text="Verbose measurements" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize Qiimia Scores" />
@@ -55,12 +45,17 @@
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <CheckMenuItem fx:id="deleteTilesMenuItem" mnemonicParsing="false" selected="true" text="Delete tiles before run" />
                   <CheckMenuItem fx:id="tileUnitIsMicronsMenuItem" mnemonicParsing="false" text="Tile unit in microns" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <CheckMenuItem fx:id="convertMeasMenuItem" mnemonicParsing="false" text="Convert measurements (using regress. meas. convs.)" />
+                  <MenuItem fx:id="selectBatchMapMenuItem" mnemonicParsing="false" text="Select batch map file" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="advancedSettingsMenuItem" mnemonicParsing="false" text="Advanced settings..." />
                </items>
             </Menu>
             <Menu fx:id="toolsMenu" mnemonicParsing="false" text="Tools">
                <items>
-                  <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve" />
-                  <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison" />
+                  <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
+                  <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />
                </items>
             </Menu>
           <Menu fx:id="helpMenu" mnemonicParsing="false" text="Help">

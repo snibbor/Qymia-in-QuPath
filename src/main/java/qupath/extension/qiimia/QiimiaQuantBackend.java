@@ -1095,6 +1095,7 @@ public class QiimiaQuantBackend {
                     .map(p -> p.getROI())
                     .collect(Collectors.toList())).get();
             logger.info("Combining all {} annotations...", c.toString());
+            logger.info(theseCROIs.toString());
             ROI combinedC;
             if (theseCROIs.size() == 1) {
                 combinedC = theseCROIs.get(0);
@@ -2051,182 +2052,182 @@ public class QiimiaQuantBackend {
     }
 
 
-    public void getTargetsIntensityScores(PathObject pathObject) throws IOException {
-        //get params required
-        double downsample;
-        boolean rescaleScore;
-        boolean normalizeScore;
-        double maxFloatValue;
-        try {
-            downsample = (double) params.get("downsample");
-            rescaleScore = (boolean) params.get("rescaleScore");
-            normalizeScore = (boolean) params.get("normalizeScore");
-            maxFloatValue = (double) params.get("maxFloatValue");
-        } catch (Exception ex) {
-//				ex.printStackTrace();
-            throw new RuntimeException(ex);
-        }
-        getTargetsIntensityScores(bImageData, pathObject, targets, cellCompartments, measurements, downsample, rescaleScore, normalizeScore, maxFloatValue);
-    }
-
-    public void getTargetsIntensityScores(ImageData<BufferedImage> imageData, PathObject pathObject,
-                                          Map<ColorTransforms.ColorTransform, Double> targets,
-                                          Collection<Compartments> cellCompartments,
-                                          Collection<Measurements> measurements,
-                                          double downsample, boolean rescaleScore, boolean normalizeScore,
-                                          double maxFloatValue) throws IOException {
-
-        try {
-            // Convert to binary mask Mat
-            ROI roi = pathObject.getROI();
-            String className = pathObject.getPathClass().toString();
-            ImageServer<BufferedImage> server = imageData.getServer();
-
-            int pad = (int) Math.ceil(downsample * 2);
-            RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
-                    .pad2D(pad, pad)
-                    .intersect2D(0, 0, server.getWidth(), server.getHeight());
-
-            PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
-            //			ImagePlus imp = pathImage.getImage();
-
-            PixelCalibration pc = server.getPixelCalibration();
-            PixelType pixType = server.getPixelType();
-            int bitDepth = server.getPixelType().getBitsPerPixel();
-            double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
-            //    println 'Squarred MPP: ' + mppSq.toString();
-
-            // Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
-            MeasurementList measList = pathObject.getMeasurementList();
-
-            // Add shape measurements
-            double annotationArea = pathObject.getROI().getArea();
-            measList.putMeasurement(className + " area px", annotationArea);
-            measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
-            measList.putMeasurement("MPP^2", mppSq);
-            measList.putMeasurement("Channel bitdepth", bitDepth);
-            int bitDepthVal = (int) Math.pow(2, bitDepth);
-            //			int bitDepthVal = (int) Math.pow(2, 16);
-
-            Map<String, ImageProcessor> channels = new LinkedHashMap<>();
-            Map<String, String> measNames = new LinkedHashMap<>();
-
-            //Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
-            //Using ImageJ to create a binary mask [0,1] of ROI
-            ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
-            bpCell.setValue(1.0);
-            Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
-            bpCell.fill(roiIJ);
-
-            //Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
-            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
-                ColorTransforms.ColorTransform targetTransform = tar.getKey();
-                String targetName = targetTransform.toString();
-                ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
-                String measName = targetName + " Intensity in " + className;
-                measNames.put(targetName, measName);
-                channels.put(measName, ipChannel);
-                logger.info("Scoring {} in {}", targetName, className);
-            }
-
-            if (pathObject instanceof PathCellObject) {
-                PathCellObject cell = (PathCellObject) pathObject;
-                ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
-                if (cell.getNucleusROI() != null) {
-                    bpNucleus.setValue(1.0);
-                    Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
-                    bpNucleus.fill(roiNucleusIJ);
-                }
-                //For mean, median, stdev, etc.
-                measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
-                //Calculate sum intensity in compartment
-                //        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-            } else {
-                var imgLabels = new PixelImageIJ(bpCell);
-                for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
-                    var img = new PixelImageIJ(entry.getValue());
-                    //For mean, median, stdev, etc.
-                    measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
-                    //Calculate sum intensity in compartment
-                    //            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
-                }
-            }
-
-
-            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
-                String targetName = tar.getKey().toString();
-                double exposure_time = tar.getValue();
-                String measName = measNames.get(targetName);
-                double targetMean = measList.getMeasurementValue(measName + ": Mean");
-                // double sumInt = targetMean*annotationArea;
-                // measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
-                // Debugging, would load from available metadata
-                if (exposure_time == 0.0 || exposure_time < 0) {
-                    exposure_time = 1000;
-                    measList.putMeasurement(targetName + " exposure time (ms)", 0);
-                } else {
-                    measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
-                }
-
-                // double MeanI_S = targetMean/(exposure_time/1000)
-                // measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
-                // Intensity/(um^2*sec)
-                // double QIF_area = targetMean/mppSq;
-                // measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
-                //if pixelType float, skip [vetra Polaris data]
-                if (pixType.isFloatingPoint()) {
-                    double QIF_areaS = (targetMean / mppSq);
-                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-                } else if (rescaleScore && !normalizeScore) {
-                    //assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
-                    //using bitdepth and maxFloatValue to rescale
-                    double rescaleFactor = (maxFloatValue / bitDepthVal);
-                    double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
-                    measList.putMeasurement("Rescale factor", rescaleFactor);
-                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-                } else if (normalizeScore) {
-                    double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
-                } else {
-                    // no normalization
-                    double QIF_areaS = (targetMean / mppSq);
-                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
-                }
-                //    double totalPx = server.getHeight()*server.getWidth();
-                //    println 'Total pixels: '+ totalPx.toString();
-                //    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
-                //    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
-                //    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
-                //    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
-            }
-
-//				clean up vars?
-//				server.close();
-            measList.close();
-            server = null;
-            pathImage = null;
-            channels = null;
-            request = null;
-            measList = null;
-            measNames = null;
-            roiIJ = null;
-            bpCell = null;
-            roi = null;
-            System.gc();
-
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        } finally {
-
-//				clean up vars?
-            imageData = null;
-            targets = null;
-            measurements = null;
-            cellCompartments = null;
-            System.gc();
-
-        }
-    }
+//    public void getTargetsIntensityScores(PathObject pathObject) throws IOException {
+//        //get params required
+//        double downsample;
+//        boolean rescaleScore;
+//        boolean normalizeScore;
+//        double maxFloatValue;
+//        try {
+//            downsample = (double) params.get("downsample");
+//            rescaleScore = (boolean) params.get("rescaleScore");
+//            normalizeScore = (boolean) params.get("normalizeScore");
+//            maxFloatValue = (double) params.get("maxFloatValue");
+//        } catch (Exception ex) {
+////				ex.printStackTrace();
+//            throw new RuntimeException(ex);
+//        }
+//        getTargetsIntensityScores(bImageData, pathObject, targets, cellCompartments, measurements, downsample, rescaleScore, normalizeScore, maxFloatValue);
+//    }
+//
+//    public void getTargetsIntensityScores(ImageData<BufferedImage> imageData, PathObject pathObject,
+//                                          Map<ColorTransforms.ColorTransform, Double> targets,
+//                                          Collection<Compartments> cellCompartments,
+//                                          Collection<Measurements> measurements,
+//                                          double downsample, boolean rescaleScore, boolean normalizeScore,
+//                                          double maxFloatValue) throws IOException {
+//
+//        try {
+//            // Convert to binary mask Mat
+//            ROI roi = pathObject.getROI();
+//            String className = pathObject.getPathClass().toString();
+//            ImageServer<BufferedImage> server = imageData.getServer();
+//
+//            int pad = (int) Math.ceil(downsample * 2);
+//            RegionRequest request = RegionRequest.createInstance(server.getPath(), downsample, roi)
+//                    .pad2D(pad, pad)
+//                    .intersect2D(0, 0, server.getWidth(), server.getHeight());
+//
+//            PathImage<ImagePlus> pathImage = IJTools.convertToImagePlus(server, request);
+//            //			ImagePlus imp = pathImage.getImage();
+//
+//            PixelCalibration pc = server.getPixelCalibration();
+//            PixelType pixType = server.getPixelType();
+//            int bitDepth = server.getPixelType().getBitsPerPixel();
+//            double mppSq = pc.getPixelHeightMicrons() * pc.getPixelWidthMicrons();
+//            //    println 'Squarred MPP: ' + mppSq.toString();
+//
+//            // Use mean intensity to calculate AQUA score as (mean intensity)/(MPP^2 * exposure_time)
+//            MeasurementList measList = pathObject.getMeasurementList();
+//
+//            // Add shape measurements
+//            double annotationArea = pathObject.getROI().getArea();
+//            measList.putMeasurement(className + " area px", annotationArea);
+//            measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+//            measList.putMeasurement("MPP^2", mppSq);
+//            measList.putMeasurement("Channel bitdepth", bitDepth);
+//            int bitDepthVal = (int) Math.pow(2, bitDepth);
+//            //			int bitDepthVal = (int) Math.pow(2, 16);
+//
+//            Map<String, ImageProcessor> channels = new LinkedHashMap<>();
+//            Map<String, String> measNames = new LinkedHashMap<>();
+//
+//            //Don't like this, is there a way to convert ROI to a binary mask OpenCV Mat directly??
+//            //Using ImageJ to create a binary mask [0,1] of ROI
+//            ByteProcessor bpCell = new ByteProcessor(request.getWidth(), request.getHeight());
+//            bpCell.setValue(1.0);
+//            Roi roiIJ = IJTools.convertToIJRoi(roi, pathImage);
+//            bpCell.fill(roiIJ);
+//
+//            //Might not be the best performance. Would like to recode to use only OpenCV_core Mats and pointers/mask indexing.
+//            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+//                ColorTransforms.ColorTransform targetTransform = tar.getKey();
+//                String targetName = targetTransform.toString();
+//                ImageProcessor ipChannel = OpenCVTools.matToImageProcessor(ImageOps.buildImageDataOp(targetTransform).apply(imageData, request));
+//                String measName = targetName + " Intensity in " + className;
+//                measNames.put(targetName, measName);
+//                channels.put(measName, ipChannel);
+//                logger.info("Scoring {} in {}", targetName, className);
+//            }
+//
+//            if (pathObject instanceof PathCellObject) {
+//                PathCellObject cell = (PathCellObject) pathObject;
+//                ByteProcessor bpNucleus = new ByteProcessor(request.getWidth(), request.getHeight());
+//                if (cell.getNucleusROI() != null) {
+//                    bpNucleus.setValue(1.0);
+//                    Roi roiNucleusIJ = IJTools.convertToIJRoi(cell.getNucleusROI(), pathImage);
+//                    bpNucleus.fill(roiNucleusIJ);
+//                }
+//                //For mean, median, stdev, etc.
+//                measureCells(bpNucleus, bpCell, Map.of(1.0, cell), channels, cellCompartments, measurements);
+//                //Calculate sum intensity in compartment
+//                //        measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
+//            } else {
+//                var imgLabels = new PixelImageIJ(bpCell);
+//                for (Map.Entry<String, ImageProcessor> entry : channels.entrySet()) {
+//                    var img = new PixelImageIJ(entry.getValue());
+//                    //For mean, median, stdev, etc.
+//                    measureObjects(img, imgLabels, new PathObject[]{pathObject}, entry.getKey(), measurements);
+//                    //Calculate sum intensity in compartment
+//                    //            measureObjSumInt(img, imgLabels, new PathObject[] {pathObject}, targetName);
+//                }
+//            }
+//
+//
+//            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+//                String targetName = tar.getKey().toString();
+//                double exposure_time = tar.getValue();
+//                String measName = measNames.get(targetName);
+//                double targetMean = measList.getMeasurementValue(measName + ": Mean");
+//                // double sumInt = targetMean*annotationArea;
+//                // measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
+//                // Debugging, would load from available metadata
+//                if (exposure_time == 0.0 || exposure_time < 0) {
+//                    exposure_time = 1000;
+//                    measList.putMeasurement(targetName + " exposure time (ms)", 0);
+//                } else {
+//                    measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+//                }
+//
+//                // double MeanI_S = targetMean/(exposure_time/1000)
+//                // measList.putMeasurement(targetName+' in '+className+' Mean I/[exp time (s)]', MeanI_S);
+//                // Intensity/(um^2*sec)
+//                // double QIF_area = targetMean/mppSq;
+//                // measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
+//                //if pixelType float, skip [vetra Polaris data]
+//                if (pixType.isFloatingPoint()) {
+//                    double QIF_areaS = (targetMean / mppSq);
+//                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+//                } else if (rescaleScore && !normalizeScore) {
+//                    //assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
+//                    //using bitdepth and maxFloatValue to rescale
+//                    double rescaleFactor = (maxFloatValue / bitDepthVal);
+//                    double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
+//                    measList.putMeasurement("Rescale factor", rescaleFactor);
+//                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+//                } else if (normalizeScore) {
+//                    double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+//                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+//                } else {
+//                    // no normalization
+//                    double QIF_areaS = (targetMean / mppSq);
+//                    measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+//                }
+//                //    double totalPx = server.getHeight()*server.getWidth();
+//                //    println 'Total pixels: '+ totalPx.toString();
+//                //    double QIF_areaPercent = targetMean*annotationArea/(100*annotationArea/totalPx);
+//                //    measList.putMeasurement(targetName+' in '+className+' Sum I/(Compartment % Area)', QIF_areaPercent);
+//                //    double QIF_areaPercentS = QIF_areaPercent/(exposure_time);
+//                //    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
+//            }
+//
+////				clean up vars?
+////				server.close();
+//            measList.close();
+//            server = null;
+//            pathImage = null;
+//            channels = null;
+//            request = null;
+//            measList = null;
+//            measNames = null;
+//            roiIJ = null;
+//            bpCell = null;
+//            roi = null;
+//            System.gc();
+//
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        } finally {
+//
+////				clean up vars?
+//            imageData = null;
+//            targets = null;
+//            measurements = null;
+//            cellCompartments = null;
+//            System.gc();
+//
+//        }
+//    }
 
 
     /**

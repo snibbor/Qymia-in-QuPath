@@ -4,6 +4,7 @@ import com.google.common.io.Files;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import javafx.application.Platform;
+import javafx.beans.binding.Bindings;
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
@@ -23,9 +24,13 @@ import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
 import javafx.stage.FileChooser;
 import javafx.stage.Modality;
+import org.apache.commons.math3.stat.regression.MultipleLinearRegression;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
+import org.controlsfx.control.CheckComboBox;
 import org.controlsfx.dialog.ProgressDialog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,6 +40,7 @@ import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.measure.ObservableMeasurementTableData;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.scripting.ScriptTab;
+import qupath.lib.gui.tools.PaneTools;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.gui.viewer.QuPathViewerListener;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
@@ -72,7 +78,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
     private static final Logger logger = LoggerFactory.getLogger(QiimiaAnalysisPanelController.class);
     private final QuPathGUI qupath;
     private List<ProjectImageEntry<BufferedImage>> previousImages = new ArrayList<>();
-    private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
+//    private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
     @FXML
     MenuItem switchToQuantMenuItem;
     @FXML
@@ -149,6 +155,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             }
         });
         calcRegButton.setOnAction(this::calcTMAStandardRegs);
+        convertMeasButton.setOnAction(this::convertMeasurements);
 
         qupath.getViewer().addViewerListener(new QuPathViewerListener() {
             @Override
@@ -166,17 +173,10 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     }
                 }
             }
-
             @Override
-            public void visibleRegionChanged(QuPathViewer viewer, Shape shape) {
-
-            }
-
+            public void visibleRegionChanged(QuPathViewer viewer, Shape shape) {}
             @Override
-            public void selectedObjectChanged(QuPathViewer viewer, PathObject pathObjectSelected) {
-
-            }
-
+            public void selectedObjectChanged(QuPathViewer viewer, PathObject pathObjectSelected) {}
             @Override
             public void viewerClosed(QuPathViewer viewer) {
 //                viewer.removeViewerListener(this);
@@ -403,7 +403,12 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
     void handleTMAStandardCalcRegs() {
         Project<BufferedImage> project = qupath.getProject();
         if (project == null) {
-            Dialogs.showNoProjectError("Qiimia Quant");
+            Dialogs.showNoProjectError("Qiimia Analysis");
+            return;
+        }
+
+        if (!QiimiaQuantCommands.checkSaveChangesPrompt(qupath.getImageData(), project)){
+//			If the prompt was cancelled by user or it returns false for some reason, do not create and show measurement dialog
             return;
         }
 
@@ -414,7 +419,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                 previousImages.add(currentEntry);
         }
 
-        String standardTMAMessage = "Only select TMA standards for standard curve regressions!";
+
+
+        String standardTMAMessage = "Only select TMA standards\nfor standard curve regressions!";
         var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, standardTMAMessage);
 
         Dialog<ButtonType> dialog = new Dialog<>();
@@ -460,15 +467,15 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
 
         // Create & run task
-        runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
+        qupath.createSingleThreadExecutor(this).submit(worker);
+//        runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
         progress.show();
     }
 
-    class TMAStandardRegTask extends Task<Void> {
+    public class TMAStandardRegTask extends Task<Void> {
 
         private Project<BufferedImage> project;
         private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
-        private ScriptTab tab;
         private boolean quietCancel = false;
 
         TMAStandardRegTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess) {
@@ -556,17 +563,23 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 //                    invalidate if no TMA grid found
                     if(imageData.getHierarchy().getTMAGrid() == null){
                         logger.warn("no TMA grid found for {}", entry.getImageName());
+                        logger.warn("Closing server {}", imageData.toString());
+                        imageData.getServer().close();
                         continue;
                     }
-                    SimpleRegression reg = calculateTMAStandardConversion(imageData, indexMap, measurementName, standardName);
+                    SimpleRegression reg = calculateTMAStandardRegression(imageData, indexMap, measurementName, standardName);
+                    if(reg != null) {
 //                    save regression, merge existing json
-                    MeasurementConverter newMeasConv = new MeasurementConverter(
-                            entry.getImageName(), reg, measurementName, standardName, true);
-                    BufferedWriter file = Files.newWriter(
-                            new File(saveDir.toAbsolutePath() + File.separator + entry.getImageName() + ".json"),
-                            StandardCharsets.UTF_8);
-                    file.write(gson.toJson(newMeasConv));
-                    file.close();
+                        MeasurementConverter newMeasConv = new MeasurementConverter(
+                                entry.getImageName(), reg, measurementName, standardName, true);
+                        BufferedWriter file = Files.newWriter(
+                                new File(saveDir.toAbsolutePath() + File.separator + entry.getImageName() + ".json"),
+                                StandardCharsets.UTF_8);
+                        file.write(gson.toJson(newMeasConv));
+                        file.close();
+                    } else {
+                        logger.error("Error in {}, not creating measurement converter based on regression", entry.getImageName());
+                    }
 
                     if (imagesToProcess.size() > 1) {
                         logger.warn("Closing server {}", imageData.toString());
@@ -594,17 +607,15 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
             return null;
         }
-
-
         @Override
         protected void done() {
             super.done();
             // Make sure we reset the running task
-            Platform.runLater(() -> runningTask.setValue(null));
+//            Platform.runLater(() -> runningTask.setValue(null));
         }
     };
 
-    public SimpleRegression calculateTMAStandardConversion(ImageData<BufferedImage> imageData,
+    public SimpleRegression calculateTMAStandardRegression(ImageData<BufferedImage> imageData,
                                                     Map<String, Double> indexMap,
                                                     String measurementName,
                                                     String standardName){
@@ -627,6 +638,10 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
         List<String> intersectKeys = new ArrayList<String>(measureMap.keySet());
         intersectKeys.retainAll(indexMap.keySet());
+        if(intersectKeys.isEmpty() || intersectKeys == null){
+            logger.warn("No TMA names are found within selected index map file");
+            return null;
+        }
 
         SimpleRegression reg = new SimpleRegression();
 //      For conversion, X is the measurement Y is the standard value
@@ -638,14 +653,24 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
     public static class MeasurementConverter implements Serializable{
         private String tmaImageName;
-        private SimpleRegression reg;
+        private SimpleRegression regObj;
+        private double rSquared;
+        private List<Double> coeffs = new ArrayList<>();
         private String measurementName;
         private String convertValueName;
         private Boolean doClamp;
 
-        public MeasurementConverter(String tmaImageName, SimpleRegression reg, String measurementName, String convertValueName, Boolean doClamp){
+        public MeasurementConverter(String tmaImageName, SimpleRegression regObj, String measurementName, String convertValueName, Boolean doClamp) {
             this.tmaImageName = tmaImageName;
-            this.reg = reg;
+            this.regObj = regObj;
+//            if (regObj.getClass() == SimpleRegression.class) {
+            this.rSquared = regObj.getRSquare();
+            this.coeffs.addAll(new ArrayList<Double>(
+                    List.of(regObj.getSlope(), regObj.getIntercept())
+            ));
+//            }
+//            else if (regObj.getClass() == MultipleLinearRegression.class) {
+//            }
             this.measurementName = measurementName;
             this.convertValueName = convertValueName;
             this.doClamp = doClamp;
@@ -655,19 +680,477 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             MeasurementList measList = pathObj.getMeasurementList();
             Double val = measList.getMeasurementValue(measurementName);
             if(val != null && !Double.isNaN(val)){
-                double convertVal = reg.predict(val);
+                double convertVal = regObj.predict(val);
                 if(convertVal < 0 && doClamp){
                     convertVal = 0.0;
                 }
                 measList.putMeasurement(convertValueName, convertVal);
+            } else{
+                measList.putMeasurement(convertValueName, Double.NaN);
             }
         }
         public String getTmaImageName(){return tmaImageName;}
-        public SimpleRegression getReg(){return reg;}
+        public SimpleRegression getReg(){return regObj;}
+        public Double getRSquared(){return rSquared;}
+        public List<Double> getCoeffs(){return coeffs;}
         public String getMeasurementName(){return measurementName;}
         public String getConvertValueName(){return convertValueName;}
         public Boolean getDoClamp(){return doClamp;}
         public void setDoClamp(Boolean doClamp){this.doClamp = doClamp;}
+    }
+
+    public void convertMeasurements(ActionEvent e){
+        handleConvertMeasurements(true, true);
+    }
+    void handleConvertMeasurements(final boolean doSave, final boolean reload) {
+        Project<BufferedImage> project = qupath.getProject();
+        if (project == null) {
+            Dialogs.showNoProjectError("Qiimia Analysis");
+            return;
+        }
+
+        if (!QiimiaQuantCommands.checkSaveChangesPrompt(qupath.getImageData(), project)){
+//			If the prompt was cancelled by user or it returns false for some reason, do not create and show measurement dialog
+            return;
+        }
+
+        Dialog<ButtonType> dialog;
+
+        BorderPane mainPane = new BorderPane();
+
+        BorderPane imageEntryPane = new BorderPane();
+        GridPane optionPane = new GridPane();
+        optionPane.setHgap(5.0);
+        optionPane.setVgap(5.0);
+
+
+        // TOP PANE (SELECT PROJECT ENTRY FOR EXPORT)
+        TextField measConverterText = new TextField();
+        TextField batchMapText = new TextField();
+
+        if(qupath.getImageData() != null) {
+            ProjectImageEntry<BufferedImage> currentEntry = project.getEntry(qupath.getImageData());
+            //		Add to list of images
+            if (previousImages.isEmpty() || !previousImages.contains(currentEntry))
+                previousImages.add(currentEntry);
+        }
+
+        String sameImageWarning = doSave ? "A selected image is open in the viewer!\nUse 'File>Reload data' to see changes." : null;
+        var listSelectionView = ProjectDialogs.createImageChoicePane(qupath, project.getImageList(), previousImages, sameImageWarning);
+
+        // BOTTOM PANE (OPTIONS)
+        int row = 0;
+        Label inputMeasConvLabel = new Label("Measurement Converter File");
+        var btnChooseMeasConv = new Button("Choose");
+        btnChooseMeasConv.setOnAction(e -> {
+            File dirBase = qupath.getProject() != null ? Projects.getBaseDirectory(qupath.getProject()) : new File(System.getProperty("user.home"));
+            File measConvFile = Dialogs.promptForFile("Measurement Converter File", dirBase, "JSON (.json)", ".json");
+            if (measConvFile != null) {
+                measConverterText.setText(measConvFile.getAbsolutePath());
+            }
+        });
+
+        inputMeasConvLabel.setLabelFor(measConverterText);
+        PaneTools.addGridRow(optionPane, row++, 0, "Choose measurement converter file", inputMeasConvLabel, measConverterText, measConverterText, btnChooseMeasConv, btnChooseMeasConv);
+        measConverterText.setMaxWidth(Double.MAX_VALUE);
+        btnChooseMeasConv.setMaxWidth(Double.MAX_VALUE);
+
+        Label inputBatchMapLabel = new Label("Batch Map File");
+        var btnChooseBatchMap= new Button("Choose");
+        btnChooseBatchMap.setOnAction(e -> {
+            File dirBase = qupath.getProject() != null ? Projects.getBaseDirectory(qupath.getProject()) : new File(System.getProperty("user.home"));
+            File batchMapFile = Dialogs.promptForFile("Batch Map File", dirBase, "CSV (.csv)", ".csv");
+            if (batchMapFile != null) {
+                batchMapText.setText(batchMapFile.getAbsolutePath());
+            }
+        });
+
+        inputBatchMapLabel.setLabelFor(batchMapText);
+        PaneTools.addGridRow(optionPane, row++, 0, "Choose batch map file for measurement conversion", inputBatchMapLabel, batchMapText, batchMapText, btnChooseBatchMap, btnChooseBatchMap);
+        batchMapText.setMaxWidth(Double.MAX_VALUE);
+        btnChooseBatchMap.setMaxWidth(Double.MAX_VALUE);
+
+        ButtonType btnConvert = new ButtonType("Convert", ButtonBar.ButtonData.OK_DONE);
+
+        dialog = Dialogs.builder()
+                .title("Convert measurements")
+                .buttons(btnConvert, ButtonType.CANCEL)
+                .content(mainPane)
+                .build();
+
+        dialog.getDialogPane().setPrefSize(600, 400);
+        imageEntryPane.setCenter(listSelectionView);
+
+        // Set the disabledProperty according to (1) targetItems.size() > 0 and (2) both input text fields isEmpty()
+        var targetItemBinding = Bindings.size(listSelectionView.getTargetItems()).isEqualTo(0);
+        var emptyTextBinding = Bindings.and(
+                measConverterText.textProperty().isEmpty(), batchMapText.textProperty().isEmpty()
+        );
+        dialog.getDialogPane().lookupButton(btnConvert).disableProperty().bind(Bindings.or(emptyTextBinding, targetItemBinding));
+
+        mainPane.setTop(imageEntryPane);
+        mainPane.setBottom(optionPane);
+
+//        Dialog<ButtonType> dialog = new Dialog<>();
+//        dialog.initOwner(qupath.getStage());
+//        dialog.setTitle("Select project images for converting measurements");
+//        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.CANCEL, ButtonType.OK);
+//        dialog.getDialogPane().setContent(listSelectionView);
+        dialog.setResizable(true);
+        dialog.getDialogPane().setPrefWidth(600);
+        dialog.initModality(Modality.APPLICATION_MODAL);
+
+        Optional<ButtonType> result = dialog.showAndWait();
+        if (!result.isPresent() || result.get() != btnConvert || result.get() == ButtonType.CANCEL)
+            return;
+
+        previousImages.clear();
+
+        previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+
+        if (previousImages.isEmpty())
+            return;
+
+        List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
+
+        ConvertMeasurementTask worker = new ConvertMeasurementTask(project, imagesToProcess,
+                measConverterText.getText(), batchMapText.getText(), doSave, reload, qupath.getViewers());
+
+
+        ProgressDialog progress = new ProgressDialog(worker);
+        progress.initOwner(qupath.getStage());
+        progress.setTitle("Batch script");
+        progress.getDialogPane().setHeaderText("Batch processing...");
+        progress.getDialogPane().setGraphic(null);
+        progress.getDialogPane().getButtonTypes().add(ButtonType.CANCEL);
+        progress.getDialogPane().lookupButton(ButtonType.CANCEL).addEventFilter(ActionEvent.ACTION, e -> {
+            if (Dialogs.showYesNoDialog("Cancel batch script", "Are you sure you want to stop the running script after the current image?")) {
+                worker.quietCancel();
+                progress.setHeaderText("Cancelling...");
+//                runCancelled.set(true);
+//				worker.cancel(false);
+                progress.getDialogPane().lookupButton(ButtonType.CANCEL).setDisable(true);
+            }
+            e.consume();
+        });
+
+
+        // Create & run task
+        qupath.createSingleThreadExecutor(this).submit(worker);
+//        runningTask.set(qupath.createSingleThreadExecutor(this).submit(worker));
+        progress.show();
+    }
+
+    public static class ConvertMeasurementTask extends Task<Void> {
+
+        private Project<BufferedImage> project;
+        private Collection<ProjectImageEntry<BufferedImage>> imagesToProcess;
+        private String measConvPath;
+        private String batchMapPath;
+        private boolean doSave = true;
+        private boolean reload = false;
+        private List<QuPathViewerPlus> viewersList;
+        private boolean doBatchMap = false;
+        private boolean quietCancel = false;
+
+        ConvertMeasurementTask(final Project<BufferedImage> project,
+                               final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess,
+                               final String measurementConverterPath,
+                               final String batchMapPath,
+                               final boolean doSave,
+                               final boolean reload,
+                               final List<QuPathViewerPlus> viewersList) {
+            this.project = project;
+            this.imagesToProcess = imagesToProcess;
+            this.measConvPath = measurementConverterPath;
+            this.batchMapPath = batchMapPath;
+            this.doSave = doSave;
+            this.reload = reload;
+            this.viewersList = viewersList;
+        }
+
+        public void quietCancel() {
+            this.quietCancel = true;
+        }
+
+        public boolean isQuietlyCancelled() {
+            return quietCancel;
+        }
+
+        @Override
+        public Void call() {
+            long startTime = System.currentTimeMillis();
+            if(batchMapPath.isEmpty() && measConvPath.isEmpty()){
+                logger.error("both measConvPath and batchMapPath are empty, check file input");
+                return null;
+            }
+            Gson gson = new GsonBuilder()
+                    .setPrettyPrinting()
+                    .create();
+//          Try to use the batch map for processing measurement conversions if available
+            Map<String, String> batchMap = new HashMap<>();
+//          TODO: for multiple measurement conversions per index array, not fully implemented
+            List<MeasurementConverter> selectedConverters = new ArrayList<>();
+            if(!batchMapPath.isEmpty()){
+                doBatchMap = true;
+                batchMap = loadBatchMap(batchMapPath);
+                if(batchMap == null){
+                    return null;
+                }
+            } else{
+//                try to load the measurementConverter from json
+                try {
+                    BufferedReader reader = Files.newReader(new File(measConvPath), StandardCharsets.UTF_8);
+//                  TODO: will be trickier when deserializing a list of these things....
+                    MeasurementConverter measConv = gson.fromJson(reader, MeasurementConverter.class);
+                    if(measConv == null){
+                        logger.error("measurement converter is null, bad file?");
+                        return null;
+                    }
+                    selectedConverters.add(measConv);
+                } catch (FileNotFoundException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
+//          Vars for batchMap processing
+            File pathMeasConvs = new File(Projects.getBaseDirectory(project) + File.separator + "measurement_converters");
+            FilenameFilter jsonFilefilter = new FilenameFilter() {
+                public boolean accept(File dir, String name) {
+                    String lowercaseName = name.toLowerCase();
+                    if (lowercaseName.endsWith(".json")) {
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+            };
+            File[] allMeasConvs = pathMeasConvs.listFiles(jsonFilefilter);
+            List<File> allMeasConvList = new ArrayList<>();
+            if(allMeasConvs!=null){
+                allMeasConvList = new ArrayList<>(List.of(allMeasConvs));
+            }
+
+            if(doBatchMap && allMeasConvList.isEmpty()){
+                logger.error("cannot do batchMap conversion if there are no meas. convs. in PROJ/measurement_converters directory!");
+                return null;
+            }
+
+//            var viewersList = qupath.getViewers();
+            List<QuPathViewerPlus> currentViewers = new ArrayList<>();
+//            if (viewersList.size() == 1){
+//                logger.info("Only one viewer found! Setting current viewer.");
+//                currentViewers.add(viewersList.get(0));
+//            }
+            int counter = 0;
+            for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
+                try {
+                    // Stop
+                    if (isQuietlyCancelled() || isCancelled()) {
+                        logger.warn("Script cancelled with " + (imagesToProcess.size() - counter) + " image(s) remaining");
+                        break;
+                    }
+
+                    updateProgress(counter, imagesToProcess.size());
+                    counter++;
+                    updateMessage(entry.getImageName() + " (" + counter + "/" + imagesToProcess.size() + ")");
+
+                    // Create a new region store if we need one
+                    System.gc();
+
+                    // Open saved data if there is any, or else the image itself
+                    ImageData<BufferedImage> imageData = entry.readImageData();
+                    logger.info("Working on {}", entry.getImageName());
+                    if (imageData == null) {
+                        logger.warn("Unable to open {} - will be skipped", entry.getImageName());
+                        continue;
+                    }
+
+                    if(reload){
+                        logger.info("trying to get viewer for imagedata...");
+//						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
+                        currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+                        logger.info(currentViewers.toString());
+                    }
+
+                    if(doBatchMap){
+                        List<MeasurementConverter> currentMeasConvs = getMeasConvsFromBatchMap(
+                                                                        entry.getImageName(),
+                                                                        batchMap,
+                                                                        allMeasConvList
+                        );
+                        if(currentMeasConvs == null){
+                            continue;
+                        }
+                        calculateMeasurementConversions(imageData, currentMeasConvs);
+                    } else{
+                        calculateMeasurementConversions(imageData, selectedConverters);
+                    }
+
+                    if (doSave) {
+                        logger.info("saving image data...");
+                        entry.saveImageData(imageData);
+                    }
+
+                    if (reload && !currentViewers.isEmpty()){
+                        logger.info("reloading image data in viewer(s)...");
+                        for(var openViewer : currentViewers){
+//							need to run on the JavaFX application thread to avoid throwing errors
+                            Platform.runLater(()->{
+                                openViewer.setImageData(imageData);
+                            });
+                        }
+                    }
+
+                    if (imagesToProcess.size() > 1) {
+                        logger.warn("Closing server {}", imageData.toString());
+                        imageData.getServer().close();
+                    }
+
+//                    Do you need to clear the tile cache for this? I don't think so.
+
+                } catch (Exception ex) {
+                    logger.error("Error running batch script");
+                    ex.printStackTrace();
+                }
+            }
+            updateProgress(imagesToProcess.size(), imagesToProcess.size());
+
+            long endTime = System.currentTimeMillis();
+
+            long timeMillis = endTime - startTime;
+            String time = null;
+            if (timeMillis > 1000*60)
+                time = String.format("Total processing time: %.2f minutes", timeMillis/(1000.0 * 60.0));
+            else if (timeMillis > 1000)
+                time = String.format("Total processing time: %.2f seconds", timeMillis/(1000.0));
+            else
+                time = String.format("Total processing time: %d milliseconds", timeMillis);
+            logger.info("Processed {} images", imagesToProcess.size());
+            logger.info(time);
+
+            return null;
+        }
+
+
+        @Override
+        protected void done() {
+            super.done();
+            // Make sure we reset the running task
+//            Platform.runLater(() -> runningTask.setValue(null));
+        }
+    };
+
+
+
+    public static Map<String, String> loadBatchMap(String batchMapPath){
+        Gson gson = new GsonBuilder()
+                .setPrettyPrinting()
+                .create();
+        Map<String, String> batchMap = new HashMap<>();
+//      try to load the batch map file
+        try{
+            // create a reader
+            BufferedReader reader = Files.newReader(new File(batchMapPath), StandardCharsets.UTF_8);
+            String ext = Files.getFileExtension(batchMapPath);
+            if(ext.equals("csv")){
+                String line =  null;
+                while((line=reader.readLine())!=null){
+                    String str[] = line.split(",");
+//                           take first two entries and put into map
+                    if(str.length < 2){
+                        logger.error("not enough entries in line for .csv, skipping line");
+                        continue;
+                    }
+                    batchMap.put(str[0], str[1]);
+                }
+            } else if(ext.equals("json")){
+                // convert JSON file to map
+                batchMap = gson.fromJson(reader, Map.class);
+            } else{
+                logger.error("batchMap file ({}) is not .csv or .json", batchMapPath);
+                return null;
+            }
+            logger.info(batchMap.toString());
+            if(batchMap.isEmpty()){
+                logger.error("batchMap null or empty, bad file?");
+                return null;
+            }
+            return batchMap;
+        } catch(Exception ex){
+            logger.error("error reading index map file");
+            ex.printStackTrace();
+            return null;
+        }
+    }
+
+    public static List<MeasurementConverter> getMeasConvsFromBatchMap(String imageName,
+                                                               Map<String, String> batchMap,
+                                                               List<File> allMeasConvList){
+        Gson gson = new GsonBuilder()
+                .setPrettyPrinting()
+                .create();
+
+        String closestBatchKey = "";
+        for(String key : batchMap.keySet()){
+//          beginning of key must match imageName
+            if(imageName.matches(key+"(.*)")){
+                closestBatchKey = key;
+                break;
+            }
+        }
+        if(closestBatchKey==null||closestBatchKey.isEmpty()){
+            logger.error("Could not find {} in batch map, skipping", imageName);
+            return null;
+        }
+
+        String indexName = batchMap.get(closestBatchKey);
+//      find the corresponding measurement converter(s) in proj/measurement_converter
+        File closestMeasConvFile = null;
+        for(File file : allMeasConvList){
+            String fileName = file.getName();
+            if(fileName.matches(indexName+"(.*)")){
+                closestMeasConvFile = file;
+                break;
+            }
+        }
+        if(closestMeasConvFile==null||!closestMeasConvFile.isFile()){
+            logger.error("Could not find {} measurement converter, skipping", indexName);
+            return null;
+        }
+//      load measurement converter(s) from file
+        List<MeasurementConverter> currentMeasConvs = new ArrayList<>();
+        try {
+            BufferedReader reader = Files.newReader(closestMeasConvFile, StandardCharsets.UTF_8);
+//          TODO: will be trickier when deserializing a list of these things....
+            MeasurementConverter measConv = gson.fromJson(reader, MeasurementConverter.class);
+            if (measConv == null) {
+                logger.error("measurement converter {} is null, bad file?\nskipping...", closestMeasConvFile.getAbsolutePath());
+                return null;
+            }
+            currentMeasConvs.add(measConv);
+        } catch (FileNotFoundException ex) {
+//          should this invalidate the processing?
+//            throw new RuntimeException(e);
+            logger.error("measurment converter file error");
+            ex.printStackTrace();
+            return null;
+        }
+        return currentMeasConvs;
+    }
+
+    public static void calculateMeasurementConversions(ImageData<BufferedImage> imageData,
+                                                       List<MeasurementConverter> measConverters){
+        for(MeasurementConverter measConv : measConverters) {
+            String measurementName = measConv.getMeasurementName();
+            String convertValueName = measConv.getConvertValueName();
+            logger.info("converting {} to {}", measurementName, convertValueName);
+            imageData.getHierarchy().getObjects(null, PathObject.class).parallelStream()
+                    .filter(p -> p.getMeasurementList().containsNamedMeasurement(measurementName))
+                    .forEach(p -> {
+                        measConv.convert(p);
+                    });
+        }
     }
 
     void switchToQuantMode(ActionEvent e){

@@ -34,6 +34,7 @@ import javafx.scene.control.*;
 import javafx.scene.control.ButtonBar.ButtonData;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
+import javafx.stage.Modality;
 import org.controlsfx.control.CheckComboBox;
 import org.controlsfx.control.ListSelectionView;
 import org.controlsfx.dialog.ProgressDialog;
@@ -271,6 +272,9 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 		
 		mainPane.setTop(imageEntryPane);
 		mainPane.setBottom(optionPane);
+		dialog.setResizable(true);
+		dialog.getDialogPane().setPrefWidth(600);
+		dialog.initModality(Modality.APPLICATION_MODAL);
 		
 		Optional<ButtonType> result = dialog.showAndWait();
 		

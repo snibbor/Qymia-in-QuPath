@@ -65,7 +65,7 @@
                                     <TextField fx:id="indexMapFileTextField" prefHeight="26.0" prefWidth="185.0" GridPane.columnIndex="1" />
                                     <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="1" GridPane.rowIndex="1">
                                        <children>
-                                          <Label fx:id="errorLabel" alignment="CENTER" contentDisplay="CENTER" text="Incompatible!" textFill="RED" />
+                                          <Label fx:id="errorLabel" alignment="CENTER" contentDisplay="CENTER" textFill="RED" />
                                        </children>
                                     </HBox>
                                     <HBox alignment="CENTER" prefHeight="100.0" prefWidth="200.0" GridPane.columnIndex="2" GridPane.rowIndex="2">
@@ -149,7 +149,7 @@
                   </AnchorPane>
                </content>
             </Tab>
-            <Tab text="Comparison">
+            <Tab disable="true" text="Comparison">
                <content>
                   <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0" />
                </content>
