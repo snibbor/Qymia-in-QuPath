@@ -59,24 +59,27 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [ ] Normalize image brightness for fluorescence by microscope objective NA & Mag. (Brightness ~ (NA^2/M)^2 Because the objective is also the condenser lens)
       - [ ] Does it matter if you calculate DAB OD for different NA/Mag objectives? Condenser optics? How to normalize brightness here?
       - [ ] Is there a way to make a normalized score for different microscopes with different optical systems (NA/Mag objective/condenser combinations)? Unlikely to be simple, but the scores likely would regress by a proportionality constant.
-    - [ ] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
-      - [ ] Regression options to calculate conversion function using standard index array
-        - [ ] Visuallization of regression fit in QuPath
-        - [ ] Outlier removal
-        - [ ] Handle multiple conversion functions/standard curves per project.
-        - [ ] Methods to save results to file --> set current project conversion functions on save
-      - [ ] Apply conversion functions/standard curves to images in project
-        - [ ] Load conversion function parameters from file --> apply based mapping of imagePath -> function name
-          - [ ] Map functions and images based on CSV/TSV/Excel file
-          - [ ] Interactive GUI to select images for each conversion function
-    - [ ] Tile size option for px and um
-    - [ ] Calculate verbose/extra measurements option
-    - [ ] Permanent user settings/preferences
-    - [ ] Changeable ignore classes
+    - [x] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
+      - [x] Regression options to calculate conversion function using standard index array
+        - [x] Visuallization of regression fit in QuPath
+        - [x] Outlier removal --> through setting core missing/invalid
+        - [x] Handle multiple conversion functions/standard curves per project.
+        - [x] Methods to save results to file --> set current project conversion functions on save
+        - [ ] Allow multiple measurement converters for each standard index array 
+      - [x] Apply conversion functions/standard curves to images in project
+        - [x] Load conversion function parameters from file --> apply based mapping of imagePath -> function name
+          - [x] Map functions and images based on CSV/TSV/Excel file --> stain batch map file
+          - [x] Interactive GUI to select images for each conversion function --> convert measurements option in QiimiaAnalysis -> TMA standard tools
+          - [x] Automatic conversion of measurements -> if batch map and measurement converters exist in project, this option is available in QiimiaQuant panel
+    - [x] Tile size option for px and um
+    - [x] Calculate verbose/extra measurements option
+    - [x] Permanent user settings/preferences
+    - [x] Changeable ignore classes
+    - [x] Changeable ROI classes
     - [x] Simpler measurement export options
       - [x] Change GUI controls to use the default QuPath measurement exporter.
       - [x] Put current opened image inside selected export list automatically.
-      - [ ] Save dialog (if project entry not saved) before export measurements dialog opens.
+      - [x] Save dialog (if project entry not saved) before export measurements dialog opens.
       - [ ] Option to export measurements as separate files for project entries.
       - [ ] Customize measurement exporter class to:
         - [ ] Export ROI class of annotations/detections only --> filter by PathObject.class and PathClass(es)
@@ -89,7 +92,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [x] Improve "finished" asthetics/state of progress bar
       - [x] Completed message for task --> used CompletableFutures to do this
       - [x] Cancelled message --> progress value is set to 0, no color change
-    - [ ] Tooltips
+    - [x] Tooltips --> in progress...
     - [ ] Help > About & Docs link
       
   - #### Fix known bugs/problems, improve backend
@@ -97,7 +100,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Debug why cancelling sometimes causes image server exceptions for later runs... --> works after wrapping inside task
       - [x] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools. --> yes
       - [x] Bug with reloading images because task execution occurs on thread separate from JavaFX
-    - [ ] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
+    - [x] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
     - [ ] Trim tiles to image dimensions (for asthetics)  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
     - [ ] On switching projects or images, make sure GUI is updated. Handle running tasks.
