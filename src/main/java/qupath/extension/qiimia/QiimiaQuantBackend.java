@@ -513,7 +513,7 @@ public class QiimiaQuantBackend {
 //											logger.info(f.getName());
 //                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
                                         if (f.getName() == null || f.getName().isBlank()) {
-                                            f.setName("ROI_" + roiNumber.getAndIncrement());
+                                            f.setName(f.getPathClass().toString() + "_" + roiNumber.getAndIncrement());
                                         }
 
                                         PathObject adjpathObj = null;
@@ -1234,7 +1234,7 @@ public class QiimiaQuantBackend {
 //											logger.info(f.getName());
 //                                      if (f.getName() == null || f.getName().isBlank() || f.getName().matches("^ROI_[0-9]+$")) {
                                 if (f.getName() == null || f.getName().isBlank()) {
-                                    f.setName("ROI_" + roiNumber.getAndIncrement());
+                                    f.setName(f.getPathClass().toString() + "_" + roiNumber.getAndIncrement());
                                 }
                                 PathObject adjpathObj = null;
                                 ROI adjpathObjROI = f.getROI();

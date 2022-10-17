@@ -23,8 +23,8 @@ repositories {
   
 }
 
-ext.moduleName = 'qupath.extension.qiima'
-archivesBaseName = 'qupath-extension-qiima'
+ext.moduleName = 'qupath.extension.qiimia'
+archivesBaseName = 'qupath-extension-qiimia'
 description = 'Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis in QuPath'
 
 //version = "0.3.0"

@@ -10,3 +10,5 @@ build
 *.jar
 example_data/Test1-515_qupath/images/Test1@20220804_185225_161578.metadata
 example_data/Test1-515_qupath/images/test1_deflate.ome.tiff
+/junk/
+/src/main/resources/old/
