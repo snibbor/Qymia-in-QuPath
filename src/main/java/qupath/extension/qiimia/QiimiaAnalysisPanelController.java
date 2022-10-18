@@ -153,36 +153,36 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             if (indexMapPath != null) {
                 indexMapFileTextField.setText(indexMapPath.getAbsolutePath());
             }
+            doStandardsRegressionPlot();
         });
         calcRegButton.setOnAction(this::calcTMAStandardRegs);
         convertMeasButton.setOnAction(this::convertMeasurements);
-
-        qupath.getViewer().addViewerListener(new QuPathViewerListener() {
-            @Override
-            public void imageDataChanged(QuPathViewer viewer, ImageData<BufferedImage> imageDataOld, ImageData<BufferedImage> imageDataNew) {
-                logger.info("imageData changed inside main viewer");
-                if(imageDataOld == null && imageDataNew != null){
-                    updateGUI(true);
-                    return;
-                } else if (imageDataNew == null) {
-                    return;
-                }
-                if(imageDataOld!=null && imageDataNew!=null) {
-                    if (!imageDataOld.getProperties().equals(imageDataNew.getProperties())){
-                        updateGUI(true);
-                    }
-                }
-            }
-            @Override
-            public void visibleRegionChanged(QuPathViewer viewer, Shape shape) {}
-            @Override
-            public void selectedObjectChanged(QuPathViewer viewer, PathObject pathObjectSelected) {}
-            @Override
-            public void viewerClosed(QuPathViewer viewer) {
-//                viewer.removeViewerListener(this);
-//                viewer.repaint();
-            }
-        });
+//        qupath.getViewer().addViewerListener(new QuPathViewerListener() {
+//            @Override
+//            public void imageDataChanged(QuPathViewer viewer, ImageData<BufferedImage> imageDataOld, ImageData<BufferedImage> imageDataNew) {
+//                logger.info("imageData changed inside main viewer");
+//                if(imageDataOld == null && imageDataNew != null){
+//                    updateGUI(true);
+//                    return;
+//                } else if (imageDataNew == null) {
+//                    return;
+//                }
+//                if(imageDataOld!=null && imageDataNew!=null) {
+//                    if (!imageDataOld.getProperties().equals(imageDataNew.getProperties())){
+//                        updateGUI(true);
+//                    }
+//                }
+//            }
+//            @Override
+//            public void visibleRegionChanged(QuPathViewer viewer, Shape shape) {}
+//            @Override
+//            public void selectedObjectChanged(QuPathViewer viewer, PathObject pathObjectSelected) {}
+//            @Override
+//            public void viewerClosed(QuPathViewer viewer) {
+////                viewer.removeViewerListener(this);
+////                viewer.repaint();
+//            }
+//        });
         updateGUI(false);
     }
 
@@ -327,6 +327,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
         List<String> intersectKeys = new ArrayList<String>(measureMap.keySet());
         intersectKeys.retainAll(indexMap.keySet());
+        logger.info(intersectKeys.toString());
 //        Flip XY check
         ObservableList<XYChart.Data<Number, Number>> xyData = FXCollections.observableArrayList();
         String xLabel;

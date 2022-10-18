@@ -1200,6 +1200,7 @@ public class QiimiaQuantBackend {
             }
 
             Map<PathObject, Map<PathObject, Map<PathClass, ROI>>> allTileIntersectROIs = new HashMap<>();
+//            TODO: implement this in getTargetScoresForROIs()
             Map<PathClass, ROI> combCompartmentROIMap = combineAnnotationsIntoMap(
                     compartmentObjs, combinedExcludeGeom, combinedExcludeROI, doAdjust.get());
 
@@ -1221,7 +1222,9 @@ public class QiimiaQuantBackend {
                             ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                             true,
                             0);
-                    allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                    if(tileIntersectROIs!=null) {
+                        allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                    }
                 }
                 case ROI_ONLY: {
                     logger.info("Computing tiles for ROIs [ROI_ONLY || ROI_AND_IMAGE]");
@@ -1288,12 +1291,14 @@ public class QiimiaQuantBackend {
                                 ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
+                        if(tileIntersectROIs!=null) {
 //                      Check that tile objects are within ROI object
-                        logger.info("checking intersect: tiles before {}", tileIntersectROIs.keySet().size());
-                        List<PathObject> includeTiles = checkIntersectObjects(roiObj, tileIntersectROIs.keySet());
-                        tileIntersectROIs.keySet().retainAll(includeTiles);
-                        logger.info("checking intersect: tiles after {}", tileIntersectROIs.keySet().size());
-                        allTileIntersectROIs.put(roiObj, tileIntersectROIs);
+                            logger.info("checking intersect: tiles before {}", tileIntersectROIs.keySet().size());
+                            List<PathObject> includeTiles = checkIntersectObjects(roiObj, tileIntersectROIs.keySet());
+                            tileIntersectROIs.keySet().retainAll(includeTiles);
+                            logger.info("checking intersect: tiles after {}", tileIntersectROIs.keySet().size());
+                            allTileIntersectROIs.put(roiObj, tileIntersectROIs);
+                        }
                         i++;
                     }
                     break;
@@ -1337,12 +1342,14 @@ public class QiimiaQuantBackend {
                                 ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                                 true,
                                 0);
-                        //                      Check that tile objects are within ROI object
-                        logger.info("checking intersect: tiles before {}", tileIntersectROIs.keySet().size());
-                        List<PathObject> includeTiles = checkIntersectObjects(sObj, tileIntersectROIs.keySet());
-                        tileIntersectROIs.keySet().retainAll(includeTiles);
-                        logger.info("checking intersect: tiles after {}", tileIntersectROIs.keySet().size());
-                        allTileIntersectROIs.put(sObj, tileIntersectROIs);
+                        if(tileIntersectROIs!=null) {
+//                            Check that tile objects are within ROI object
+                            logger.info("checking intersect: tiles before {}", tileIntersectROIs.keySet().size());
+                            List<PathObject> includeTiles = checkIntersectObjects(sObj, tileIntersectROIs.keySet());
+                            tileIntersectROIs.keySet().retainAll(includeTiles);
+                            logger.info("checking intersect: tiles after {}", tileIntersectROIs.keySet().size());
+                            allTileIntersectROIs.put(sObj, tileIntersectROIs);
+                        }
                         i++;
                     }
                     break;
@@ -1359,7 +1366,9 @@ public class QiimiaQuantBackend {
                             ImmutableDimension.getInstance(tileSizeX, tileSizeY),
                             true,
                             0);
-                    allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                    if(tileIntersectROIs!=null) {
+                        allTileIntersectROIs.put(hierarchy.getRootObject(), tileIntersectROIs);
+                    }
                     break;
                 }
             }
