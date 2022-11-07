@@ -176,7 +176,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	@FXML
 	MenuItem exportMaskMenuItem;
 	@FXML
-	MenuItem importGridOverlayMenuItem;
+	MenuItem savePresetMenuItem;
 	@FXML
 	MenuItem runForProjectMenuItem;
 	@FXML
@@ -285,6 +285,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	private void setupMenu() {
 		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
+        savePresetMenuItem.setOnAction(this::saveQuantPreset);
 		standardCurveMenuItem.setOnAction(e -> {
 				try{
 					switchToAnalysisMode(e, "standardCurve");
@@ -586,6 +587,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			targetListView.setDisable(true);
 			startQuantButton.setDisable(true);
 			runForProjectMenuItem.setDisable(true);
+            savePresetMenuItem.setDisable(true);
 			return;
 		}
 		targetListView.setDisable(false);
@@ -608,6 +610,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		startQuantButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 		runForProjectMenuItem.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 		cancelButton.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
+        savePresetMenuItem.setDisable(slide == null || stain == null || source == null || result == null || selectedCompartments.size() == 0 || selectedTargets.size() == 0);
 
 		if(result != null && result.toLowerCase().contains("tile")){
 			tileSizeTextField.setDisable(false);
@@ -617,6 +620,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				startQuantButton.setDisable(true);
 				runForProjectMenuItem.setDisable(true);
 				cancelButton.setDisable(true);
+                savePresetMenuItem.setDisable(true);
 			}
 		} else {
 			tileSizeTextField.setDisable(true);
@@ -658,7 +662,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	 * Request project image entries to run script for.
 	 * @param doSave
 	 */
-	void handleRunProject(final boolean doSave) {
+	void handleRunProject(final boolean doSave, final boolean reload) {
 		Project<BufferedImage> project = qupath.getProject();
 		if (project == null) {
 			Dialogs.showNoProjectError("Qiimia Quant");
@@ -689,7 +693,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 		List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
 
-		QuantTask worker = new QuantTask(project, imagesToProcess, doSave, false);
+		QuantTask worker = new QuantTask(project, imagesToProcess, doSave, reload);
 
 
 		ProgressDialog progress = new ProgressDialog(worker);
@@ -725,7 +729,10 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		private boolean doSave = true;
 		private boolean reload = false;
 
-		QuantTask(final Project<BufferedImage> project, final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess, final boolean doSave, final boolean reload) {
+		QuantTask(final Project<BufferedImage> project,
+                  final Collection<ProjectImageEntry<BufferedImage>> imagesToProcess,
+                  final boolean doSave,
+                  final boolean reload) {
 			this.project = project;
 			this.imagesToProcess = imagesToProcess;
 			this.doSave = doSave;
@@ -845,7 +852,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 							progressLabel
 					);
 
-					runQuant(qiimiaQuant).get();
+					qiimiaQuant.runQuant().get();
 
 					if(convertMeasurementsProperty.get()){
 						if(batchMap != null && !allMeasConvList.isEmpty()){
@@ -960,15 +967,15 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			logger.warn("Insufficient inputs selected. Check that compartments and targets are selected, comboboxes are filled, etc.");
 			return null;
 		}
-		runCancelled.set(false);
-		Platform.runLater(()->{
-			exportMeasButton.setDisable(true);
-			exportMeasMenuItem.setDisable(true);
-			startQuantButton.setDisable(true);
-			runForProjectMenuItem.setDisable(true);
-			quantProgressBar.setProgress(-1);
-			progressLabel.setText("Starting Compartment Quantification...");
-		});
+//		runCancelled.set(false);
+//		Platform.runLater(()->{
+//			exportMeasButton.setDisable(true);
+//			exportMeasMenuItem.setDisable(true);
+//			startQuantButton.setDisable(true);
+//			runForProjectMenuItem.setDisable(true);
+//			quantProgressBar.setProgress(-1);
+//			progressLabel.setText("Starting Compartment Quantification...");
+//		});
 		boolean normalizeScore = normalizeMenuItem.selectedProperty().get();
 		boolean rescaleScore = rescaleMenuItem.selectedProperty().get();
 		boolean verboseMeasures = verboseMeasuresMenuItem.selectedProperty().get();
@@ -995,6 +1002,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				Map.entry("tileSize", inputTileSize),
 				Map.entry("tileUnitIsMicrons", tileUnitIsMicrons),
 				Map.entry("tileOption", tileOption),
+                Map.entry("deleteTilesBeforeRun", deleteTilesMenuItem.selectedProperty().get()),
 				Map.entry("selectedObjects", selectedObjs),
 				Map.entry("sourceType", sourceType),
 				Map.entry("verboseMeasures", verboseMeasures),
@@ -1147,15 +1155,14 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			});
 //				cleanup vars
 			qiimiaQuant.close();
-			var store = qupath == null ? null : qupath.getImageRegionStore();
-			if (store != null) {
-//					This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
-				logger.info("Clearing Image Region Store cache...");
-				store.clearCache();
-			}
+//			var store = qupath == null ? null : qupath.getImageRegionStore();
+//			if (store != null) {
+////					This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
+//				logger.info("Clearing Image Region Store cache...");
+//				store.clearCache();
+//			}
 			System.gc();
 			logger.info("Completed with all tasks...");
-//			update progress bar again.....?
 		});
 		return runFuture;
 	}
@@ -1178,7 +1185,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			Dialogs.showNoProjectError("Qiimia Quant");
 			return;
 		}
-		var entry = project == null ? null : project.getEntry(qupath.getImageData());
+//		var entry = project == null ? null : project.getEntry(qupath.getImageData());
+        var entry = project.getEntry(qupath.getImageData());
 //		Make sure to save image data before starting or else reload doesn't work properly
 		try {
 			entry.saveImageData(qupath.getImageData());
@@ -1201,7 +1209,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 	public void runForProject(ActionEvent e){
 //		always set saving to true for batch jobs...
-		handleRunProject(true);
+		handleRunProject(true, true);
 	}
 
 	public void cancelQuant(ActionEvent e){
@@ -1228,6 +1236,13 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	void exportMasksButton(ActionEvent e) {
 		logger.info("Opening dialog to export masks for project...");
 	}
+
+    void saveQuantPreset(ActionEvent e){
+//      building QiimiaQuant backend object for preset
+
+        logger.info("Saving QiimiaQuant parameters as preset...");
+
+    }
 
 	void switchToAnalysisMode(ActionEvent e, String tabName) throws IOException {
 //		FXMLLoader analysisSceneLoader = new FXMLLoader(getClass().getResource("/QiimiaAnalysisPanel.fxml"));

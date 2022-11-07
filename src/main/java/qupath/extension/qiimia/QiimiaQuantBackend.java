@@ -63,8 +63,8 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
-import static qupath.lib.scripting.QP.fireHierarchyUpdate;
-import static qupath.lib.scripting.QP.getSelectedObjects;
+import static qupath.lib.scripting.QP.*;
+import static qupath.lib.scripting.QP.clearMeasurements;
 
 //	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
 public class QiimiaQuantBackend {
@@ -201,12 +201,17 @@ public class QiimiaQuantBackend {
                        double downsample,
                        int tileSize,
                        TileOption tileOption,
+                       boolean tileUnitIsMicrons,
+                       boolean deleteTilesBeforeRun,
                        Collection<PathObject> selectedObjs,
                        Class<? extends PathObject> sourceType,
                        boolean verboseMeasures,
                        boolean rescaleScore,
                        boolean normalizeScore,
                        double maxFloatValue,
+                       String result,
+                       String slideType,
+                       String stainType,
                        int numThreads
     ) {
         this.bImageData = bImageData;
@@ -218,17 +223,22 @@ public class QiimiaQuantBackend {
                 Map.entry("downsample", downsample),
                 Map.entry("tileSize", tileSize),
                 Map.entry("tileOption", tileOption),
+                Map.entry("tileUnitIsMicrons", tileUnitIsMicrons),
+                Map.entry("deleteTilesBeforeRun", deleteTilesBeforeRun),
                 Map.entry("selectedObjects", selectedObjs),
                 Map.entry("sourceType", sourceType),
                 Map.entry("verboseMeasures", verboseMeasures),
                 Map.entry("rescaleScore", rescaleScore),
                 Map.entry("normalizeScore", normalizeScore),
-                Map.entry("maxFloatValue", maxFloatValue)
+                Map.entry("maxFloatValue", maxFloatValue),
+                Map.entry("result", result),
+                Map.entry("slide", slideType),
+                Map.entry("stain", stainType)
         ));
         this.numThreads = numThreads;
         this.isCancelled = new AtomicReference<Boolean>(false);
-        this.controlListToToggle = null;
-        this.menuItemListToToggle = null;
+//        this.controlListToToggle = null;
+//        this.menuItemListToToggle = null;
         this.progressBar = null;
         this.progressLabel = null;
     }
@@ -249,8 +259,8 @@ public class QiimiaQuantBackend {
         this.params = new ConcurrentHashMap<>(params);
         this.numThreads = numThreads;
         this.isCancelled = new AtomicReference<Boolean>(false);
-        this.controlListToToggle = null;
-        this.menuItemListToToggle = null;
+//        this.controlListToToggle = null;
+//        this.menuItemListToToggle = null;
         this.progressBar = null;
         this.progressLabel = null;
     }
@@ -279,6 +289,18 @@ public class QiimiaQuantBackend {
         this.isCancelled = runCancelled;
         this.controlListToToggle = controlListToToggle;
         this.menuItemListToToggle = menuItemListToToggle;
+        this.progressBar = progressBar;
+        this.progressLabel = progressLabel;
+    }
+
+    public void setControlListToToggle(ObservableList<Control> controlListToToggle){
+        this.controlListToToggle = controlListToToggle;
+    }
+    public void setMenuItemListToToggle(ObservableList<MenuItem> menuItemListToToggle){
+        this.menuItemListToToggle = menuItemListToToggle;
+    }
+
+    public void setProgressBarAndLabel(ProgressBar progressBar, Label progressLabel){
         this.progressBar = progressBar;
         this.progressLabel = progressLabel;
     }
@@ -352,7 +374,7 @@ public class QiimiaQuantBackend {
             throw new RuntimeException(e);
         }
         System.gc();
-        System.gc();
+//        System.gc();
     }
 
     public void setEstNumTasks(int newEst) {
@@ -405,12 +427,12 @@ public class QiimiaQuantBackend {
                         logger.info("forkJoinPool termination finished...");
                         forkJoinPool = null;
                         System.gc();
-                        System.gc();
+//                        System.gc();
                     } else {
                         logger.warn("forkJoinPool termination timed-out...!");
                         forkJoinPool.shutdownNow();
                         System.gc();
-                        System.gc();
+//                        System.gc();
                     }
                 } catch (InterruptedException ex) {
                     logger.warn(String.valueOf(ex));
@@ -436,6 +458,190 @@ public class QiimiaQuantBackend {
             return false;
         }
     }
+
+
+    CompletableFuture<Void> runQuant(){
+//		Every time you run this code, make sure that the isCancelled is false at first, buttons are toggled, progress bar is setup
+        isCancelled.set(false);
+        Platform.runLater(()->{
+            for (Control button : controlListToToggle) {
+                button.setDisable(true);
+            }
+            for (MenuItem menuItem : menuItemListToToggle) {
+                menuItem.setDisable(true);
+            }
+        });
+        if(progressBar!=null){
+            Platform.runLater(()->{
+                progressBar.setProgress(-1);
+                progressLabel.setText("Starting Compartment Quantification...");
+            });
+        }
+        ImageData<BufferedImage> imageData = this.getImageData();
+        PathObjectHierarchy hierarchy = imageData.getHierarchy();
+        Map<String, Object> params = this.getParams();
+        String slide = (String) params.get("slide");
+        Class<? extends PathObject> source = (Class<? extends PathObject>) params.get("sourceType");
+        String result = (String) params.get("result");
+//		Remove detection objects within any ROIs that are not cells, clear source measurements
+        if(result.toLowerCase().contains("roi")){
+            List<PathObject> oldROIComps = hierarchy.getDetectionObjects().parallelStream()
+                    .filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile() && roiClasses.contains(p.getParent().getPathClass()))
+                    .collect(Collectors.toList());
+            hierarchy.removeObjects(oldROIComps, true);
+        }
+
+        if(source.equals(PathAnnotationObject.class)) {
+            if(!result.toLowerCase().contains("roi"))
+                clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
+        } else if(source.equals(PathCellObject.class)){
+            if(!result.toLowerCase().contains("roi"))
+                clearMeasurements(hierarchy, hierarchy.getCellObjects());
+        } else if(source.equals(PathDetectionObject.class)){
+            if(!result.toLowerCase().contains("roi"))
+                clearMeasurements(hierarchy, hierarchy.getDetectionObjects());
+        }
+        CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
+                    if(isCancelled.get()){
+                        throw new CancellationException();
+                    }
+                    if(result.toLowerCase().contains("tile")){
+                        String tileSize = (String) params.get("tileSize");
+                        if(tileSize.isEmpty() || tileSize == null) {
+                            logger.warn("Tilesize cannot be null when trying to compute tile results!");
+                        }else if(tileSize != null && Integer.parseInt(tileSize) == 0) {
+                            logger.warn("Tilesize cannot be 0 or empty when trying to compute tile results!");
+                        }else {
+                            if(progressLabel != null) {
+                                Platform.runLater(() -> {
+                                    progressLabel.setText("Quantifying Tiles...");
+                                });
+                            }
+                            boolean deleteTilesBeforeRun = (boolean) params.get("deleteTilesBeforeRun");
+                            if(deleteTilesBeforeRun){
+//						        If you are making grids/tiles, delete any old tiles?
+                                logger.warn("Deleting any tile objects!!");
+                                hierarchy.removeObjects(hierarchy.getTileObjects(), true);
+                            }
+
+                            try{
+                                this.TileRecalcCompartmentsAndScores().get();
+                            }catch (ExecutionException | InterruptedException | CancellationException ex){
+                                Platform.runLater(()-> {
+                                    for (Control button : controlListToToggle) {
+                                        button.setDisable(false);
+                                    }
+                                    for (MenuItem menuItem : menuItemListToToggle) {
+                                        menuItem.setDisable(false);
+                                    }
+                                });
+                                throw new RuntimeException(ex);
+                            }
+                        }
+
+                    }
+                })
+                .thenRun(()->{
+                    if(isCancelled.get()){
+                        throw new CancellationException();
+                    }
+                    if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
+                        logger.info("Beginning compartment quantification of TMA cores for compartments: {} and targets: {}...", compartments.toString(), targets.toString());
+                        if(progressLabel!=null) {
+                            Platform.runLater(() -> {
+                                progressLabel.setText("Quantifying TMA core compartments...");
+                            });
+                        }
+                        try {
+                            this.TMARecalcCompartmentsAndScores().get();
+                        } catch (ExecutionException | InterruptedException | CancellationException ex) {
+                            Platform.runLater(()-> {
+                                for (Control button : controlListToToggle) {
+                                    button.setDisable(false);
+                                }
+                                for (MenuItem menuItem : menuItemListToToggle) {
+                                    menuItem.setDisable(false);
+                                }
+                            });
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                })
+                .thenRun(()->{
+                    if(isCancelled.get()){
+                        throw new CancellationException();
+                    }
+                    if(result.toLowerCase().contains("roi")){
+                        logger.info("Beginning compartment quantification of ROIs for compartments: {} and targets: {}...", compartments.toString(), targets.toString());
+                        if(progressLabel!=null) {
+                            Platform.runLater(() -> {
+                                progressLabel.setText("Quantifying ROI compartments...");
+                            });
+                        }
+                        try {
+                            this.getTargetScoresForROIs().get();
+                        } catch (ExecutionException | InterruptedException | CancellationException ex) {
+                            Platform.runLater(()-> {
+                                for (Control button : controlListToToggle) {
+                                    button.setDisable(false);
+                                }
+                                for (MenuItem menuItem : menuItemListToToggle) {
+                                    menuItem.setDisable(false);
+                                }
+                            });
+                            throw new RuntimeException(ex);
+                        }
+                    }
+                })
+                .exceptionally(ex -> {
+                    if (ex.getCause() instanceof CancellationException){
+                        logger.warn("Run cancelled?");
+                        if(progressBar!=null && progressLabel!=null) {
+                            Platform.runLater(() -> {
+                                progressLabel.setText("Run cancelled..");
+                                progressBar.setProgress(1);
+                            });
+                        }
+                    } else {
+                        if(progressLabel!=null) {
+                            Platform.runLater(() -> {
+                                progressLabel.setText(ex.getCause().toString());
+                            });
+                        }
+                        ex.printStackTrace();
+                    }
+                    logger.warn(ex.toString());
+                    try {
+                        this.cancelTasks().get();
+                    } catch (InterruptedException | ExecutionException exc) {
+                        throw new RuntimeException(exc);
+                    }
+                    return null;
+                })
+                .thenRun(()->{
+//			    not necessary but just in case
+                    Platform.runLater(()-> {
+                        for (Control button : controlListToToggle) {
+                            button.setDisable(false);
+                        }
+                        for (MenuItem menuItem : menuItemListToToggle) {
+                            menuItem.setDisable(false);
+                        }
+                    });
+//				cleanup vars
+                    this.close();
+//			var store = qupath == null ? null : qupath.getImageRegionStore();
+//			if (store != null) {
+////					This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
+//				logger.info("Clearing Image Region Store cache...");
+//				store.clearCache();
+//			}
+                    System.gc();
+                    logger.info("Completed with all tasks...");
+                });
+        return runFuture;
+    }
+
 
     // AQUA inside each intersecting compartment of ROI only
     //    Map<String, Integer> targets = new LinkedHashMap<>();

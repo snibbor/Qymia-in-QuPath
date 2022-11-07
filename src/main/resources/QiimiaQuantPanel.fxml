@@ -30,8 +30,8 @@
               <items>
                 <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" visible="false" />
-                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
-                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Overlay" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="savePresetMenuItem" mnemonicParsing="false" text="Save as preset..." />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>
