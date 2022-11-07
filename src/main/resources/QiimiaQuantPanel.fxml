@@ -32,6 +32,7 @@
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" visible="false" />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="savePresetMenuItem" mnemonicParsing="false" text="Save as preset..." />
+                  <MenuItem fx:id="loadPresetMenuItem" mnemonicParsing="false" text="Load preset..." />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>

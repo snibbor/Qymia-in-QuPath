@@ -95,6 +95,10 @@ public class QiimiaQuantBackend {
     private Set<PathClass> compartments;
     private Set<PathClass> ignoreClasses;
     private Set<PathClass> roiClasses;
+
+    private Class<? extends PathObject> sourceType;
+
+//    private Collection<PathObject> selectedObjects = new ArrayList<>();
     private final AtomicReference<BigInteger> progressValue = new AtomicReference<BigInteger>(new BigInteger("0"));
     private final AtomicReference<Boolean> isCancelled;
 
@@ -198,12 +202,12 @@ public class QiimiaQuantBackend {
                        Set<PathClass> compartments,
                        Set<PathClass> ignoreClasses,
                        Set<PathClass> roiClasses,
+//                       Collection<PathObject> selectedObjs,
                        double downsample,
                        int tileSize,
                        TileOption tileOption,
                        boolean tileUnitIsMicrons,
                        boolean deleteTilesBeforeRun,
-                       Collection<PathObject> selectedObjs,
                        Class<? extends PathObject> sourceType,
                        boolean verboseMeasures,
                        boolean rescaleScore,
@@ -219,14 +223,15 @@ public class QiimiaQuantBackend {
         this.compartments = Collections.synchronizedSet(compartments);
         this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
         this.roiClasses = Collections.synchronizedSet(roiClasses);
+        this.sourceType = sourceType;
+//        this.selectedObjects = selectedObjs;
         this.params = new ConcurrentHashMap<>(Map.ofEntries(
                 Map.entry("downsample", downsample),
                 Map.entry("tileSize", tileSize),
                 Map.entry("tileOption", tileOption),
                 Map.entry("tileUnitIsMicrons", tileUnitIsMicrons),
                 Map.entry("deleteTilesBeforeRun", deleteTilesBeforeRun),
-                Map.entry("selectedObjects", selectedObjs),
-                Map.entry("sourceType", sourceType),
+                Map.entry("sourceString", sourceType.toString()),
                 Map.entry("verboseMeasures", verboseMeasures),
                 Map.entry("rescaleScore", rescaleScore),
                 Map.entry("normalizeScore", normalizeScore),
@@ -248,6 +253,7 @@ public class QiimiaQuantBackend {
                        Set<PathClass> compartments,
                        Set<PathClass> ignoreClasses,
                        Set<PathClass> roiClasses,
+//                       Collection<PathObject> selectedObjs,
                        Map<String, Object> params,
                        int numThreads
     ) {
@@ -256,7 +262,16 @@ public class QiimiaQuantBackend {
         this.compartments = Collections.synchronizedSet(compartments);
         this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
         this.roiClasses = Collections.synchronizedSet(roiClasses);
+//        this.selectedObjects = selectedObjs;
         this.params = new ConcurrentHashMap<>(params);
+        String sourceString = (String) params.get("sourceString");
+		if(sourceString.toLowerCase().contains("cell")){
+			this.sourceType = PathCellObject.class;
+		} else if (sourceString.toLowerCase().contains("detection")){
+			this.sourceType = PathDetectionObject.class;
+		} else if(sourceString.toLowerCase().contains("annotation")){
+			this.sourceType = PathAnnotationObject.class;
+		}
         this.numThreads = numThreads;
         this.isCancelled = new AtomicReference<Boolean>(false);
 //        this.controlListToToggle = null;
@@ -271,6 +286,7 @@ public class QiimiaQuantBackend {
                        Set<PathClass> compartments,
                        Set<PathClass> ignoreClasses,
                        Set<PathClass> roiClasses,
+//                       Collection<PathObject> selectedObjs,
                        Map<String, Object> params,
                        int numThreads,
                        AtomicReference<Boolean> runCancelled,
@@ -284,7 +300,16 @@ public class QiimiaQuantBackend {
         this.compartments = Collections.synchronizedSet(compartments);
         this.ignoreClasses = Collections.synchronizedSet(ignoreClasses);
         this.roiClasses = Collections.synchronizedSet(roiClasses);
+//        this.selectedObjects = selectedObjs;
         this.params = new ConcurrentHashMap<>(params);
+        String sourceString = (String) params.get("sourceString");
+        if(sourceString.toLowerCase().contains("cell")){
+            this.sourceType = PathCellObject.class;
+        } else if (sourceString.toLowerCase().contains("detection")){
+            this.sourceType = PathDetectionObject.class;
+        } else if(sourceString.toLowerCase().contains("annotation")){
+            this.sourceType = PathAnnotationObject.class;
+        }
         this.numThreads = numThreads;
         this.isCancelled = runCancelled;
         this.controlListToToggle = controlListToToggle;
@@ -481,7 +506,6 @@ public class QiimiaQuantBackend {
         PathObjectHierarchy hierarchy = imageData.getHierarchy();
         Map<String, Object> params = this.getParams();
         String slide = (String) params.get("slide");
-        Class<? extends PathObject> source = (Class<? extends PathObject>) params.get("sourceType");
         String result = (String) params.get("result");
 //		Remove detection objects within any ROIs that are not cells, clear source measurements
         if(result.toLowerCase().contains("roi")){
@@ -491,13 +515,13 @@ public class QiimiaQuantBackend {
             hierarchy.removeObjects(oldROIComps, true);
         }
 
-        if(source.equals(PathAnnotationObject.class)) {
+        if(sourceType.equals(PathAnnotationObject.class)) {
             if(!result.toLowerCase().contains("roi"))
                 clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
-        } else if(source.equals(PathCellObject.class)){
+        } else if(sourceType.equals(PathCellObject.class)){
             if(!result.toLowerCase().contains("roi"))
                 clearMeasurements(hierarchy, hierarchy.getCellObjects());
-        } else if(source.equals(PathDetectionObject.class)){
+        } else if(sourceType.equals(PathDetectionObject.class)){
             if(!result.toLowerCase().contains("roi"))
                 clearMeasurements(hierarchy, hierarchy.getDetectionObjects());
         }
@@ -506,10 +530,10 @@ public class QiimiaQuantBackend {
                         throw new CancellationException();
                     }
                     if(result.toLowerCase().contains("tile")){
-                        String tileSize = (String) params.get("tileSize");
-                        if(tileSize.isEmpty() || tileSize == null) {
+                        Integer tileSize = (Integer) params.get("tileSize");
+                        if(tileSize == null) {
                             logger.warn("Tilesize cannot be null when trying to compute tile results!");
-                        }else if(tileSize != null && Integer.parseInt(tileSize) == 0) {
+                        }else if(tileSize == 0) {
                             logger.warn("Tilesize cannot be 0 or empty when trying to compute tile results!");
                         }else {
                             if(progressLabel != null) {
@@ -648,7 +672,7 @@ public class QiimiaQuantBackend {
     // Not for TMAs! Would be much more effective to restrict the search space for ROIS within TMA core hierarchy, however, not all the annotations will be properly incorporated into the hierarchy.....
     // TODO: How to flexibly find ROIs within TMA core hierarchy?
     public CompletableFuture<Void> getTargetScoresForROIs() throws RuntimeException {
-        return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
+        return getTargetScoresForROIs(ignoreClasses, roiClasses, targets, compartments, sourceType, (double) params.get("downsample"), numThreads);
     }
 
     //		It would be nice to set this up so that there is a static method that can be used from scripting if you didn't want to use the GUI
@@ -1328,12 +1352,12 @@ public class QiimiaQuantBackend {
 //                targets,
                 compartments,
                 roiClasses,
-                (Class<? extends PathObject>) params.get("sourceType"),
+                sourceType,
 //                (double) params.get("downsample"),
                 (int) params.get("tileSize"),
                 (boolean) params.get("tileUnitIsMicrons"),
                 (TileOption) params.get("tileOption"),
-                (Collection<PathObject>) params.get("selectedObjects"),
+//                selectedObjects,
                 numThreads);
     }
 
@@ -1347,7 +1371,7 @@ public class QiimiaQuantBackend {
             int tileSize,
             boolean tileUnitIsMicrons,
             TileOption tileOption,
-            Collection<PathObject> selectedObjs,
+//            Collection<PathObject> selectedObjs,
             int numThreads
     ) throws RuntimeException{
 
@@ -1510,9 +1534,8 @@ public class QiimiaQuantBackend {
                     break;
                 }
                 case SELECTED_OBJS: {
-
-//                    selectedObjs = pathObjs.parallelStream().filter(p -> hierarchy.getSelectionModel().isSelected(p))
-//                            .collect(Collectors.toList());
+                    Collection<PathObject> selectedObjs = pathObjs.parallelStream().filter(p -> hierarchy.getSelectionModel().isSelected(p))
+                            .collect(Collectors.toList());
 ////                    Collection<PathObject> selectedObjs = getSelectedObjects();
                     if (selectedObjs.isEmpty() || selectedObjs == null || selectedObjs.size() == 0){
                         logger.error("No objects selected! Cannot compute tiles");
@@ -1683,7 +1706,7 @@ public class QiimiaQuantBackend {
 
 
     public CompletableFuture<Void>  TMARecalcCompartmentsAndScores() throws RuntimeException {
-        return TMARecalcCompartmentsAndScores(ignoreClasses, targets, compartments, (Class<? extends PathObject>) params.get("sourceType"), (double) params.get("downsample"), numThreads);
+        return TMARecalcCompartmentsAndScores(ignoreClasses, targets, compartments, sourceType, (double) params.get("downsample"), numThreads);
     }
 
     // Exclude regions and add regions that weren't segmented well. Allows for manual adjustment of compartmentalization before scoring targets.

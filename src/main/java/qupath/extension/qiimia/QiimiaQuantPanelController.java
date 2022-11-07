@@ -1,6 +1,9 @@
 package qupath.extension.qiimia;
 
 import com.google.common.eventbus.EventBus;
+import com.google.common.io.Files;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import javafx.application.Platform;
 import javafx.beans.property.*;
 import javafx.beans.value.ObservableDoubleValue;
@@ -17,6 +20,7 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
+import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
@@ -46,6 +50,7 @@ import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
+import qupath.lib.io.GsonTools;
 import qupath.lib.objects.*;
 import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
@@ -59,11 +64,11 @@ import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.*;
 
 
+import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.FilenameFilter;
-import java.io.IOException;
+import java.io.*;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -178,6 +183,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	@FXML
 	MenuItem savePresetMenuItem;
 	@FXML
+	MenuItem loadPresetMenuItem;
+	@FXML
 	MenuItem runForProjectMenuItem;
 	@FXML
 	CheckMenuItem tileUnitIsMicronsMenuItem;
@@ -286,6 +293,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		exportMeasMenuItem.setOnAction(EXPORT);
 		exportMaskMenuItem.setOnAction(this::exportMasksButton);
         savePresetMenuItem.setOnAction(this::saveQuantPreset);
+		loadPresetMenuItem.setOnAction(this::loadQuantPreset);
 		standardCurveMenuItem.setOnAction(e -> {
 				try{
 					switchToAnalysisMode(e, "standardCurve");
@@ -388,6 +396,18 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			private Label transformLabel = new Label();
 			private BooleanProperty booleanProperty = new SimpleBooleanProperty();
 
+//			{
+//				expTimeTextField = getExpTextField();
+//				checkBox = getCheckBox();
+//				selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->{
+//					if(selectedTargets.containsKey(getItem())){
+//						logger.info("changing expTimeTextField... {}", getItem());
+//						expTimeTextField.setText(selectedTargets.get(getItem()).toString());
+//					}
+//					checkBox.selectedProperty().set(selectedTargets.containsKey(getItem()));
+//				});
+//			}
+
 			@Override
 			public void updateItem(ColorTransform item, boolean empty){
 				super.updateItem(item, empty);
@@ -437,6 +457,12 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 							logger.info(selectedTargets.toString());
 						}
 					});
+//					selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->{
+//						if(selectedTargets.containsKey(getItem())){
+//							logger.info("changing expTimeTextField... {}", getItem());
+//							expTimeTextField.setText(selectedTargets.get(getItem()).toString());
+//						}
+//					});
 				}
 				return expTimeTextField;
 			}
@@ -459,8 +485,13 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						updateGUI(false);
 					});
 					checkBox.selectedProperty().set(selectedTargets.containsKey(getItem()));
-					selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->
-							checkBox.selectedProperty().set(selectedTargets.containsKey(getItem())));
+					selectedTargets.addListener((MapChangeListener.Change<? extends ColorTransform,? extends Double> c) ->{
+//						if(selectedTargets.containsKey(getItem())){
+//							logger.info("changing expTimeTextField... {}", getItem());
+//							expTimeTextField.setText(selectedTargets.get(getItem()).toString());
+//						}
+						checkBox.selectedProperty().set(selectedTargets.containsKey(getItem()));
+					});
 				}
 				return checkBox;
 			}
@@ -889,10 +920,16 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 					if (imagesToProcess.size() > 1) {
 						logger.warn("Closing server {}", imageData.toString());
-						imageData.getServer().close();
+//					    need to run on the JavaFX application thread to avoid throwing errors
+						Platform.runLater(()->{
+							try {
+								imageData.getServer().close();
+							} catch (Exception e) {
+								throw new RuntimeException(e);
+							}
+						});
 					}
 
-//					might be redundant because already checking to clear cache inside each QiimiaQuantBackend object after closing...
 					try {
 						var store = qupath == null ? null : qupath.getImageRegionStore();
 						if (store != null)
@@ -902,6 +939,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						logger.error("Error clearing tile cache");
 						ex.printStackTrace();
 					}
+
 				} catch (Exception ex) {
 					logger.error("Error running batch script");
 					ex.printStackTrace();
@@ -982,14 +1020,14 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		boolean tileUnitIsMicrons = tileUnitIsMicronsMenuItem.selectedProperty().get();
 
 		double downsample = 1.0;
-		Class<? extends PathObject> sourceType;
-		if(source.equals("Cells")){
-			sourceType = PathCellObject.class;
-		} else if (source.equals("Detections")){
-			sourceType = PathDetectionObject.class;
-		} else {
-			sourceType = PathAnnotationObject.class;
-		}
+//		Class<? extends PathObject> sourceType;
+//		if(source.equals("Cells")){
+//			sourceType = PathCellObject.class;
+//		} else if (source.equals("Detections")){
+//			sourceType = PathDetectionObject.class;
+//		} else {
+//			sourceType = PathAnnotationObject.class;
+//		}
 
 		int inputTileSize;
 		if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null)
@@ -1003,8 +1041,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				Map.entry("tileUnitIsMicrons", tileUnitIsMicrons),
 				Map.entry("tileOption", tileOption),
                 Map.entry("deleteTilesBeforeRun", deleteTilesMenuItem.selectedProperty().get()),
-				Map.entry("selectedObjects", selectedObjs),
-				Map.entry("sourceType", sourceType),
+//				Map.entry("selectedObjects", selectedObjs),
+				Map.entry("sourceString", source),
 				Map.entry("verboseMeasures", verboseMeasures),
 				Map.entry("rescaleScore", rescaleScore),
 				Map.entry("normalizeScore", normalizeScore),
@@ -1018,154 +1056,154 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		return params;
 	}
 
-	CompletableFuture<Void> runQuant(QiimiaQuantBackend qiimiaQuant){
-//		Every time you run this code, make sure that the runCancelled is false
-		runCancelled.set(false);
-		ImageData<BufferedImage> imageData = qiimiaQuant.getImageData();
-		PathObjectHierarchy hierarchy = imageData.getHierarchy();
-		Map<String, Object> params = qiimiaQuant.getParams();
-		String slide = (String) params.get("slide");
-		Class<? extends PathObject> source = (Class<? extends PathObject>) params.get("sourceType");
-		String result = (String) params.get("result");
-//		Remove detection objects within any ROIs that are not cells, clear source measurements
-		if(result.toLowerCase().contains("roi")){
-			List<PathObject> oldROIComps = hierarchy.getDetectionObjects().parallelStream()
-					.filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile() && roiClasses.contains(p.getParent().getPathClass()))
-					.collect(Collectors.toList());
-			hierarchy.removeObjects(oldROIComps, true);
-		}
-
-		if(source.equals(PathAnnotationObject.class)) {
-			if(!result.toLowerCase().contains("roi"))
-				clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
-		} else if(source.equals(PathCellObject.class)){
-			if(!result.toLowerCase().contains("roi"))
-				clearMeasurements(hierarchy, hierarchy.getCellObjects());
-		} else if(source.equals(PathDetectionObject.class)){
-			if(!result.toLowerCase().contains("roi"))
-				clearMeasurements(hierarchy, hierarchy.getDetectionObjects());
-		}
-		CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
-			if(runCancelled.get()){
-				throw new CancellationException();
-			}
-			if(result.toLowerCase().contains("tile")){
-				if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null) {
-					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
-				}else if(tileSizeTextField.getText() != null && Integer.parseInt(tileSizeTextField.getText()) == 0) {
-					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
-				}else {
-					Platform.runLater(()->{
-						progressLabel.setText("Quantifying Tiles...");
-					});
-
-					if(deleteTilesMenuItem.selectedProperty().get()){
-//						If you are making grids/tiles, delete any old tiles?
-						logger.warn("Deleting any tile objects!!");
-						hierarchy.removeObjects(hierarchy.getTileObjects(), true);
-					}
-
-					try{
-						qiimiaQuant.TileRecalcCompartmentsAndScores().get();
-					}catch (ExecutionException | InterruptedException | CancellationException ex){
-						Platform.runLater(()-> {
-							exportMeasButton.setDisable(false);
-							exportMeasMenuItem.setDisable(false);
-							startQuantButton.setDisable(false);
-							runForProjectMenuItem.setDisable(false);
-						});
-						throw new RuntimeException(ex);
-					}
-				}
-
-			}
-		})
-		.thenRun(()->{
-			if(runCancelled.get()){
-				throw new CancellationException();
-			}
-			if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
-				logger.info("Beginning compartment quantification of TMA cores for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
-				Platform.runLater(()->{
-					progressLabel.setText("Quantifying TMA core compartments...");
-				});
-				try {
-					qiimiaQuant.TMARecalcCompartmentsAndScores().get();
-				} catch (ExecutionException | InterruptedException | CancellationException ex) {
-					Platform.runLater(()-> {
-						exportMeasButton.setDisable(false);
-						exportMeasMenuItem.setDisable(false);
-						startQuantButton.setDisable(false);
-						runForProjectMenuItem.setDisable(false);
-					});
-					throw new RuntimeException(ex);
-				}
-			}
-		})
-		.thenRun(()->{
-			if(runCancelled.get()){
-				throw new CancellationException();
-			}
-			if(result.toLowerCase().contains("roi")){
-				logger.info("Beginning compartment quantification of ROIs for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
-				Platform.runLater(()->{
-					progressLabel.setText("Quantifying ROI compartments...");
-				});
-				try {
-					qiimiaQuant.getTargetScoresForROIs().get();
-				} catch (ExecutionException | InterruptedException | CancellationException ex) {
-					Platform.runLater(()-> {
-						exportMeasButton.setDisable(false);
-						exportMeasMenuItem.setDisable(false);
-						startQuantButton.setDisable(false);
-						runForProjectMenuItem.setDisable(false);
-					});
-					throw new RuntimeException(ex);
-				}
-			}
-		})
-		.exceptionally(ex -> {
-			if (ex.getCause() instanceof CancellationException){
-				logger.warn("Run cancelled?");
-				Platform.runLater(() ->{
-					progressLabel.setText("Run cancelled..");
-					quantProgressBar.setProgress(1);
-				});
-			} else {
-				Platform.runLater(() ->{
-					progressLabel.setText(ex.getCause().toString());
-				});
-				ex.printStackTrace();
-			}
-			logger.warn(ex.toString());
-			try {
-				qiimiaQuant.cancelTasks().get();
-			} catch (InterruptedException | ExecutionException exc) {
-				throw new RuntimeException(exc);
-			}
-			return null;
-		})
-		.thenRun(()->{
-//			not necessary but just in case
-			Platform.runLater(()-> {
-				exportMeasButton.setDisable(false);
-				exportMeasMenuItem.setDisable(false);
-				startQuantButton.setDisable(false);
-				runForProjectMenuItem.setDisable(false);
-			});
-//				cleanup vars
-			qiimiaQuant.close();
-//			var store = qupath == null ? null : qupath.getImageRegionStore();
-//			if (store != null) {
-////					This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
-//				logger.info("Clearing Image Region Store cache...");
-//				store.clearCache();
+//	CompletableFuture<Void> runQuant(QiimiaQuantBackend qiimiaQuant){
+////		Every time you run this code, make sure that the runCancelled is false
+//		runCancelled.set(false);
+//		ImageData<BufferedImage> imageData = qiimiaQuant.getImageData();
+//		PathObjectHierarchy hierarchy = imageData.getHierarchy();
+//		Map<String, Object> params = qiimiaQuant.getParams();
+//		String slide = (String) params.get("slide");
+//		Class<? extends PathObject> source = (Class<? extends PathObject>) params.get("sourceType");
+//		String result = (String) params.get("result");
+////		Remove detection objects within any ROIs that are not cells, clear source measurements
+//		if(result.toLowerCase().contains("roi")){
+//			List<PathObject> oldROIComps = hierarchy.getDetectionObjects().parallelStream()
+//					.filter(p->!p.isCell() && !p.isTile() && !p.getParent().isTile() && roiClasses.contains(p.getParent().getPathClass()))
+//					.collect(Collectors.toList());
+//			hierarchy.removeObjects(oldROIComps, true);
+//		}
+//
+//		if(source.equals(PathAnnotationObject.class)) {
+//			if(!result.toLowerCase().contains("roi"))
+//				clearMeasurements(hierarchy, hierarchy.getAnnotationObjects());
+//		} else if(source.equals(PathCellObject.class)){
+//			if(!result.toLowerCase().contains("roi"))
+//				clearMeasurements(hierarchy, hierarchy.getCellObjects());
+//		} else if(source.equals(PathDetectionObject.class)){
+//			if(!result.toLowerCase().contains("roi"))
+//				clearMeasurements(hierarchy, hierarchy.getDetectionObjects());
+//		}
+//		CompletableFuture<Void> runFuture = CompletableFuture.runAsync(()->{
+//			if(runCancelled.get()){
+//				throw new CancellationException();
 //			}
-			System.gc();
-			logger.info("Completed with all tasks...");
-		});
-		return runFuture;
-	}
+//			if(result.toLowerCase().contains("tile")){
+//				if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null) {
+//					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
+//				}else if(tileSizeTextField.getText() != null && Integer.parseInt(tileSizeTextField.getText()) == 0) {
+//					logger.warn("Tilesize textfield cannot be 0 or empty when trying to compute tile results!");
+//				}else {
+//					Platform.runLater(()->{
+//						progressLabel.setText("Quantifying Tiles...");
+//					});
+//
+//					if(deleteTilesMenuItem.selectedProperty().get()){
+////						If you are making grids/tiles, delete any old tiles?
+//						logger.warn("Deleting any tile objects!!");
+//						hierarchy.removeObjects(hierarchy.getTileObjects(), true);
+//					}
+//
+//					try{
+//						qiimiaQuant.TileRecalcCompartmentsAndScores().get();
+//					}catch (ExecutionException | InterruptedException | CancellationException ex){
+//						Platform.runLater(()-> {
+//							exportMeasButton.setDisable(false);
+//							exportMeasMenuItem.setDisable(false);
+//							startQuantButton.setDisable(false);
+//							runForProjectMenuItem.setDisable(false);
+//						});
+//						throw new RuntimeException(ex);
+//					}
+//				}
+//
+//			}
+//		})
+//		.thenRun(()->{
+//			if(runCancelled.get()){
+//				throw new CancellationException();
+//			}
+//			if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
+//				logger.info("Beginning compartment quantification of TMA cores for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
+//				Platform.runLater(()->{
+//					progressLabel.setText("Quantifying TMA core compartments...");
+//				});
+//				try {
+//					qiimiaQuant.TMARecalcCompartmentsAndScores().get();
+//				} catch (ExecutionException | InterruptedException | CancellationException ex) {
+//					Platform.runLater(()-> {
+//						exportMeasButton.setDisable(false);
+//						exportMeasMenuItem.setDisable(false);
+//						startQuantButton.setDisable(false);
+//						runForProjectMenuItem.setDisable(false);
+//					});
+//					throw new RuntimeException(ex);
+//				}
+//			}
+//		})
+//		.thenRun(()->{
+//			if(runCancelled.get()){
+//				throw new CancellationException();
+//			}
+//			if(result.toLowerCase().contains("roi")){
+//				logger.info("Beginning compartment quantification of ROIs for compartments: {} and targets: {}...", selectedCompartments.toString(), selectedTargets.toString());
+//				Platform.runLater(()->{
+//					progressLabel.setText("Quantifying ROI compartments...");
+//				});
+//				try {
+//					qiimiaQuant.getTargetScoresForROIs().get();
+//				} catch (ExecutionException | InterruptedException | CancellationException ex) {
+//					Platform.runLater(()-> {
+//						exportMeasButton.setDisable(false);
+//						exportMeasMenuItem.setDisable(false);
+//						startQuantButton.setDisable(false);
+//						runForProjectMenuItem.setDisable(false);
+//					});
+//					throw new RuntimeException(ex);
+//				}
+//			}
+//		})
+//		.exceptionally(ex -> {
+//			if (ex.getCause() instanceof CancellationException){
+//				logger.warn("Run cancelled?");
+//				Platform.runLater(() ->{
+//					progressLabel.setText("Run cancelled..");
+//					quantProgressBar.setProgress(1);
+//				});
+//			} else {
+//				Platform.runLater(() ->{
+//					progressLabel.setText(ex.getCause().toString());
+//				});
+//				ex.printStackTrace();
+//			}
+//			logger.warn(ex.toString());
+//			try {
+//				qiimiaQuant.cancelTasks().get();
+//			} catch (InterruptedException | ExecutionException exc) {
+//				throw new RuntimeException(exc);
+//			}
+//			return null;
+//		})
+//		.thenRun(()->{
+////			not necessary but just in case
+//			Platform.runLater(()-> {
+//				exportMeasButton.setDisable(false);
+//				exportMeasMenuItem.setDisable(false);
+//				startQuantButton.setDisable(false);
+//				runForProjectMenuItem.setDisable(false);
+//			});
+////				cleanup vars
+//			qiimiaQuant.close();
+////			var store = qupath == null ? null : qupath.getImageRegionStore();
+////			if (store != null) {
+//////					This was the reason for the memory accumulation! makes sense in retrospect, considering all the region requests that are made...
+////				logger.info("Clearing Image Region Store cache...");
+////				store.clearCache();
+////			}
+//			System.gc();
+//			logger.info("Completed with all tasks...");
+//		});
+//		return runFuture;
+//	}
 
 	public void cancelRunningTask(){
 		Future<?> future = runningTask.get();
@@ -1239,10 +1277,83 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
     void saveQuantPreset(ActionEvent e){
 //      building QiimiaQuant backend object for preset
-
+		Map<String, Object> params = setupQuantParams();
+		LinkedHashMap<ColorTransform, Double> selTargets = new LinkedHashMap<>(selectedTargets.entrySet().stream().collect(Collectors.toMap(
+				m->m.getKey(),
+				m->m.getValue())
+			)
+		);
+		Set<PathClass> selCompartments = selectedCompartments.parallelStream().collect(Collectors.toSet());
         logger.info("Saving QiimiaQuant parameters as preset...");
+		QiimiaQuantPreset newPreset = new QiimiaQuantPreset(
+				selTargets, selCompartments,
+				ignoreClasses, roiClasses,
+				params
+		);
+		Path presetDir;
+		try {
+			logger.info("trying to create default quant preset directory...");
+			presetDir = Paths.get(Projects.getBaseDirectory(qupath.getProject()) + File.separator + "quant_presets");
+			java.nio.file.Files.createDirectories(presetDir);
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+//		File selector dialog
+		File newPresetFilePath = Dialogs.promptToSaveFile("Save QiimiaQuant Preset", presetDir.toFile(), "new_preset", "JSON (.json)", ".json");
+		Gson gson = GsonTools.getInstance(true);
+		try {
+			BufferedWriter file = Files.newWriter(
+					newPresetFilePath,
+					StandardCharsets.UTF_8);
+			file.write(gson.toJson(newPreset));
+			file.close();
+		} catch (IOException ex) {
+			throw new RuntimeException(ex);
+		}
+	}
 
-    }
+	void loadQuantPreset(ActionEvent e){
+		File dirBase = qupath.getProject() != null ? Projects.getBaseDirectory(qupath.getProject()) : new File(System.getProperty("user.home"));
+		File presetFilePath = Dialogs.promptForFile("Load QiimiaQuant Preset", dirBase, "JSON (.json)", ".json");
+		Gson gson = GsonTools.getInstance(true);
+		QiimiaQuantPreset quantPreset = null;
+		if (presetFilePath == null) {
+			logger.error("No QiimiaQuant Preset selected....");
+			return;
+		}
+		try(
+			BufferedReader reader = Files.newReader(presetFilePath, StandardCharsets.UTF_8);
+			){
+			quantPreset = gson.fromJson(reader, QiimiaQuantPreset.class);
+		} catch (Exception ex) {
+			logger.error("error reading QiimiaQuant Preset....");
+			ex.printStackTrace();
+		}
+		if(quantPreset == null){
+			logger.error("error reading QiimiaQuant Preset... it is null...");
+			return;
+		}
+//		get presets
+		Map<ColorTransforms.ColorTransform, Double> presetTargets = quantPreset.getTargets();
+		Set<PathClass> presetCompartments = quantPreset.getCompartments();
+		Set<PathClass> presetIgnoreClasses = quantPreset.getIgnoreClasses();
+		Set<PathClass> presetROIClasses = quantPreset.getROIClasses();
+		Map<String, Object> presetParams = quantPreset.getParams();
+//		set presets
+		selectedTargets.clear();
+		for(Map.Entry<ColorTransforms.ColorTransform, Double> entry : presetTargets.entrySet()){
+			selectedTargets.put(entry.getKey(), entry.getValue());
+		}
+//		selectedTargets.putAll(presetTargets);
+		logger.info("updating targets using preset: {}", selectedTargets);
+		logger.info("updating targets using preset (preset): {}", presetTargets);
+		selectedCompartments.clear();
+		selectedCompartments.addAll(presetCompartments);
+		ignoreClasses.addAll(presetIgnoreClasses);
+		roiClasses.addAll(presetROIClasses);
+
+
+	}
 
 	void switchToAnalysisMode(ActionEvent e, String tabName) throws IOException {
 //		FXMLLoader analysisSceneLoader = new FXMLLoader(getClass().getResource("/QiimiaAnalysisPanel.fxml"));

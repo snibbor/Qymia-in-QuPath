@@ -283,10 +283,10 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 //        GsonTools.getInstance(true).toJson(map)
         Map<String, Double> indexMap = new HashMap<>();
         String standardName = null;
-        try{
-            Gson gson = new Gson();
-            // create a reader
+        try(
             BufferedReader reader = Files.newReader(new File(indexMapFileTextField.getText()), StandardCharsets.UTF_8);
+            ){
+            Gson gson = new Gson();
             // convert JSON file to map
             Map<String, ?> standardArrayMap = gson.fromJson(reader, Map.class);
             standardName = (String) standardArrayMap.get("standard_name");
@@ -505,9 +505,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             Gson gson = new GsonBuilder()
                     .setPrettyPrinting()
                     .create();
-            try{
-                // create a reader
+            try(
                 BufferedReader reader = Files.newReader(new File(indexMapFileTextField.getText()), StandardCharsets.UTF_8);
+                ){
                 // convert JSON file to map
                 Map<String, ?> standardArrayMap = gson.fromJson(reader, Map.class);
                 standardName = (String) standardArrayMap.get("standard_name");
@@ -900,8 +900,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                 }
             } else{
 //                try to load the measurementConverter from json
-                try {
+                try(
                     BufferedReader reader = Files.newReader(new File(measConvPath), StandardCharsets.UTF_8);
+                    ) {
 //                  TODO: will be trickier when deserializing a list of these things....
                     MeasurementConverter measConv = gson.fromJson(reader, MeasurementConverter.class);
                     if(measConv == null){
@@ -909,7 +910,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         return null;
                     }
                     selectedConverters.add(measConv);
-                } catch (FileNotFoundException e) {
+                } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
             }
@@ -1005,7 +1006,14 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     if (imagesToProcess.size() > 1) {
                         logger.warn("Closing server {}", imageData.toString());
-                        imageData.getServer().close();
+//					    need to run on the JavaFX application thread to avoid throwing errors
+                        Platform.runLater(()->{
+                            try {
+                                imageData.getServer().close();
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
                     }
 
 //                    Do you need to clear the tile cache for this? I don't think so.
@@ -1050,9 +1058,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                 .create();
         Map<String, String> batchMap = new HashMap<>();
 //      try to load the batch map file
-        try{
-            // create a reader
+        try(
             BufferedReader reader = Files.newReader(new File(batchMapPath), StandardCharsets.UTF_8);
+            ){
             String ext = Files.getFileExtension(batchMapPath);
             if(ext.equals("csv")){
                 String line =  null;
@@ -1121,8 +1129,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
         }
 //      load measurement converter(s) from file
         List<MeasurementConverter> currentMeasConvs = new ArrayList<>();
-        try {
+        try(
             BufferedReader reader = Files.newReader(closestMeasConvFile, StandardCharsets.UTF_8);
+            ){
 //          TODO: will be trickier when deserializing a list of these things....
             MeasurementConverter measConv = gson.fromJson(reader, MeasurementConverter.class);
             if (measConv == null) {
@@ -1130,7 +1139,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                 return null;
             }
             currentMeasConvs.add(measConv);
-        } catch (FileNotFoundException ex) {
+        } catch (IOException ex) {
 //          should this invalidate the processing?
 //            throw new RuntimeException(e);
             logger.error("measurment converter file error");
