@@ -24,6 +24,7 @@ public class SceneManager {
     }
 
     private final Map<String, Scene> scenes = new HashMap<>();
+    private final Map<String, BaseController> controllers = new HashMap<>();
 
     public void preloadScene(String sceneUrl, BaseController controller){
         scenes.computeIfAbsent(sceneUrl, u ->{
@@ -33,6 +34,7 @@ public class SceneManager {
                 Parent p = loader.load();
                 BaseController thisController = loader.getController();
                 thisController.setSceneManager(this);
+                controllers.put(sceneUrl, thisController);
                 return new Scene(p);
             } catch (IOException e) {
                 throw new RuntimeException(e);
@@ -49,9 +51,14 @@ public class SceneManager {
         return scene;
     }
 
-//    public BaseController getController(String sceneUrl){
-//
-//    }
+    public BaseController getController(String sceneUrl){
+        BaseController controller = controllers.get(sceneUrl);
+        if(controller == null){
+            logger.error("Scene controller {} does not exist in controllers map!", sceneUrl);
+            return null;
+        }
+        return controller;
+    }
 
     public void setCSSStyle(String sceneUrl, String styleUrl){
         Scene scene = scenes.get(sceneUrl);
@@ -67,8 +74,9 @@ public class SceneManager {
             FXMLLoader loader = new FXMLLoader(getClass().getResource(u));
             try {
                 Parent p = loader.load();
-                BaseController controller = loader.getController();
-                controller.setSceneManager(this);
+                BaseController thisController = loader.getController();
+                thisController.setSceneManager(this);
+                controllers.put(sceneUrl, thisController);
                 return new Scene(p);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);

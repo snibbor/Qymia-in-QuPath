@@ -24,9 +24,10 @@
    <children>
       <MenuBar>
         <menus>
-          <Menu mnemonicParsing="false" text="Quant">
+          <Menu mnemonicParsing="false" text="Navigate">
             <items>
               <MenuItem fx:id="switchToQuantMenuItem" mnemonicParsing="false" text="Switch to Quant Panel..." />
+                  <MenuItem fx:id="switchToPresetMenuItem" mnemonicParsing="false" text="Switch to Preset Panel..." />
             </items>
           </Menu>
           <Menu mnemonicParsing="false" text="Settings">

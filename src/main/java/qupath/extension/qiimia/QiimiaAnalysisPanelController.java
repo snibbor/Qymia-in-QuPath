@@ -6,9 +6,7 @@ import com.google.gson.GsonBuilder;
 import javafx.application.Platform;
 import javafx.beans.binding.Bindings;
 import javafx.beans.property.BooleanProperty;
-import javafx.beans.property.ObjectProperty;
 import javafx.beans.property.ReadOnlyObjectProperty;
-import javafx.beans.property.SimpleObjectProperty;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
@@ -26,11 +24,8 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
-import javafx.stage.FileChooser;
 import javafx.stage.Modality;
-import org.apache.commons.math3.stat.regression.MultipleLinearRegression;
 import org.apache.commons.math3.stat.regression.SimpleRegression;
-import org.controlsfx.control.CheckComboBox;
 import org.controlsfx.dialog.ProgressDialog;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,39 +34,27 @@ import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.measure.ObservableMeasurementTableData;
 import qupath.lib.gui.prefs.PathPrefs;
-import qupath.lib.gui.scripting.ScriptTab;
 import qupath.lib.gui.tools.PaneTools;
-import qupath.lib.gui.viewer.QuPathViewer;
-import qupath.lib.gui.viewer.QuPathViewerListener;
 import qupath.lib.gui.viewer.QuPathViewerPlus;
 import qupath.lib.images.ImageData;
-import qupath.lib.images.servers.ColorTransforms;
-import qupath.lib.io.GsonTools;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.*;
-import qupath.lib.objects.classes.PathClass;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
 
-import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 
 
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.MessageFormat;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.Future;
 import java.util.stream.Collectors;
-
-import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.*;
-import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.SELECTED_OBJS;
-import static qupath.lib.common.Prefs.getNumThreads;
 
 public class QiimiaAnalysisPanelController extends BaseController implements Initializable {
 
@@ -81,6 +64,8 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 //    private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
     @FXML
     MenuItem switchToQuantMenuItem;
+    @FXML
+    MenuItem switchToPresetMenuItem;
     @FXML
     CheckMenuItem flipXYMenuItem;
     private static BooleanProperty flipXYProperty = PathPrefs.createPersistentPreference("flipXYQiimiaAnalysis", false);
@@ -187,7 +172,20 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
     }
 
     private void setupMenu(){
-        switchToQuantMenuItem.setOnAction(this::switchToQuantMode);
+        switchToQuantMenuItem.setOnAction(e->{
+            try {
+                switchToQuantMode(e);
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        switchToPresetMenuItem.setOnAction(e->{
+            try {
+                switchToPresetMode(e);
+            } catch (IOException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
         flipXYMenuItem.selectedProperty().bindBidirectional(flipXYProperty);
         flipXYProperty.addListener((v, o, n) -> doStandardsRegressionPlot());
     }
@@ -555,6 +553,13 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     // Open saved data if there is any, or else the image itself
                     ImageData<BufferedImage> imageData = entry.readImageData();
                     logger.info("Working on {}", entry.getImageName());
+                    String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+                    String entryImageName;
+                    if(entryImagePath.isEmpty()){
+                        entryImageName = entry.getImageName();
+                    } else {
+                        entryImageName = new File(entryImagePath).getName();
+                    }
                     if (imageData == null) {
                         logger.warn("Unable to open {} - will be skipped", entry.getImageName());
                         continue;
@@ -564,7 +569,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 //                    invalidate if no TMA grid found
                     if(imageData.getHierarchy().getTMAGrid() == null){
                         logger.warn("no TMA grid found for {}", entry.getImageName());
-                        logger.warn("Closing server {}", imageData.toString());
+                        logger.warn("Closing server {}", imageData);
                         imageData.getServer().close();
                         continue;
                     }
@@ -572,14 +577,14 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     if(reg != null) {
 //                    save regression, merge existing json
                         MeasurementConverter newMeasConv = new MeasurementConverter(
-                                entry.getImageName(), reg, measurementName, standardName, true);
+                                entryImageName, reg, measurementName, standardName, true);
                         BufferedWriter file = Files.newWriter(
-                                new File(saveDir.toAbsolutePath() + File.separator + entry.getImageName() + ".json"),
+                                new File(saveDir.toAbsolutePath() + File.separator + entryImageName + ".json"),
                                 StandardCharsets.UTF_8);
                         file.write(gson.toJson(newMeasConv));
                         file.close();
                     } else {
-                        logger.error("Error in {}, not creating measurement converter based on regression", entry.getImageName());
+                        logger.error("Error in {}, not creating measurement converter based on regression", entryImageName);
                     }
 
                     if (imagesToProcess.size() > 1) {
@@ -894,7 +899,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             List<MeasurementConverter> selectedConverters = new ArrayList<>();
             if(!batchMapPath.isEmpty()){
                 doBatchMap = true;
-                batchMap = loadBatchMap(batchMapPath);
+                batchMap = loadTwoColMap(batchMapPath);
                 if(batchMap == null){
                     return null;
                 }
@@ -963,6 +968,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     // Open saved data if there is any, or else the image itself
                     ImageData<BufferedImage> imageData = entry.readImageData();
                     logger.info("Working on {}", entry.getImageName());
+                    File entryImageFile = new File(entry.getMetadataMap().get("URI"));
                     if (imageData == null) {
                         logger.warn("Unable to open {} - will be skipped", entry.getImageName());
                         continue;
@@ -977,9 +983,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     if(doBatchMap){
                         List<MeasurementConverter> currentMeasConvs = getMeasConvsFromBatchMap(
-                                                                        entry.getImageName(),
-                                                                        batchMap,
-                                                                        allMeasConvList
+                                entryImageFile.getName(),
+                                batchMap,
+                                allMeasConvList
                         );
                         if(currentMeasConvs == null){
                             continue;
@@ -1052,11 +1058,11 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
 
 
-    public static Map<String, String> loadBatchMap(String batchMapPath){
+    public static Map<String, String> loadTwoColMap(String batchMapPath){
         Gson gson = new GsonBuilder()
                 .setPrettyPrinting()
                 .create();
-        Map<String, String> batchMap = new HashMap<>();
+        Map<String, String> twoColMap = new HashMap<>();
 //      try to load the batch map file
         try(
             BufferedReader reader = Files.newReader(new File(batchMapPath), StandardCharsets.UTF_8);
@@ -1071,21 +1077,21 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         logger.error("not enough entries in line for .csv, skipping line");
                         continue;
                     }
-                    batchMap.put(str[0], str[1]);
+                    twoColMap.put(str[0], str[1]);
                 }
             } else if(ext.equals("json")){
                 // convert JSON file to map
-                batchMap = gson.fromJson(reader, Map.class);
+                twoColMap = gson.fromJson(reader, Map.class);
             } else{
-                logger.error("batchMap file ({}) is not .csv or .json", batchMapPath);
+                logger.error("DF file ({}) is not .csv or .json", batchMapPath);
                 return null;
             }
-            logger.info(batchMap.toString());
-            if(batchMap.isEmpty()){
-                logger.error("batchMap null or empty, bad file?");
+            logger.debug(twoColMap.toString());
+            if(twoColMap.isEmpty()){
+                logger.error("DF map null or empty, bad file?");
                 return null;
             }
-            return batchMap;
+            return twoColMap;
         } catch(Exception ex){
             logger.error("error reading index map file");
             ex.printStackTrace();
@@ -1163,8 +1169,12 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
         }
     }
 
-    void switchToQuantMode(ActionEvent e){
+    void switchToQuantMode(ActionEvent e) throws IOException{
         sceneManager.switchScene("/QiimiaQuantPanel.fxml");
+    }
+
+    void switchToPresetMode(ActionEvent e) throws IOException{
+        sceneManager.switchScene("/QiimiaPresetPanel.fxml");
     }
 
     private void setType(String typeString){

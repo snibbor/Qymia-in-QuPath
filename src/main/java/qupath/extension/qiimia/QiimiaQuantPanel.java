@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
 
+import java.util.Objects;
+
 
 public class QiimiaQuantPanel implements Runnable{
 
@@ -16,11 +18,13 @@ public class QiimiaQuantPanel implements Runnable{
 	private Stage stage;
 	private Parent panel;
 
-	private QiimiaQuantPanelController qiimiaQuantPanelController;
+//	private QiimiaQuantPanelController qiimiaQuantPanelController;
 	private SceneManager sceneManager;
+	private String firstWindow;
 
-	public QiimiaQuantPanel(final QuPathGUI qupath) {
+	public QiimiaQuantPanel(final QuPathGUI qupath, String firstWindow) {
 		this.qupath = qupath;
+		this.firstWindow = firstWindow;
 	}
 
 	@Override
@@ -38,18 +42,23 @@ public class QiimiaQuantPanel implements Runnable{
 			stage.setTitle("Qiimia Quant");
 //			try {
 			logger.info("Starting Qiimia Quant panel...");
-			stage.setMinHeight(350);
+			stage.setMinHeight(300);
 			stage.setMinWidth(300);
 			stage.setMaxWidth(800);
 
 			sceneManager = new SceneManager(stage);
 			sceneManager.preloadScene("/QiimiaQuantPanel.fxml", new QiimiaQuantPanelController(qupath));
 			sceneManager.setCSSStyle("/QiimiaQuantPanel.fxml", "/application.css");
+			sceneManager.preloadScene("/QiimiaPresetPanel.fxml", new QiimiaPresetPanelController(qupath));
+			sceneManager.setCSSStyle("/QiimiaPresetPanel.fxml", "/application.css");
 			sceneManager.preloadScene("/QiimiaAnalysisPanel.fxml", new QiimiaAnalysisPanelController(qupath));
 			sceneManager.setCSSStyle("/QiimiaAnalysisPanel.fxml", "/application.css");
 
-			sceneManager.switchScene("/QiimiaQuantPanel.fxml");
-
+			if(Objects.equals(firstWindow, "preset")) {
+				sceneManager.switchScene("/QiimiaPresetPanel.fxml");
+			} else{
+				sceneManager.switchScene("/QiimiaQuantPanel.fxml");
+			}
 //				FXMLLoader loader = new FXMLLoader(getClass().getResource("/QiimiaQuantPanel.fxml"));
 //				loader.setControllerFactory(controllerClass -> new QiimiaQuantPanelController(qupath));
 //				Parent panel = loader.load();
@@ -71,7 +80,7 @@ public class QiimiaQuantPanel implements Runnable{
 			
 		} else {
 			// update GUI based on changes to color transforms, path classes, etc.
-			qiimiaQuantPanelController.updateGUI(true);
+//			qiimiaQuantPanelController.updateGUI(true);
 			if (stage.isShowing())
 				stage.toFront();
 		}

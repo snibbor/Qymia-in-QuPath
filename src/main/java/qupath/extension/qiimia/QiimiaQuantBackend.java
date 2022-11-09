@@ -530,8 +530,16 @@ public class QiimiaQuantBackend {
                         throw new CancellationException();
                     }
                     if(result.toLowerCase().contains("tile")){
-                        Integer tileSize = (Integer) params.get("tileSize");
-                        if(tileSize == null) {
+                        int tileSize = 0;
+                        if(params.get("tileSize")!=null){
+                            if(params.get("tileSize") instanceof Double){
+                                tileSize = ((Double) params.get("tileSize")).intValue();
+                            } else {
+                                tileSize = (int) params.get("tileSize");
+                            }
+                        }
+
+                        if(params.get("tileSize")==null) {
                             logger.warn("Tilesize cannot be null when trying to compute tile results!");
                         }else if(tileSize == 0) {
                             logger.warn("Tilesize cannot be 0 or empty when trying to compute tile results!");
@@ -1347,6 +1355,14 @@ public class QiimiaQuantBackend {
     }
 
     public CompletableFuture<Void>  TileRecalcCompartmentsAndScores() throws RuntimeException {
+        int tileSize = 0;
+        if(params.get("tileSize")!=null){
+            if(params.get("tileSize") instanceof Double){
+                tileSize = ((Double) params.get("tileSize")).intValue();
+            } else {
+                tileSize = (int) params.get("tileSize");
+            }
+        }
         return TileRecalcCompartmentsAndScores(
                 ignoreClasses,
 //                targets,
@@ -1354,7 +1370,7 @@ public class QiimiaQuantBackend {
                 roiClasses,
                 sourceType,
 //                (double) params.get("downsample"),
-                (int) params.get("tileSize"),
+                tileSize,
                 (boolean) params.get("tileUnitIsMicrons"),
                 (TileOption) params.get("tileOption"),
 //                selectedObjects,

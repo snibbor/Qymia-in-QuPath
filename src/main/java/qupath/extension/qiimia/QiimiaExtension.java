@@ -15,10 +15,12 @@ public class QiimiaExtension implements QuPathExtension, GitHubProject {
 		var actionStartQiimiaComp = ActionTools.createAction(new QiimiaCompartmentPanel(qupath), "Start Qiimia Compartment Builder...");
 		actionStartQiimiaComp.setLongText("Make tissue compartments for quantitative immunofluorescence and immunohistochemistry images."
     			+ "Can create tissue specific compartments for downstream analysis.");
-		var actionStartQiimiaQuant = ActionTools.createAction(new QiimiaQuantPanel(qupath), "Start Qiimia Quant...");
+		var actionStartQiimiaQuant = ActionTools.createAction(new QiimiaQuantPanel(qupath, "quant"), "Start Qiimia Quant...");
 		actionStartQiimiaQuant.setLongText("Quantify immunofluorescence and immunohistochemistry staining in defined compartments."
 				+ "Can utilize compartments and calculate intensity measurements within those compartments for experiment.");
-//		System.out.println("Starting AQUAnalysis...");
+		var actionStartQiimiaPreset = ActionTools.createAction(new QiimiaQuantPanel(qupath, "preset"), "Run Qiimia Preset...");
+		actionStartQiimiaPreset.setLongText("Load Qiimia Preset to quantify immunofluorescence and immunohistochemistry staining."
+				+ "Can create compartments via script and run preset quantification settings for assays.");
     	
 //    	var actionExport = ActionTools.createAction(new SvgExportCommand(qupath, SvgExportType.SELECTED_REGION), "Rendered SVG");
 //    	actionExport.disabledProperty().bind(qupath.imageDataProperty().isNull());
@@ -36,11 +38,10 @@ public class QiimiaExtension implements QuPathExtension, GitHubProject {
 				qupath.getMenu("Extensions>Qiimia Toolkit", false),
 				actionStartQiimiaQuant
 		);
-//    	MenuTools.addMenuItems(
-//                qupath.getMenu("Extensions>AQUAnalysis>Run preset...", true),
-//                System.out.println("Running preset protocol for AQUAnalysis...")
-//        );
-    	
+		MenuTools.addMenuItems(
+				qupath.getMenu("Extensions>Qiimia Toolkit", false),
+				actionStartQiimiaPreset
+		);
     }
 
     @Override
