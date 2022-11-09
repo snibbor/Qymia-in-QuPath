@@ -1896,6 +1896,7 @@ public class QiimiaQuantBackend {
         boolean rescaleScore;
         boolean normalizeScore;
         double maxFloatValue;
+        String stain;
         try {
             downsample = (double) params.get("downsample");
             if(parentObject.isTile()) {
@@ -1906,6 +1907,7 @@ public class QiimiaQuantBackend {
             rescaleScore = (boolean) params.get("rescaleScore");
             normalizeScore = (boolean) params.get("normalizeScore");
             maxFloatValue = (double) params.get("maxFloatValue");
+            stain = (String) params.get("stain");
         } catch (Exception ex) {
 //				ex.printStackTrace();
             throw new RuntimeException(ex);
@@ -1919,7 +1921,7 @@ public class QiimiaQuantBackend {
             theseMeasurements = measurements;
         }
 
-        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, cellCompartments, theseMeasurements,
+        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, stain, cellCompartments, theseMeasurements,
                 downsample, tileSize, tileUnitIsMicrons, rescaleScore, normalizeScore, maxFloatValue);
 
     }
@@ -1930,6 +1932,7 @@ public class QiimiaQuantBackend {
                                                     PathObject parentObject,
                                                     Map<PathClass, ROI> intersectROIs,
                                                     Map<ColorTransforms.ColorTransform, Double> targets,
+                                                    String stainType,
                                                     Collection<Compartments> cellCompartments,
                                                     Collection<Measurements> measurements,
                                                     double downsample, int tileSize, boolean tileUnitIsMicrons,
@@ -2142,6 +2145,10 @@ public class QiimiaQuantBackend {
 //                        double QIF_areaS = (targetMean / mppSq);
 //                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
 //                    } else
+                    if(!stainType.equalsIgnoreCase("fluorescence")){
+                        double DAB_areaS = (targetMean / mppSq);
+                        measList.putMeasurement(targetName + " in " + className + " OD/(um^2)", DAB_areaS);
+                    }
                     if (rescaleScore && !normalizeScore) {
                         //assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
                         //using bitdepth and maxFloatValue to rescale

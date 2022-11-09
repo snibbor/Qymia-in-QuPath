@@ -554,6 +554,8 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 		@Override
 		public Void call() {
 
+			runCancelled.set(false);
+
 			long startTime = System.currentTimeMillis();
 			if(presetParams==null)
 				return null;
@@ -719,7 +721,32 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 
 //						run script for pre-processing on quantImageData (e.g. compartment segmentation)
 //						context = context == null ? DefaultScriptEditor.createDefaultContext() : context;
+						Platform.runLater(()->{
+							quantProgressBar.setProgress(-1);
+							progressLabel.setText("Running pre-processing script...");
+							for(Control button : controlListToToggle){
+								button.setDisable(true);
+							}
+							for (MenuItem menuItem : menuItemListToToggle) {
+								menuItem.setDisable(true);
+							}
+						});
 						((RunnableLanguage) language).executeScript(script, project, quantImageData, defaultClasses, defaultStaticClasses, null);
+
+						if(runCancelled.get()){
+							logger.info("run cancelled...");
+							Platform.runLater(()->{
+								progressLabel.setText("Cancelled");
+								quantProgressBar.setProgress(0);
+								for(Control button : controlListToToggle){
+									button.setDisable(false);
+								}
+								for (MenuItem menuItem : menuItemListToToggle) {
+									menuItem.setDisable(false);
+								}
+							});
+							return null;
+						}
 
 						QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
 								quantImageData,
@@ -772,7 +799,32 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 //						Just script process and quantify on current imageData
 //						run script for pre-processing on imageData (e.g. compartment segmentation)
 //						context = context == null ? DefaultScriptEditor.createDefaultContext() : context;
+						Platform.runLater(()->{
+							progressLabel.setText("Running pre-processing script...");
+							quantProgressBar.setProgress(-1);
+							for(Control button : controlListToToggle){
+								button.setDisable(true);
+							}
+							for (MenuItem menuItem : menuItemListToToggle) {
+								menuItem.setDisable(true);
+							}
+						});
 						((RunnableLanguage) language).executeScript(script, project, imageData, defaultClasses, defaultStaticClasses, null);
+
+						if(runCancelled.get()){
+							logger.info("run cancelled...");
+							Platform.runLater(()->{
+								progressLabel.setText("Cancelled");
+								quantProgressBar.setProgress(0);
+								for(Control button : controlListToToggle){
+									button.setDisable(false);
+								}
+								for (MenuItem menuItem : menuItemListToToggle) {
+									menuItem.setDisable(false);
+								}
+							});
+							return null;
+						}
 
 						QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
 								imageData,
@@ -826,14 +878,16 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 								});
 							}
 						}
-						logger.warn("Closing server {}", finalQuantImageData.toString());
-						Platform.runLater(()->{
-							try {
-								finalQuantImageData.getServer().close();
-							} catch (Exception e) {
-								throw new RuntimeException(e);
-							}
-						});
+						if(imagesToProcess.size()>1) {
+							logger.warn("Closing server {}", finalQuantImageData.toString());
+							Platform.runLater(() -> {
+								try {
+									finalQuantImageData.getServer().close();
+								} catch (Exception e) {
+									throw new RuntimeException(e);
+								}
+							});
+						}
 					}
 
 					if (reload && !thisCurrentViewers.isEmpty()){
@@ -847,14 +901,16 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 					}
 
 //					need to run on the JavaFX application thread to avoid throwing errors
-					logger.warn("Closing server {}", imageData.toString());
-					Platform.runLater(()->{
-						try {
-							imageData.getServer().close();
-						} catch (Exception e) {
-							throw new RuntimeException(e);
-						}
-					});
+					if(imagesToProcess.size()>1) {
+						logger.warn("Closing server {}", imageData.toString());
+						Platform.runLater(() -> {
+							try {
+								imageData.getServer().close();
+							} catch (Exception e) {
+								throw new RuntimeException(e);
+							}
+						});
+					}
 
 					try {
 						var store = qupath == null ? null : qupath.getImageRegionStore();

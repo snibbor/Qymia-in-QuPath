@@ -570,7 +570,13 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     if(imageData.getHierarchy().getTMAGrid() == null){
                         logger.warn("no TMA grid found for {}", entry.getImageName());
                         logger.warn("Closing server {}", imageData);
-                        imageData.getServer().close();
+                        Platform.runLater(()->{
+                            try {
+                                imageData.getServer().close();
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
                         continue;
                     }
                     SimpleRegression reg = calculateTMAStandardRegression(imageData, indexMap, measurementName, standardName);
@@ -589,7 +595,13 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     if (imagesToProcess.size() > 1) {
                         logger.warn("Closing server {}", imageData.toString());
-                        imageData.getServer().close();
+                        Platform.runLater(()->{
+                            try {
+                                imageData.getServer().close();
+                            } catch (Exception e) {
+                                throw new RuntimeException(e);
+                            }
+                        });
                     }
 
                 } catch (Exception ex) {
