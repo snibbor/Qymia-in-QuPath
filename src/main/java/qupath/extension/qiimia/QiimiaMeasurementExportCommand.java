@@ -200,8 +200,8 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 			includeCombo.setDisable(true);
 			Set<String> allColumnsForCombo = Collections.synchronizedSet(new LinkedHashSet<>());
 			setType(pathObjectCombo.getSelectionModel().getSelectedItem());
-			for (int i = 0; i < ProjectDialogs.getTargetItems(listSelectionView).size(); i++) {
-				ProjectImageEntry<BufferedImage> entry = ProjectDialogs.getTargetItems(listSelectionView).get(i);
+			for (int i = 0; i < listSelectionView.getTargetItems().size(); i++) {
+				ProjectImageEntry<BufferedImage> entry = listSelectionView.getTargetItems().get(i);
 				int updatedEntries = i;
 				executor.submit(() -> {
 					try {
@@ -213,7 +213,7 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 						allColumnsForCombo.addAll(model.getAllNames());
 						imageData.getServer().close();
 
-						if (updatedEntries == ProjectDialogs.getTargetItems(listSelectionView).size() - 1) {
+						if (updatedEntries == listSelectionView.getTargetItems().size() - 1) {
 							Platform.runLater(() -> {
 								allColumnsForCombo.removeIf(n -> n == null);
 								includeCombo.getItems().setAll(allColumnsForCombo);
@@ -317,7 +317,7 @@ public class QiimiaMeasurementExportCommand implements Runnable {
 		
 		MeasurementExporter exporter;
 		exporter = new MeasurementExporter()
-			.imageList(ProjectDialogs.getTargetItems(listSelectionView))
+			.imageList(listSelectionView.getTargetItems())
 			.separator(separator)
 			.includeOnlyColumns(include)
 			.exportType(type);

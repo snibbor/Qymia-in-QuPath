@@ -787,7 +787,7 @@ public class QiimiaQuantBackend {
                                                 adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
 //													Do I need to set the name again?
                                                 adjpathObj.setName(f.getName());
-                                                hierarchy.addPathObject(adjpathObj);
+                                                hierarchy.addObject(adjpathObj);
 //													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
                                                 hierarchy.removeObject(f, true);
                                             }
@@ -818,7 +818,7 @@ public class QiimiaQuantBackend {
                                                 // Add object as a child of the ROI
                                                 //                        addObject(compInterDet);
                                                 compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-                                                bImageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
+                                                bImageData.getHierarchy().addObjectBelowParent(r, compInterDet, true);
 
                                                 logger.info("Got {} intersection with ROI", compObj.getPathClass().toString());
 
@@ -1518,7 +1518,7 @@ public class QiimiaQuantBackend {
                                         adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
 //													Do I need to set the name again?
                                         adjpathObj.setName(f.getName());
-                                        hierarchy.addPathObject(adjpathObj);
+                                        hierarchy.addObject(adjpathObj);
 //													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
                                         hierarchy.removeObject(f, true);
                                     }
@@ -1667,8 +1667,8 @@ public class QiimiaQuantBackend {
                             }
 //                            hierarchy.updateObject(parentObject, true);
                             PathObject tileObj = tileM.getKey();
-                            tileObj.addPathObjects(intersectChildren);
-                            hierarchy.addPathObjectBelowParent(parentObject, tileObj, true);
+                            tileObj.addChildObjects(intersectChildren);
+                            hierarchy.addObjectBelowParent(parentObject, tileObj, true);
 //                            parentObject.addPathObject(tileObj);
                         })
                 ).get();
@@ -1850,8 +1850,8 @@ public class QiimiaQuantBackend {
                                                 logger.info("Adjusting {} compartment [Annotation] based on new/ignore annotations...", pathObj.getPathClass().toString());
                                                 adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
                                             }
-                                            hierarchy.addPathObject(adjpathObj);
-                                            bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
+                                            hierarchy.addObject(adjpathObj);
+                                            bImageData.getHierarchy().addObjectBelowParent(pathObj.getParent(), adjpathObj, true);
                                             hierarchy.removeObject(pathObj, true);
                                         }
                                     } else {
@@ -1979,14 +1979,14 @@ public class QiimiaQuantBackend {
             MeasurementList measList = parentObject.getMeasurementList();
             // add basic metadata
             if(tileUnitIsMicrons){
-                measList.putMeasurement("Tile Size (um)", tileSize);
+                measList.put("Tile Size (um)", tileSize);
             } else{
-                measList.putMeasurement("Tile Size (px)", tileSize);
+                measList.put("Tile Size (px)", tileSize);
             }
-            measList.putMeasurement("MPPx", pc.getPixelWidthMicrons());
-            measList.putMeasurement("MPPy", pc.getPixelHeightMicrons());
-            measList.putMeasurement("MPP^2", mppSq);
-            measList.putMeasurement("Channel bitdepth", bitDepth);
+            measList.put("MPPx", pc.getPixelWidthMicrons());
+            measList.put("MPPy", pc.getPixelHeightMicrons());
+            measList.put("MPP^2", mppSq);
+            measList.put("Channel bitdepth", bitDepth);
             int bitDepthVal = (int) Math.pow(2, bitDepth);
 
             if (downsample <= 0) {
@@ -1994,7 +1994,7 @@ public class QiimiaQuantBackend {
                 downsample = 1.0;
             }
 
-            measList.putMeasurement("downsample", downsample);
+            measList.put("downsample", downsample);
 
             // Add shape measurements and setup stat trackers
             Map<PathClass, Map<String, RunningStatistics>> allStats = new ConcurrentHashMap<>();
@@ -2004,8 +2004,8 @@ public class QiimiaQuantBackend {
                 double annotationArea = interROI.getValue().getArea();
                 PathClass pathClass = interROI.getKey();
                 String className = pathClass.toString();
-                measList.putMeasurement(className + " area px", annotationArea);
-                measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
+                measList.put(className + " area px", annotationArea);
+                measList.put(className + " area um^2", annotationArea * mppSq);
                 allStats.put(pathClass, new ConcurrentHashMap<>());
                 measNames.put(pathClass, new ConcurrentHashMap<>());
                 for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
@@ -2148,15 +2148,15 @@ public class QiimiaQuantBackend {
                     String targetName = tar.getKey().toString();
                     double exposure_time = tar.getValue();
                     String measName = theseMeas.get(targetName);
-                    double targetMean = measList.getMeasurementValue(measName + ": Mean");
+                    double targetMean = measList.get(measName + ": Mean");
                     // double sumInt = targetMean*annotationArea;
                     // measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
                     // Debugging, would load from available metadata
                     if (exposure_time == 0.0 || exposure_time < 0) {
                         exposure_time = 1000;
-                        measList.putMeasurement(targetName + " exposure time (ms)", 0);
+                        measList.put(targetName + " exposure time (ms)", 0);
                     } else {
-                        measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+                        measList.put(targetName + " exposure time (ms)", exposure_time);
                     }
 
                     // double MeanI_S = targetMean/(exposure_time/1000)
@@ -2171,22 +2171,22 @@ public class QiimiaQuantBackend {
 //                    } else
                     if(!stainType.equalsIgnoreCase("fluorescence")){
                         double DAB_areaS = (targetMean / mppSq);
-                        measList.putMeasurement(targetName + " in " + className + " OD/(um^2)", DAB_areaS);
+                        measList.put(targetName + " in " + className + " OD/(um^2)", DAB_areaS);
                     }
                     if (rescaleScore && !normalizeScore) {
                         //assumes score has already been normalized, but turned into an unsigned int datatype for image manipulation
                         //using bitdepth and maxFloatValue to rescale
                         double rescaleFactor = (maxFloatValue / bitDepthVal);
                         double QIF_areaS = (targetMean / mppSq) * rescaleFactor;
-                        measList.putMeasurement("Rescale factor", rescaleFactor);
-                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+                        measList.put("Rescale factor", rescaleFactor);
+                        measList.put(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
                     } else if (normalizeScore) {
                         double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+                        measList.put(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
                     } else {
                         // no normalization
                         double QIF_areaS = (targetMean / mppSq);
-                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
+                        measList.put(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
                     }
                     //    double totalPx = server.getHeight()*server.getWidth();
                     //    println 'Total pixels: '+ totalPx.toString();
@@ -2288,7 +2288,7 @@ public class QiimiaQuantBackend {
                 if(m.equals(Measurements.MEDIAN)){
                     continue;
                 }
-                ml.putMeasurement(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
+                ml.put(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
             }
         }
     }
@@ -2302,7 +2302,7 @@ public class QiimiaQuantBackend {
             return;
         try (var ml = pathObject.getMeasurementList()) {
             for (var m : measurements) {
-                ml.putMeasurement(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
+                ml.put(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
             }
         }
     }
@@ -2321,7 +2321,7 @@ public class QiimiaQuantBackend {
                     if(m.equals(Measurements.MEDIAN)){
                         continue;
                     }
-                    ml.putMeasurement(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
+                    ml.put(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
                 }
             }
         }
@@ -2338,7 +2338,7 @@ public class QiimiaQuantBackend {
         for (Map.Entry<String, DescriptiveStatistics> stats : allStats.entrySet()) {
             try (var ml = pathObject.getMeasurementList()) {
                 for (var m : measurements) {
-                    ml.putMeasurement(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
+                    ml.put(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
                 }
             }
         }
@@ -2681,7 +2681,7 @@ public class QiimiaQuantBackend {
             var stats = allStats[i];
             try (var ml = pathObject.getMeasurementList()) {
                 for (var m : measurements) {
-                    ml.putMeasurement(baseName + ": " + m.getMeasurementName(), m.getMeasurement(stats));
+                    ml.put(baseName + ": " + m.getMeasurementName(), m.getMeasurement(stats));
                 }
             }
         }

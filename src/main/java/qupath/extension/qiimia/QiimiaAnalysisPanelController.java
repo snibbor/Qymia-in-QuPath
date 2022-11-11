@@ -282,7 +282,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
         Map<String, Double> indexMap = new HashMap<>();
         String standardName = null;
         try(
-            BufferedReader reader = Files.newReader(new File(indexMapFileTextField.getText()), StandardCharsets.UTF_8);
+            BufferedReader reader = Files.newReader(new File(indexMapFileTextField.getText()), StandardCharsets.UTF_8)
             ){
             Gson gson = new Gson();
             // convert JSON file to map
@@ -437,7 +437,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
         previousImages.clear();
 
-        previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+        previousImages.addAll(listSelectionView.getTargetItems());
 
         if (previousImages.isEmpty())
             return;
@@ -533,6 +533,9 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                 throw new RuntimeException(ex);
             }
 
+            var viewersList = qupath.getViewers();
+            List<QuPathViewerPlus> currentViewers = new ArrayList<>();
+
             long startTime = System.currentTimeMillis();
             int counter = 0;
             for (ProjectImageEntry<BufferedImage> entry : imagesToProcess) {
@@ -565,18 +568,25 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         continue;
                     }
 
+                    logger.info("trying to get viewer for imagedata...");
+//					Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
+                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+                    logger.info(currentViewers.toString());
+
 //                    assuming that you apply the same index map to all the TMA images being processed
 //                    invalidate if no TMA grid found
                     if(imageData.getHierarchy().getTMAGrid() == null){
                         logger.warn("no TMA grid found for {}", entry.getImageName());
-                        logger.warn("Closing server {}", imageData);
-                        Platform.runLater(()->{
-                            try {
-                                imageData.getServer().close();
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        });
+                        if (imagesToProcess.size() > 1 && currentViewers.isEmpty()) {
+                            logger.warn("Closing server {}", imageData);
+                            Platform.runLater(() -> {
+                                try {
+                                    imageData.getServer().close();
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            });
+                        }
                         continue;
                     }
                     SimpleRegression reg = calculateTMAStandardRegression(imageData, indexMap, measurementName, standardName);
@@ -593,7 +603,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         logger.error("Error in {}, not creating measurement converter based on regression", entryImageName);
                     }
 
-                    if (imagesToProcess.size() > 1) {
+                    if (imagesToProcess.size() > 1 && currentViewers.isEmpty()) {
                         logger.warn("Closing server {}", imageData.toString());
                         Platform.runLater(()->{
                             try {
@@ -696,15 +706,15 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
         public void convert(PathObject pathObj){
             MeasurementList measList = pathObj.getMeasurementList();
-            Double val = measList.getMeasurementValue(measurementName);
+            Double val = measList.get(measurementName);
             if(val != null && !Double.isNaN(val)){
                 double convertVal = regObj.predict(val);
                 if(convertVal < 0 && doClamp){
                     convertVal = 0.0;
                 }
-                measList.putMeasurement(convertValueName, convertVal);
+                measList.put(convertValueName, convertVal);
             } else{
-                measList.putMeasurement(convertValueName, Double.NaN);
+                measList.put(convertValueName, Double.NaN);
             }
         }
         public String getTmaImageName(){return tmaImageName;}
@@ -824,7 +834,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
         previousImages.clear();
 
-        previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+        previousImages.addAll(listSelectionView.getTargetItems());
 
         if (previousImages.isEmpty())
             return;
@@ -992,12 +1002,10 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         continue;
                     }
 
-                    if(reload){
-                        logger.info("trying to get viewer for imagedata...");
-//						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-                        currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
-                        logger.info(currentViewers.toString());
-                    }
+                    logger.info("trying to get viewer for imagedata...");
+//                  Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
+                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+                    logger.info(currentViewers.toString());
 
                     if(doBatchMap){
                         List<MeasurementConverter> currentMeasConvs = getMeasConvsFromBatchMap(
@@ -1028,7 +1036,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                         }
                     }
 
-                    if (imagesToProcess.size() > 1) {
+                    if (imagesToProcess.size() > 1 && currentViewers.isEmpty()) {
                         logger.warn("Closing server {}", imageData.toString());
 //					    need to run on the JavaFX application thread to avoid throwing errors
                         Platform.runLater(()->{
@@ -1180,7 +1188,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
             String convertValueName = measConv.getConvertValueName();
             logger.info("converting {} to {}", measurementName, convertValueName);
             imageData.getHierarchy().getObjects(null, PathObject.class).parallelStream()
-                    .filter(p -> p.getMeasurementList().containsNamedMeasurement(measurementName))
+                    .filter(p -> p.getMeasurementList().containsKey(measurementName))
                     .forEach(p -> {
                         measConv.convert(p);
                     });

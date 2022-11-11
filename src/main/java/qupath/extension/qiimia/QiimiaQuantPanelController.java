@@ -632,7 +632,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 		previousImages.clear();
 
-		previousImages.addAll(ProjectDialogs.getTargetItems(listSelectionView));
+		previousImages.addAll(listSelectionView.getTargetItems());
 
 		if (previousImages.isEmpty())
 			return;
@@ -783,12 +783,10 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						continue;
 					}
 
-					if(reload){
-						logger.info("trying to get viewer for imagedata...");
-//						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-						currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
-						logger.info(currentViewers.toString());
-					}
+					logger.info("trying to get viewer for imagedata...");
+//					Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
+					currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+					logger.info(currentViewers.toString());
 
 					QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
 							imageData,
@@ -840,8 +838,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 						}
 					}
 
-					if (imagesToProcess.size() > 1) {
-						logger.warn("Closing server {}", imageData.toString());
+					if (imagesToProcess.size() > 1 && currentViewers.isEmpty()) {
+						logger.warn("Closing server {}", imageData);
 //					    need to run on the JavaFX application thread to avoid throwing errors
 						Platform.runLater(()->{
 							try {
