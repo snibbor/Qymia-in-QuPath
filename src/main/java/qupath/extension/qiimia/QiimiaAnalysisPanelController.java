@@ -980,7 +980,13 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     // Open saved data if there is any, or else the image itself
                     ImageData<BufferedImage> imageData = entry.readImageData();
                     logger.info("Working on {}", entry.getImageName());
-                    File entryImageFile = new File(entry.getMetadataMap().get("URI"));
+                    String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+                    String entryImageName;
+                    if(entryImagePath.isEmpty()){
+                        entryImageName = entry.getImageName();
+                    } else {
+                        entryImageName = new File(entryImagePath).getName();
+                    }
                     if (imageData == null) {
                         logger.warn("Unable to open {} - will be skipped", entry.getImageName());
                         continue;
@@ -995,7 +1001,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     if(doBatchMap){
                         List<MeasurementConverter> currentMeasConvs = getMeasConvsFromBatchMap(
-                                entryImageFile.getName(),
+                                entryImageName,
                                 batchMap,
                                 allMeasConvList
                         );

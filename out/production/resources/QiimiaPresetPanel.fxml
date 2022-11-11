@@ -51,7 +51,7 @@
                   <MenuItem fx:id="selectPresetDirMenuItem" mnemonicParsing="false" text="Select quant preset directory" />
                </items>
             </Menu>
-            <Menu fx:id="navigateMenu" mnemonicParsing="false" text="Navigate">
+            <Menu fx:id="toolsMenu" mnemonicParsing="false" text="Tools">
                <items>
                   <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
                   <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />

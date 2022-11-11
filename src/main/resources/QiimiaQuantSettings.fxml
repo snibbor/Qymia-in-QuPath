@@ -95,6 +95,12 @@
                                     </Label>
                                     <TextField fx:id="workNATextField" prefWidth="50.0" GridPane.columnIndex="3" />
                                     <TextField fx:id="workMagTextField" prefWidth="50.0" GridPane.columnIndex="3" GridPane.rowIndex="1" />
+                                    <Label text="Downsample:" GridPane.columnIndex="2" GridPane.rowIndex="2">
+                                       <padding>
+                                          <Insets left="3.0" />
+                                       </padding>
+                                    </Label>
+                                    <TextField fx:id="downsampleTextField" prefWidth="50.0" GridPane.columnIndex="3" GridPane.rowIndex="2" />
                                  </children>
                                  <VBox.margin>
                                     <Insets />

@@ -30,8 +30,9 @@
               <items>
                 <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
                   <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" visible="false" />
-                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
-                  <MenuItem fx:id="importGridOverlayMenuItem" mnemonicParsing="false" text="Import Overlay" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="savePresetMenuItem" mnemonicParsing="false" text="Save as preset..." />
+                  <MenuItem fx:id="loadPresetMenuItem" mnemonicParsing="false" text="Load preset..." />
                   <SeparatorMenuItem mnemonicParsing="false" />
                   <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
               </items>
@@ -56,6 +57,8 @@
                <items>
                   <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
                   <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="switchToPresetMenuItem" mnemonicParsing="false" text="Switch to Preset Panel..." />
                </items>
             </Menu>
           <Menu fx:id="helpMenu" mnemonicParsing="false" text="Help">

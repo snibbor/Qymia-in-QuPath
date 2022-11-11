@@ -26,6 +26,8 @@ import qupath.imagej.tools.PixelImageIJ;
 import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.analysis.images.SimpleImages;
 import qupath.lib.analysis.images.SimpleModifiableImage;
+import qupath.lib.analysis.stats.RunningStatistics;
+import qupath.lib.analysis.stats.StatisticsHelper;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.awt.common.BufferedImageTools;
 import qupath.lib.geom.ImmutableDimension;
@@ -187,6 +189,24 @@ public class QiimiaQuantBackend {
                     return stats.getMin();
                 case STD_DEV:
                     return stats.getStandardDeviation();
+                case VARIANCE:
+                    return stats.getVariance();
+                default:
+                    throw new IllegalArgumentException("Unknown measurement " + this);
+            }
+        }
+        private double getMeasurement(RunningStatistics stats) {
+            switch (this) {
+                case MAX:
+                    return stats.getMax();
+                case MEAN:
+                    return stats.getMean();
+                case MEDIAN:
+                    return Double.NaN;
+                case MIN:
+                    return stats.getMin();
+                case STD_DEV:
+                    return stats.getStdDev();
                 case VARIANCE:
                     return stats.getVariance();
                 default:
@@ -1977,7 +1997,8 @@ public class QiimiaQuantBackend {
             measList.putMeasurement("downsample", downsample);
 
             // Add shape measurements and setup stat trackers
-            Map<PathClass, Map<String, DescriptiveStatistics>> allStats = new ConcurrentHashMap<>();
+            Map<PathClass, Map<String, RunningStatistics>> allStats = new ConcurrentHashMap<>();
+//            Map<PathClass, Map<String, DescriptiveStatistics>> allStats = new ConcurrentHashMap<>();
             Map<PathClass, Map<String, String>> measNames = new ConcurrentHashMap<>();
             for(Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
                 double annotationArea = interROI.getValue().getArea();
@@ -1989,7 +2010,8 @@ public class QiimiaQuantBackend {
                 measNames.put(pathClass, new ConcurrentHashMap<>());
                 for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
                     String targetName = tar.getKey().toString();
-                    allStats.get(pathClass).put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
+//                    allStats.get(pathClass).put(targetName, new DescriptiveStatistics(DescriptiveStatistics.INFINITE_WINDOW));
+                    allStats.get(pathClass).put(targetName, new RunningStatistics());
                     String measName = targetName + " Intensity in " + className;
                     measNames.get(pathClass).put(targetName, measName);
                     logger.debug("Scoring {} in {}", targetName, className);
@@ -2005,7 +2027,7 @@ public class QiimiaQuantBackend {
 
                 // Get bounds
                 RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, cell.getROI());
-                BufferedImage img = server.readBufferedImage(region);
+                BufferedImage img = server.readRegion(region);
                 if (img == null) {
                     logger.error("Could not read image - unable to compute intensity features for {}", parentObject);
                     return false;
@@ -2068,7 +2090,7 @@ public class QiimiaQuantBackend {
                         // Get bounds
                         RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
 //                        This is likely a very slow step across threads if only one image server resource is used....
-                        BufferedImage img = server.readBufferedImage(region);
+                        BufferedImage img = server.readRegion(region);
                         if (img == null) {
                             logger.error("Could not read image - unable to compute intensity feature");
                             return false;
@@ -2090,7 +2112,8 @@ public class QiimiaQuantBackend {
                         for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
                             ColorTransforms.ColorTransform transform = tar.getKey();
 //								double expTime = tar.getValue();
-                            DescriptiveStatistics thisStats = allStats.get(pathClass).get(transform.toString());
+//                            DescriptiveStatistics thisStats = allStats.get(pathClass).get(transform.toString());
+                            RunningStatistics thisStats = allStats.get(pathClass).get(transform.toString());
 
                             // Transform the pixels
                             pixels = transform.extractChannel(server, img, pixels);
@@ -2104,16 +2127,17 @@ public class QiimiaQuantBackend {
                             if (maskBytes != null) {
                                 for (int i = 0; i < pixels.length; i++) {
                                     if (maskBytes[i] == (byte) 0) {
-//											pixelImage.setValue(i % w, i / w, Float.NaN);
-                                        continue;
+                                        pixelImage.setValue(i % w, i / w, Float.NaN);
+//                                      continue;
                                     }
-                                    thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
+//                                    thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
                                 }
+                                StatisticsHelper.updateRunningStatistics(thisStats, pixelImage);
                                 allStats.get(pathClass).put(transform.toString(), thisStats);
                             }
                         }
                     }
-                    addMeasurements_OpenCV(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
+                    addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
                 }
             }
 
@@ -2250,6 +2274,25 @@ public class QiimiaQuantBackend {
 //
 //		}
 
+
+
+    public void addMeasurements_OpenCV(RunningStatistics allStats,
+                                       String allMeasNames,
+                                       PathObject pathObject,
+                                       Collection<Measurements> measurements){
+        // Add measurements
+        if (pathObject == null)
+            return;
+        try (var ml = pathObject.getMeasurementList()) {
+            for (var m : measurements) {
+                if(m.equals(Measurements.MEDIAN)){
+                    continue;
+                }
+                ml.putMeasurement(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
+            }
+        }
+    }
+
     public void addMeasurements_OpenCV(DescriptiveStatistics allStats,
                                        String allMeasNames,
                                        PathObject pathObject,
@@ -2260,6 +2303,26 @@ public class QiimiaQuantBackend {
         try (var ml = pathObject.getMeasurementList()) {
             for (var m : measurements) {
                 ml.putMeasurement(allMeasNames + ": " + m.getMeasurementName(), m.getMeasurement(allStats));
+            }
+        }
+    }
+
+
+    public void addMeasurements_OpenCV_runStats(Map<String, RunningStatistics> allStats,
+                                       Map<String, String> allMeasNames,
+                                       PathObject pathObject,
+                                       Collection<Measurements> measurements){
+        // Add measurements
+        if (pathObject == null)
+            return;
+        for (Map.Entry<String, RunningStatistics> stats : allStats.entrySet()) {
+            try (var ml = pathObject.getMeasurementList()) {
+                for (var m : measurements) {
+                    if(m.equals(Measurements.MEDIAN)){
+                        continue;
+                    }
+                    ml.putMeasurement(allMeasNames.get(stats.getKey()) + ": " + m.getMeasurementName(), m.getMeasurement(stats.getValue()));
+                }
             }
         }
     }

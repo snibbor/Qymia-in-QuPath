@@ -100,7 +100,7 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 	@FXML
 	Menu settingsMenu;
 	@FXML
-	Menu toolsMenu;
+	Menu navigateMenu;
 	@FXML
 	Menu helpMenu;
 	@FXML

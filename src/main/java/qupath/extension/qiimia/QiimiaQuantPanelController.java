@@ -107,6 +107,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQiimiaQuant", 0.75);
 	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQiimiaQuant", 20.0);
 
+	private static DoubleProperty downsampleProperty = PathPrefs.createPersistentPreference("downsampleQiimiaQuant", 1.0);
+
 	private final int defaultTileSize = 512;
 	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
 
@@ -118,7 +120,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 	@FXML
 	Menu settingsMenu;
 	@FXML
-	Menu toolsMenu;
+	Menu navigateMenu;
 	@FXML
 	Menu helpMenu;
 	@FXML
@@ -232,7 +234,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		setupComboBoxes();
 		setupListViews();
 		exportMeasButton.setOnAction(EXPORT);
-		tileSizeTextField = formatTextFields(tileSizeTextField, "integer", String.valueOf(defaultTileSize));
+		tileSizeTextField = QiimiaUtils.formatTextFields(tileSizeTextField, "integer", String.valueOf(defaultTileSize));
 		tileSizeTextField.textProperty().bindBidirectional(tileSize, new IntegerStringConverter());
 		tileSizeTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
 			@Override
@@ -420,7 +422,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 			private TextField getExpTextField(){
 				if(expTimeTextField==null){
 					expTimeTextField = new TextField();
-					expTimeTextField = formatTextFields(expTimeTextField, "integer", null);
+					expTimeTextField = QiimiaUtils.formatTextFields(expTimeTextField, "integer", null);
 					expTimeTextField.setPromptText("ms");
 					expTimeTextField.setPrefWidth(50);
 					expTimeTextField.setMaxWidth(60);
@@ -491,98 +493,6 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				return checkBox;
 			}
 		});
-	}
-
-	private TextField formatTextFields(TextField textField, String format, String defaultValue) {
-		switch(format.toLowerCase()) {
-			case "string": {
-				break;
-			}
-			case "integer": {
-				UnaryOperator<TextFormatter.Change> filter = change -> {
-					String newText = change.getControlNewText();
-					if (newText.matches("^\\d{0,4}$|^$")) {
-						return change;
-					}
-					return null;
-				};
-
-				StringConverter<Integer> converter = new IntegerStringConverter() {
-					@Override
-					public Integer fromString(String s) {
-						if (s.isEmpty()) return null;
-						else if (Integer.parseInt(s) == 0.0) return 0;
-						return super.fromString(s);
-					}
-				};
-
-				TextFormatter<Integer> textFormatter;
-				if(defaultValue!=null) {
-					textFormatter = new TextFormatter<Integer>(converter, Integer.parseInt(defaultValue), filter);
-				} else{
-					textFormatter = new TextFormatter<Integer>(converter, null, filter);
-				}
-
-				textField.setTextFormatter(textFormatter);
-				break;
-			}
-			case "percent": {
-				UnaryOperator<TextFormatter.Change> filter = change -> {
-					String newText = change.getControlNewText();
-					if (newText.matches("^100(\\.0{0,2})?$|^\\d{0,2}(\\.\\d{0,2})?$")) {
-						return change;
-					}
-					return null;
-				};
-				StringConverter<Double> converter = new DoubleStringConverter() {
-					@Override
-					public Double fromString(String s) {
-						if (s.isEmpty()) return 0.0 ;
-//    		                else if(Double.parseDouble(s) == 0) return 0.0;
-						return super.fromString(s);
-					}
-				};
-
-				TextFormatter<Double> textFormatter;
-				if(defaultValue!=null) {
-					textFormatter = new TextFormatter<Double>(converter, Double.parseDouble(defaultValue), filter);
-				} else{
-					textFormatter = new TextFormatter<Double>(converter, null, filter);
-				}
-
-				textField.setTextFormatter(textFormatter);
-				break;
-			}
-			case "0-1": {
-				UnaryOperator<TextFormatter.Change> filter = change -> {
-					String newText = change.getControlNewText();
-					if (newText.matches("^0{0,1}(\\.\\d{0,3})?$|^1(\\.0{0,3})?$")) {
-						return change;
-					}
-					return null;
-				};
-
-				StringConverter<Double> converter = new DoubleStringConverter() {
-					@Override
-					public Double fromString(String s) {
-						if (s.isEmpty()) return 0.0 ;
-//    		                else if(Double.parseDouble(s) == 0) return 0.0;
-						return super.fromString(s);
-					}
-				};
-
-				TextFormatter<Double> textFormatter;
-				if(defaultValue!=null) {
-					textFormatter = new TextFormatter<Double>(converter, Double.parseDouble(defaultValue), filter);
-				} else{
-					textFormatter = new TextFormatter<Double>(converter, null, filter);
-				}
-
-				textField.setTextFormatter(textFormatter);
-				break;
-			}
-		}
-		return textField;
 	}
 
 	private void updateResultTypes(ActionEvent event){
@@ -1031,7 +941,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		boolean verboseMeasures = verboseMeasuresMenuItem.selectedProperty().get();
 		boolean tileUnitIsMicrons = tileUnitIsMicronsMenuItem.selectedProperty().get();
 
-		double downsample = 1.0;
+		double downsample = downsampleProperty.get();
+		logger.info("using downsample: {}", downsample);
 //		Class<? extends PathObject> sourceType;
 //		if(source.equals("Cells")){
 //			sourceType = PathCellObject.class;
@@ -1214,7 +1125,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		Set<PathClass> presetROIClasses = quantPreset.getROIClasses();
 		Map<String, Object> presetParams = quantPreset.getParams();
 //		set gui params
-//		downsample = (double) presetParams.get("downsample");
+		downsampleProperty.set((double) presetParams.get("downsample"));
 		Integer inputTileSize = ((Double) presetParams.get("tileSize")).intValue();
 		if(inputTileSize > 0) {
 			tileSizeTextField.setText(String.valueOf(inputTileSize));
@@ -1266,7 +1177,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		FXMLLoader loader = new FXMLLoader(getClass().getResource("/QiimiaQuantSettings.fxml"));
 		loader.setControllerFactory(controllerClass -> new QiimiaQuantSettingsController(
 				qupath, ignoreClasses, roiClasses,
-				refNAProperty, refMagProperty, workingNAProperty, workingMagProperty
+				refNAProperty, refMagProperty, workingNAProperty, workingMagProperty,
+				downsampleProperty
 				)
 		);
 		Parent panel = loader.load();

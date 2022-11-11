@@ -53,7 +53,7 @@
                   <MenuItem fx:id="advancedSettingsMenuItem" mnemonicParsing="false" text="Advanced settings..." />
                </items>
             </Menu>
-            <Menu fx:id="toolsMenu" mnemonicParsing="false" text="Tools">
+            <Menu fx:id="navigateMenu" mnemonicParsing="false" text="Navigate">
                <items>
                   <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
                   <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />

@@ -2,15 +2,20 @@ package qupath.extension.qiimia;
 
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ObservableValue;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableSet;
 import javafx.collections.SetChangeListener;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
 import javafx.scene.control.ListView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.cell.CheckBoxListCell;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
 import javafx.util.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,10 +42,15 @@ public class QiimiaQuantSettingsController extends BaseController implements Ini
     private static DoubleProperty workingNAProperty;
     private static DoubleProperty workingMagProperty;
 
+    private static DoubleProperty downsampleProperty;
+
     @FXML
     ListView<PathClass> ignoreListView;
     @FXML
     ListView<PathClass> roiListView;
+
+    @FXML
+    TextField downsampleTextField;
 
 
     public QiimiaQuantSettingsController(QuPathGUI qupath,
@@ -49,7 +59,8 @@ public class QiimiaQuantSettingsController extends BaseController implements Ini
                                          DoubleProperty refNA,
                                          DoubleProperty refMag,
                                          DoubleProperty workingNA,
-                                         DoubleProperty workingMag){
+                                         DoubleProperty workingMag,
+                                         DoubleProperty downsample){
         this.qupath = qupath;
         this.ignoreClasses = ignoreClasses;
         this.roiClasses = roiClasses;
@@ -57,16 +68,48 @@ public class QiimiaQuantSettingsController extends BaseController implements Ini
         refMagProperty = refMag;
         workingNAProperty = workingNA;
         workingMagProperty = workingMag;
+        downsampleProperty = downsample;
     }
 
     @Override
     public void initialize(URL location, ResourceBundle resources) {
+        setupTextFields();
         ignoreListView.setItems(qupath.getAvailablePathClasses());
         roiListView.setItems(qupath.getAvailablePathClasses());
         setupListViews();
+
         updateGUI();
 //        setup regex filter for ref and work text field to only accept numbers
 //        link to properties with listener or binding?
+    }
+
+    private void setupTextFields(){
+        downsampleTextField = QiimiaUtils.formatTextFields(downsampleTextField, "pos_double", String.valueOf(downsampleProperty.get()));
+        downsampleTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent ke) {
+                if (ke.getCode().equals(KeyCode.ENTER)) {
+                    if (downsampleTextField.getText().isEmpty() || downsampleTextField.getText() == null) {
+                        downsampleProperty.set(1);
+                        downsampleTextField.setText("1");
+                    } else{
+                        downsampleProperty.set(Double.parseDouble(downsampleTextField.getText()));
+                    }
+                    logger.info("downsampleTextField key enter: {}", downsampleProperty.get());
+                }
+            }
+        });
+        downsampleTextField.focusedProperty().addListener((ov, oldV, newV) -> {
+            if (!newV) { // focus lost
+                if (downsampleTextField.getText().isEmpty() || downsampleTextField.getText() == null) {
+                    downsampleProperty.set(1);
+                    downsampleTextField.setText("1");
+                } else{
+                    downsampleProperty.set(Double.parseDouble(downsampleTextField.getText()));
+                }
+                logger.info("downsampleTextField focus lost: {}", downsampleProperty.get());
+            }
+        });
     }
 
     private void setupListViews() {
