@@ -1072,6 +1072,10 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 		}
 //		File selector dialog
 		File newPresetFilePath = Dialogs.promptToSaveFile("Save QiimiaQuant Preset", presetDir.toFile(), "new_preset", "JSON (.json)", ".json");
+		if (newPresetFilePath==null){
+			logger.error("null preset file name, cannot save!");
+			return;
+		}
 		Gson gson = GsonTools.getInstance(true);
 		try {
 			BufferedWriter file = Files.newWriter(
