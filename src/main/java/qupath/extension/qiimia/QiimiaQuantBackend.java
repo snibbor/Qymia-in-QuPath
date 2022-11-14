@@ -785,14 +785,18 @@ public class QiimiaQuantBackend {
                                                 logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
 
                                                 adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+                                                adjpathObj.setLocked(true);
 //													Do I need to set the name again?
                                                 adjpathObj.setName(f.getName());
-                                                hierarchy.addObject(adjpathObj);
-//													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-                                                hierarchy.removeObject(f, true);
+//                                                could be slow to add all these child objects back into the hierarchy....
+                                                adjpathObj.addChildObjects(f.getChildObjects());
+                                                hierarchy.addObjectBelowParent(f.getParent(), adjpathObj, true);
+//                                                hierarchy.addObject(adjpathObj);
+                                                hierarchy.removeObject(f, false);
                                             }
                                         } else {
                                             adjpathObj = f;
+                                            adjpathObj.setLocked(true);
                                         }
 
                                         // this might work but does it scale for lots of ROIs?
@@ -806,6 +810,7 @@ public class QiimiaQuantBackend {
                                         if (isCancelled.get()) {
                                             throw new CancellationException();
                                         }
+                                        MeasurementList roiMeasList = r.getMeasurementList();
 
                                         for (PathObject compObj : compartmentObjs) {
 
@@ -822,10 +827,10 @@ public class QiimiaQuantBackend {
 
                                                 logger.info("Got {} intersection with ROI", compObj.getPathClass().toString());
 
-                                                // Quantify metrics/AQUA for each target in each intersecting compartment
-                                                // Calculate AQUA scoring metrics for new compartment detections for all targets
+                                                // Quantify metrics for each target in each intersecting compartment
                                                 try {
                                                     getTargetsIntensityScores_OpenCV(server, compInterDet);
+                                                    roiMeasList.putAll(compInterDet.getMeasurementList());
                                                 } catch (IOException ex) {
                                                     logger.warn(ex.toString());
                                                 }
@@ -833,6 +838,7 @@ public class QiimiaQuantBackend {
                                                 logger.info("No intersection with {} compartment for ROI... skipping.", compObj.getPathClass().toString());
                                             }
                                         }
+                                        roiMeasList.close();
                                         incrementProgress(progAmount);
                                     }),
                             forkJoinPool)
@@ -1516,14 +1522,18 @@ public class QiimiaQuantBackend {
                                         logger.info("Adjusting ROI {} based on ignore annotations...", f.getName());
 
                                         adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, f.getPathClass());
+                                        adjpathObj.setLocked(true);
 //													Do I need to set the name again?
                                         adjpathObj.setName(f.getName());
-                                        hierarchy.addObject(adjpathObj);
-//													bImageData.getHierarchy().addPathObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-                                        hierarchy.removeObject(f, true);
+//                                      could be slow to add all these child objects back into the hierarchy....
+                                        adjpathObj.addChildObjects(f.getChildObjects());
+                                        hierarchy.addObjectBelowParent(f.getParent(), adjpathObj, true);
+//                                                hierarchy.addObject(adjpathObj);
+                                        hierarchy.removeObject(f, false);
                                     }
                                 } else {
                                     adjpathObj = f;
+                                    adjpathObj.setLocked(true);
                                 }
 
                                 // this might work but does it scale for lots of ROIs?
@@ -1828,43 +1838,46 @@ public class QiimiaQuantBackend {
                                 if (isCancelled.get()) {
                                     throw new CancellationException();
                                 }
+                                MeasurementList tmaMeasList = pathObj.getMeasurementList();
 //					ignore the objects that are unclassified/PathClass == null
                                 if (pathObj.getPathClass() != null && compartments.contains(pathObj.getPathClass()) && pathObj.getClass() == sourceType) {
-                                    PathObject adjpathObj;
-                                    ROI adjpathObjROI = pathObj.getROI();
+                                    PathObject adjPathObj;
+                                    ROI adjPathObjROI = pathObj.getROI();
                                     // is not very efficient as the excluded areas may only be in certain TMA spots....
                                     // getting an excluded ROI for each TMA core is not as parallellizable and does not work if the excluded region does not fit within the QuPath hierarchy
                                     // not very efficient use of if statements when these variables are set before the parallelStream starts
                                     // case switch inside parallelStream? does this work?
-                                    if (doAdjust.get() && adjpathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
-                                        adjpathObjROI = RoiTools.combineROIs(adjpathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
-                                        if (adjpathObjROI.isEmpty()) {
+                                    if (doAdjust.get() && adjPathObjROI.getGeometry().intersects(combinedExcludeGeom)) {
+                                        adjPathObjROI = RoiTools.combineROIs(adjPathObjROI, combinedExcludeROI, RoiTools.CombineOp.SUBTRACT);
+                                        if (adjPathObjROI.isEmpty()) {
                                             logger.info("{} compartment is now empty, skipping AQUA metrics...", pathObj.getPathClass().toString());
                                             //removeObject(detection, true);
                                             return;
                                         } else {
                                             if (sourceType == PathDetectionObject.class){
                                                 logger.info("Adjusting {} compartment [Detection] based on new/ignore annotations...", pathObj.getPathClass().toString());
-                                                adjpathObj = PathObjects.createDetectionObject(adjpathObjROI, pathObj.getPathClass());
+                                                adjPathObj = PathObjects.createDetectionObject(adjPathObjROI, pathObj.getPathClass());
                                             } else {
                                                 logger.info("Adjusting {} compartment [Annotation] based on new/ignore annotations...", pathObj.getPathClass().toString());
-                                                adjpathObj = PathObjects.createAnnotationObject(adjpathObjROI, pathObj.getPathClass());
+                                                adjPathObj = PathObjects.createAnnotationObject(adjPathObjROI, pathObj.getPathClass());
                                             }
-                                            hierarchy.addObject(adjpathObj);
-                                            bImageData.getHierarchy().addObjectBelowParent(pathObj.getParent(), adjpathObj, true);
-                                            hierarchy.removeObject(pathObj, true);
+                                            adjPathObj.addChildObjects(pathObj.getChildObjects());
+                                            hierarchy.addObjectBelowParent(pathObj.getParent(), adjPathObj, true);
+                                            hierarchy.removeObject(pathObj, false);
                                         }
                                     } else {
-                                        adjpathObj = pathObj;
+                                        adjPathObj = pathObj;
                                     }
                                     // Calculate AQUA scoring metrics for new compartment detections for all targets
                                     try {
-                                        getTargetsIntensityScores_OpenCV(server, adjpathObj);
-//											getTargetsIntensityScores(adjpathObj);
+                                        getTargetsIntensityScores_OpenCV(server, adjPathObj);
+                                        tmaMeasList.putAll(adjPathObj.getMeasurementList());
+
                                     } catch (IOException ex) {
                                         logger.warn(ex.toString());
                                     }
                                 }
+                                tmaMeasList.close();
                                 incrementProgress(progAmount);
                             }),
                             forkJoinPool)
@@ -2089,7 +2102,7 @@ public class QiimiaQuantBackend {
 
                         // Get bounds
                         RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
-//                        This is likely a very slow step across threads if only one image server resource is used....
+
                         BufferedImage img = server.readRegion(region);
                         if (img == null) {
                             logger.error("Could not read image - unable to compute intensity feature");
@@ -2127,12 +2140,12 @@ public class QiimiaQuantBackend {
                             if (maskBytes != null) {
                                 for (int i = 0; i < pixels.length; i++) {
                                     if (maskBytes[i] == (byte) 0) {
-                                        pixelImage.setValue(i % w, i / w, Float.NaN);
-//                                      continue;
+//                                        pixelImage.setValue(i % w, i / w, Float.NaN);
+                                        continue;
                                     }
-//                                    thisStats.addValue((double) pixelImage.getValue(i % w, i / w));
+                                    thisStats.addValue(pixelImage.getValue(i % w, i / w));
                                 }
-                                StatisticsHelper.updateRunningStatistics(thisStats, pixelImage);
+//                                StatisticsHelper.updateRunningStatistics(thisStats, pixelImage);
                                 allStats.get(pathClass).put(transform.toString(), thisStats);
                             }
                         }

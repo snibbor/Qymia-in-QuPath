@@ -629,24 +629,23 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 
 			File scriptFile = scriptFileMap.get(selectedScriptName.get());
 			String script = null;
-			try {
-				script = GeneralTools.readFileAsString(scriptFile.getAbsolutePath());
-			} catch (IOException e) {
-				logger.error("Error loading script {}", selectedScriptName.get());
-				throw new RuntimeException(e);
-			}
+			String ext;
+			ScriptLanguage language = null;
+			if(scriptFile!=null) {
+				try {
+					script = GeneralTools.readFileAsString(scriptFile.getAbsolutePath());
+				} catch (IOException e) {
+					logger.error("Error loading script {}", selectedScriptName.get());
+					throw new RuntimeException(e);
+				}
 
-			String ext = null;
-			if (scriptFile != null)
 				ext = GeneralTools.getExtension(scriptFile).orElse(null);
-
-			ScriptLanguage language = ScriptLanguageProvider.getLanguageFromExtension(ext);
-			if (!(language instanceof ExecutableLanguage)) {
-				logger.error("Script is not a ExecutableLanguage... {}", language);
-				return null;
+				language = ScriptLanguageProvider.getLanguageFromExtension(ext);
+				if (!(language instanceof ExecutableLanguage)) {
+					logger.error("Script is not a ExecutableLanguage... {}", language);
+					return null;
+				}
 			}
-
-//			ScriptContext context = null;
 
 			List<ProjectImageEntry<BufferedImage>> allProjectEntryList = project.getImageList();
 
@@ -669,8 +668,8 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 					// Open saved data if there is any, or else the image itself
 					ImageData<BufferedImage> imageData = entry.readImageData();
 					logger.info("Working on {}", entry.getImageName());
-					logger.info("Entry URIs: {}", entry.getUris());
-					String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+					logger.info("Entry URIs: {}", entry.getURIs());
+					String entryImagePath = entry.getURIs().stream().findFirst().orElse(new URI("")).getPath();
 					String entryImageName;
 					if(entryImagePath.isEmpty()){
 						entryImageName = entry.getImageName();
@@ -692,7 +691,7 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 						if (syncFileName != null) {
 							logger.info("Trying to get first image for quantification from sync map");
 							for(ProjectImageEntry<BufferedImage> projEntry: allProjectEntryList){
-								File projImageFile = new File(projEntry.getUris().stream().findFirst().orElse(new URI("")).getPath());
+								File projImageFile = new File(projEntry.getURIs().stream().findFirst().orElse(new URI("")).getPath());
 								if(syncFileName.equals(projImageFile.getName())){
 									quantImageData = projEntry.readImageData();
 									quantEntry = projEntry;
@@ -705,12 +704,15 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 
 					logger.info("trying to get viewer for this imagedata...");
 //						Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-					thisCurrentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+//					thisCurrentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+					thisCurrentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(entry)).collect(Collectors.toList());
 					logger.info(thisCurrentViewers.toString());
 					if(quantImageData!=null){
 						logger.info("trying to get viewer for quant imagedata...");
-						ImageData<BufferedImage> finalQuantImageData = quantImageData;
-						quantCurrentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(finalQuantImageData.getProperties())).collect(Collectors.toList());
+//						ImageData<BufferedImage> finalQuantImageData = quantImageData;
+//						quantCurrentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(finalQuantImageData.getProperties())).collect(Collectors.toList());
+						ProjectImageEntry<BufferedImage> finalQuantEntry = quantEntry;
+						quantCurrentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(finalQuantEntry)).collect(Collectors.toList());
 						logger.info(quantCurrentViewers.toString());
 					}
 
@@ -727,33 +729,35 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 						logger.warn("SyncMap quantification does not transform annotations! e.g. Only compatible for pseudo-DAB and IF images or aligned image pairs.");
 						quantHierarchy.addObjects(imageData.getHierarchy().getAnnotationObjects());
 
+						if(script!=null && language!=null) {
 //						run script for pre-processing on quantImageData (e.g. compartment segmentation)
-						Platform.runLater(()->{
-							quantProgressBar.setProgress(-1);
-							progressLabel.setText("Running pre-processing script...");
-							for(Control button : controlListToToggle){
-								button.setDisable(true);
-							}
-							for (MenuItem menuItem : menuItemListToToggle) {
-								menuItem.setDisable(true);
-							}
-						});
+							logger.info("running pre-processing script...");
+							Platform.runLater(() -> {
+								quantProgressBar.setProgress(-1);
+								progressLabel.setText("Running pre-processing script...");
+								for (Control button : controlListToToggle) {
+									button.setDisable(true);
+								}
+								for (MenuItem menuItem : menuItemListToToggle) {
+									menuItem.setDisable(true);
+								}
+							});
 
-						var builder = ScriptParameters.builder()
+							var builder = ScriptParameters.builder()
 //							.setWriter(writer)
 //							.setErrorWriter(new DefaultScriptEditor.ScriptConsoleWriter(console, true))
-							.setScript(script)
+									.setScript(script)
 //							.setFile(tab.getFile())
-							.setProject(project)
-							.setImageData(quantImageData)
+									.setProject(project)
+									.setImageData(quantImageData)
 //							.setBatchIndex(batchIndex)
 //							.setBatchSize(batchSize)
 //							.setBatchSaveResult(batchSave)
-							.setDefaultImports(getDefaultClasses())
-							.setDefaultStaticImports(getDefaultStaticClasses());
-//
-//
-						((ExecutableLanguage) language).execute(builder.build());
+									.setDefaultImports(getDefaultClasses())
+									.setDefaultStaticImports(getDefaultStaticClasses());
+
+							((ExecutableLanguage) language).execute(builder.build());
+						}
 
 						if(runCancelled.get()){
 							logger.info("run cancelled...");
@@ -819,31 +823,35 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 						}
 					} else {
 //						Just script process and quantify on current imageData
+						if(script!=null && language!=null) {
 //						run script for pre-processing on imageData (e.g. compartment segmentation)
-						Platform.runLater(()->{
-							progressLabel.setText("Running pre-processing script...");
-							quantProgressBar.setProgress(-1);
-							for(Control button : controlListToToggle){
-								button.setDisable(true);
-							}
-							for (MenuItem menuItem : menuItemListToToggle) {
-								menuItem.setDisable(true);
-							}
-						});
+							logger.info("running pre-processing script...");
+							Platform.runLater(() -> {
+								progressLabel.setText("Running pre-processing script...");
+								quantProgressBar.setProgress(-1);
+								for (Control button : controlListToToggle) {
+									button.setDisable(true);
+								}
+								for (MenuItem menuItem : menuItemListToToggle) {
+									menuItem.setDisable(true);
+								}
+							});
 
-						var builder = ScriptParameters.builder()
+							var builder = ScriptParameters.builder()
 //							.setWriter(writer)
 //							.setErrorWriter(new DefaultScriptEditor.ScriptConsoleWriter(console, true))
-								.setScript(script)
+									.setScript(script)
 //							.setFile(tab.getFile())
-								.setProject(project)
-								.setImageData(imageData)
+									.setProject(project)
+									.setImageData(imageData)
 //							.setBatchIndex(batchIndex)
 //							.setBatchSize(batchSize)
 //							.setBatchSaveResult(batchSave)
-								.setDefaultImports(getDefaultClasses())
-								.setDefaultStaticImports(getDefaultStaticClasses());
-						((ExecutableLanguage) language).execute(builder.build());
+									.setDefaultImports(getDefaultClasses())
+									.setDefaultStaticImports(getDefaultStaticClasses());
+
+							((ExecutableLanguage) language).execute(builder.build());
+						}
 
 						if(runCancelled.get()){
 							logger.info("run cancelled...");

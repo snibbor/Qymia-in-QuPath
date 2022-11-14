@@ -31,6 +31,28 @@ public class ImageOpsExtras extends ImageOps {
 	public static class Core extends ImageOps.Core{
 		
 	}
+
+
+
+
+
+
+	public static class Channels extends ImageOps.Channels{
+		public static ImageOp pseudoColorChannels(){ return new PseudoColorChannelsOp(); }
+
+		@OpType("pseudocolor-channels")
+		static class PseudoColorChannelsOp implements ImageOp{
+			PseudoColorChannelsOp(){
+
+			}
+
+			@Override
+			public Mat apply(Mat input) {
+				return null;
+			}
+		}
+
+	}
 	
 	@OpType("bitwise")
 	public static class Bitwise {

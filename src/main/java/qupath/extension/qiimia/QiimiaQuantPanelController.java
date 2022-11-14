@@ -56,6 +56,7 @@ import qupath.lib.projects.Projects;
 import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.*;
 import static qupath.lib.common.Prefs.getNumThreads;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
+import static qupath.lib.objects.classes.PathClass.getInstance;
 
 
 import java.awt.image.BufferedImage;
@@ -771,7 +772,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 					// Open saved data if there is any, or else the image itself
 					ImageData<BufferedImage> imageData = entry.readImageData();
 					logger.info("Working on {}", entry.getImageName());
-					String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+					String entryImagePath = entry.getURIs().stream().findFirst().orElse(new URI("")).getPath();
 					String entryImageName;
 					if(entryImagePath.isEmpty()){
 						entryImageName = entry.getImageName();
@@ -785,7 +786,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 					logger.info("trying to get viewer for imagedata...");
 //					Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-					currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+//					currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+					currentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(entry)).collect(Collectors.toList());
 					logger.info(currentViewers.toString());
 
 					QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(

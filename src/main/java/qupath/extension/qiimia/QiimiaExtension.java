@@ -12,30 +12,22 @@ public class QiimiaExtension implements QuPathExtension, GitHubProject {
 	@Override
     public void installExtension(QuPathGUI qupath) {
 		
-		var actionStartQiimiaComp = ActionTools.createAction(new QiimiaCompartmentPanel(qupath), "Start Qiimia Compartment Builder...");
-		actionStartQiimiaComp.setLongText("Make tissue compartments for quantitative immunofluorescence and immunohistochemistry images."
-    			+ "Can create tissue specific compartments for downstream analysis.");
+//		var actionStartQiimiaComp = ActionTools.createAction(new QiimiaCompartmentPanel(qupath), "Start Qiimia Compartment Builder...");
+//		actionStartQiimiaComp.setLongText("Make tissue compartments for quantitative immunofluorescence and immunohistochemistry images."
+//    			+ "Can create tissue specific compartments for downstream analysis.");
 		var actionStartQiimiaQuant = ActionTools.createAction(new QiimiaQuantPanel(qupath, "quant"), "Start Qiimia Quant...");
 		actionStartQiimiaQuant.setLongText("Quantify immunofluorescence and immunohistochemistry staining in defined compartments."
 				+ "Can utilize compartments and calculate intensity measurements within those compartments for experiment.");
 		var actionStartQiimiaPreset = ActionTools.createAction(new QiimiaQuantPanel(qupath, "preset"), "Run Qiimia Preset...");
 		actionStartQiimiaPreset.setLongText("Load Qiimia Preset to quantify immunofluorescence and immunohistochemistry staining."
 				+ "Can create compartments via script and run preset quantification settings for assays.");
-    	
-//    	var actionExport = ActionTools.createAction(new SvgExportCommand(qupath, SvgExportType.SELECTED_REGION), "Rendered SVG");
-//    	actionExport.disabledProperty().bind(qupath.imageDataProperty().isNull());
-//    	actionExport.setLongText("Export the current selected region as a rendered (RGB) SVG image. "
-//    			+ "Any annotations and ROIs will be stored as vectors, which can later be adjusted in other software.");
-//    	var actionSnapshot = ActionTools.createAction(new SvgExportCommand(qupath, SvgExportType.VIEWER_SNAPSHOT), "Current viewer content (SVG)");
-//    	actionSnapshot.setLongText("Export an RGB snapshot of the current viewer content as an SVG image. "
-//    			+ "Any annotations and ROIs will be stored as vectors, which can later be adjusted in other software.");
-//    	
-    	MenuTools.addMenuItems(
-                qupath.getMenu("Extensions>Qiimia Toolkit", true),
-                actionStartQiimiaComp
-        );
+
+//    	MenuTools.addMenuItems(
+//                qupath.getMenu("Extensions>Qiimia Toolkit", true),
+//                actionStartQiimiaComp
+//        );
 		MenuTools.addMenuItems(
-				qupath.getMenu("Extensions>Qiimia Toolkit", false),
+				qupath.getMenu("Extensions>Qiimia Toolkit", true),
 				actionStartQiimiaQuant
 		);
 		MenuTools.addMenuItems(

@@ -556,7 +556,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     // Open saved data if there is any, or else the image itself
                     ImageData<BufferedImage> imageData = entry.readImageData();
                     logger.info("Working on {}", entry.getImageName());
-                    String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+                    String entryImagePath = entry.getURIs().stream().findFirst().orElse(new URI("")).getPath();
                     String entryImageName;
                     if(entryImagePath.isEmpty()){
                         entryImageName = entry.getImageName();
@@ -570,7 +570,8 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     logger.info("trying to get viewer for imagedata...");
 //					Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+//                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+                    currentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(entry)).collect(Collectors.toList());
                     logger.info(currentViewers.toString());
 
 //                    assuming that you apply the same index map to all the TMA images being processed
@@ -990,7 +991,7 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
                     // Open saved data if there is any, or else the image itself
                     ImageData<BufferedImage> imageData = entry.readImageData();
                     logger.info("Working on {}", entry.getImageName());
-                    String entryImagePath = entry.getUris().stream().findFirst().orElse(new URI("")).getPath();
+                    String entryImagePath = entry.getURIs().stream().findFirst().orElse(new URI("")).getPath();
                     String entryImageName;
                     if(entryImagePath.isEmpty()){
                         entryImageName = entry.getImageName();
@@ -1004,7 +1005,8 @@ public class QiimiaAnalysisPanelController extends BaseController implements Ini
 
                     logger.info("trying to get viewer for imagedata...");
 //                  Could there be a case where the properties are the same but the image is not the one opened in the viewer? I do not know, but this works for now.
-                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+//                    currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
+                    currentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(entry)).collect(Collectors.toList());
                     logger.info(currentViewers.toString());
 
                     if(doBatchMap){
