@@ -14,11 +14,20 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
+import org.bytedeco.javacpp.DoublePointer;
+import org.bytedeco.javacpp.FloatPointer;
+import org.bytedeco.javacpp.Pointer;
+import org.bytedeco.opencv.global.opencv_core;
+import org.bytedeco.opencv.opencv_core.*;
+//import org.bytedeco.opencv.opencv_core.Pointer;
+//import org.opencv.core.Mat;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
 import org.locationtech.jts.geom.prep.PreparedGeometryFactory;
+import org.opencv.core.CvType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.imagej.tools.IJTools;
@@ -58,12 +67,15 @@ import java.awt.image.DataBufferByte;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.*;
+import java.util.Arrays;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.bytedeco.opencv.global.opencv_core.cvarrToMat;
+import static org.bytedeco.opencv.global.opencv_core.merge;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.*;
 import static qupath.lib.scripting.QP.clearMeasurements;
@@ -1960,7 +1972,6 @@ public class QiimiaQuantBackend {
     }
 
 
-
     public boolean getTargetsIntensityScores_OpenCV(ImageServer<BufferedImage> server,
                                                     PathObject parentObject,
                                                     Map<PathClass, ROI> intersectROIs,
@@ -2074,83 +2085,164 @@ public class QiimiaQuantBackend {
 //                 How does the imageServer handle being hit with multiple readBufferedImage requests?
 //                 How does the PixelClassifier classes perform region requests so quickly?
 //                 Maybe there is a way to refactor this whole thing into a set of ImageOps? and then process the stats? --> This is the way
-                for(Map.Entry<PathClass, ROI> interROI: intersectROIs.entrySet()) {
-                    ROI roi = interROI.getValue();
-                    PathClass pathClass = interROI.getKey();
-                    String className = pathClass.toString();
-                    if (roi == null) {
-                        logger.warn("ROI is null, cannot get intensity scores...");
+
+//              1) Only read the buffered image once for each tile that is requested for the intersecting ROIs
+                if(parentObject.isTile()){
+//                  Make sure tile is not extremely large...
+                    if(tileSize > 3000){
+                        logger.error("Tile size exceeds 3000x3000 px2!");
                         return false;
                     }
-                    // Create tiled ROIs, if required
-                    ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
-                    Collection<? extends ROI> rois = QiimiaQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
-                    if (rois.size() > 1)
-                        logger.info("Splitting {} into {} tiles for intensity measurements", roi, rois.size());
+
+                    if(intersectROIs.isEmpty()) {
+                        logger.error("Cannot calculate intensity for intersecting compartments, intersectROIs is empty!");
+                        return false;
+                    }
+
+                    ROI tileROI = parentObject.getROI();
+
+                    // Get bounds
+                    RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, tileROI);
+
+                    BufferedImage img = server.readRegion(region);
+                    if (img == null) {
+                        logger.error("Could not read image - unable to compute intensity feature");
+                        return false;
+                    }
+
+                    int w = img.getWidth();
+                    int h = img.getHeight();
+                    float[] pixels = null;
+                    MatVector targetMatVect = new MatVector();
+//                  Merge all desired target color transforms
+                    for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+                        ColorTransforms.ColorTransform transform = tar.getKey();
+                        pixels = transform.extractChannel(server, img, pixels);
+                        Mat targetMat = new Mat(w, h, CvType.CV_32FC1, new FloatPointer(pixels));
+                        targetMatVect.push_back(targetMat);
+                    }
+                    // Use merge to combine the Mat objects into a single multichannel tensor Mat
+                    Mat multiTargetMat = new Mat();
+                    opencv_core.merge(targetMatVect, multiTargetMat);
+                    for(Map.Entry<PathClass, ROI> interROI: intersectROIs.entrySet()) {
+                        ROI compROI = interROI.getValue();
+                        PathClass pathClass = interROI.getKey();
+                        String className = pathClass.toString();
+                        if (compROI == null) {
+                            logger.warn("ROI is null, cannot get intensity scores in compartment...");
+                            return false;
+                        }
+
+                        Mat maskMat = null;
+                        if (img.getWidth() * img.getHeight() > 1) {
+                            BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), compROI, region);
+                            maskMat = OpenCVTools.imageToMat(imgMask);
+//                            maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+                        }
+//                                Potential GPU acceleration.
+//                                // Create a GpuMat object from the mask.
+//                                GpuMat maskGpu = new GpuMat(maskMat);
+//
+//                                // Create a GpuMat object to hold the mean values for each channel.
+//                                GpuMat meansGpu = new GpuMat();
+//
+//                                // Calculate the mean value for each channel on the GPU.
+//                                Cuda cuda = Cuda.getCuda();
+//                                cuda.mean(image, meansGpu, maskGpu);
+//
+//                                // Create a Mat object to hold the mean values.
+//                                Mat means = new Mat();
+//
+//                                // Copy the mean values from the GpuMat object to the Mat object.
+//                                meansGpu.download(means);
+//
+//                                // Print the mean value for the specified channel.
+//                                Scalar mean = means.get(0, 0);
+                        Scalar mean = org.bytedeco.opencv.global.opencv_core.mean(multiTargetMat, maskMat);
+                        double meanValue = mean.get();
+                        RunningStatistics thisStats = allStats.get(pathClass).get(transform.toString());
+                        addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
+
+                    }
+                } else {
+                    for (Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
+                        ROI roi = interROI.getValue();
+                        PathClass pathClass = interROI.getKey();
+                        String className = pathClass.toString();
+                        if (roi == null) {
+                            logger.warn("ROI is null, cannot get intensity scores...");
+                            return false;
+                        }
+                        // Create tiled ROIs, if required
+                        ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
+                        Collection<? extends ROI> tiles = QiimiaQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
+                        if (tiles.size() > 1)
+                            logger.info("Splitting {} into {} tiles for intensity measurements", roi, tiles.size());
 
 //                    Maybe should:
 //                    1) iterate through rois to create binary masks. Store region requests?
 //                    2) apply binary masks to image region(s) with an ImageOp bitwise operation the target channels simultaneously
 //                    3) add all non-zero values into each target DescriptiveStats object for each roi
 
-                    for (ROI pathROI : rois) {
+                        for (ROI pathTile : tiles) {
 
-                        if (Thread.currentThread().isInterrupted()) {
-                            logger.warn("Measurement skipped - thread interrupted!");
-                            return false;
-                        }
+                            if (Thread.currentThread().isInterrupted()) {
+                                logger.warn("Measurement skipped - thread interrupted!");
+                                return false;
+                            }
 
-                        // Get bounds
-                        RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathROI);
+                            // Get bounds
+                            RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, pathTile);
 
-                        BufferedImage img = server.readRegion(region);
-                        if (img == null) {
-                            logger.error("Could not read image - unable to compute intensity feature");
-                            return false;
-                        }
+                            BufferedImage img = server.readRegion(region);
+                            if (img == null) {
+                                logger.error("Could not read image - unable to compute intensity feature");
+                                return false;
+                            }
 
-                        // Create mask ROI if necessary
-                        // If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
-                        byte[] maskBytes = null;
-                        if (img.getWidth() * img.getHeight() > 1) {
-                            BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), pathROI, region);
-                            maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
-                        }
+                            // Create mask ROI if necessary
+                            // If we just have 1 pixel, we want to use it so that the mean/min/max measurements are valid (even if nothing else is)
+                            byte[] maskBytes = null;
+                            if (img.getWidth() * img.getHeight() > 1) {
+                                BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), pathTile, region);
+                                maskBytes = ((DataBufferByte) imgMask.getRaster().getDataBuffer()).getData();
+                            }
 
-                        int w = img.getWidth();
-                        int h = img.getHeight();
-                        float[] pixels = null;
+                            int w = img.getWidth();
+                            int h = img.getHeight();
+                            float[] pixels = null;
 
-//                        should apply the same mask to all target channels simultaneously. How to combine transforms into a Mat?
-                        for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
-                            ColorTransforms.ColorTransform transform = tar.getKey();
-//								double expTime = tar.getValue();
-//                            DescriptiveStatistics thisStats = allStats.get(pathClass).get(transform.toString());
-                            RunningStatistics thisStats = allStats.get(pathClass).get(transform.toString());
+                            //                        should apply the same mask to all target channels simultaneously. How to combine transforms into a Mat?
+                            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+                                ColorTransforms.ColorTransform transform = tar.getKey();
+                                //								double expTime = tar.getValue();
+                                //                            DescriptiveStatistics thisStats = allStats.get(pathClass).get(transform.toString());
+                                RunningStatistics thisStats = allStats.get(pathClass).get(transform.toString());
 
-                            // Transform the pixels
-                            pixels = transform.extractChannel(server, img, pixels);
+                                // Transform the pixels
+                                pixels = transform.extractChannel(server, img, pixels);
 
-                            // Create the simple image
-                            SimpleModifiableImage pixelImage = SimpleImages.createFloatImage(pixels, w, h);
+                                // Create the simple image
+                                SimpleModifiableImage pixelImage = SimpleImages.createFloatImage(pixels, w, h);
 
-//								assert pixelImage.getHeight() * pixelImage.getWidth() == pixels.length;
+                                //								assert pixelImage.getHeight() * pixelImage.getWidth() == pixels.length;
 
-                            // Apply any arbitrary mask and add values to stats
-                            if (maskBytes != null) {
-                                for (int i = 0; i < pixels.length; i++) {
-                                    if (maskBytes[i] == (byte) 0) {
-//                                        pixelImage.setValue(i % w, i / w, Float.NaN);
-                                        continue;
+                                // Apply any arbitrary mask and add values to stats
+                                if (maskBytes != null) {
+                                    for (int i = 0; i < pixels.length; i++) {
+                                        if (maskBytes[i] == (byte) 0) {
+                                            //                                        pixelImage.setValue(i % w, i / w, Float.NaN);
+                                            continue;
+                                        }
+                                        thisStats.addValue(pixelImage.getValue(i % w, i / w));
                                     }
-                                    thisStats.addValue(pixelImage.getValue(i % w, i / w));
+                                    //                                StatisticsHelper.updateRunningStatistics(thisStats, pixelImage);
+                                    allStats.get(pathClass).put(transform.toString(), thisStats);
                                 }
-//                                StatisticsHelper.updateRunningStatistics(thisStats, pixelImage);
-                                allStats.get(pathClass).put(transform.toString(), thisStats);
                             }
                         }
+                        addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
                     }
-                    addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
                 }
             }
 
@@ -2210,32 +2302,12 @@ public class QiimiaQuantBackend {
                 }
             }
 
-            // Lock any measurements that require it
-//				if (pathObject instanceof PathAnnotationObject)
-//					((PathAnnotationObject) pathObject).setLocked(true);
-//				else if (pathObject instanceof TMACoreObject)
-//					((TMACoreObject) pathObject).setLocked(true);
-//			clean up vars?
-//			server.close();
-//			pathObject.getMeasurementList().close();
+
             measList.close();
-//			server = null;
-            parentObject = null;
-            measList = null;
-            measNames = null;
-            allStats = null;
-//            System.gc();
 
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-//        finally {
-////			clean up vars?
-////			targets = null;
-////			measurements = null;
-////			cellCompartments = null;
-//            System.gc();
-//        }
         return true;
     }
 
