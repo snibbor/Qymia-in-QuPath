@@ -11,13 +11,9 @@ import javafx.scene.control.MenuItem;
 import javafx.scene.control.ProgressBar;
 import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
 import org.apache.commons.math3.stat.descriptive.StatisticalSummary;
-import org.bytedeco.javacpp.DoublePointer;
 import org.bytedeco.javacpp.FloatPointer;
 import org.bytedeco.opencv.global.opencv_core;
-import org.bytedeco.opencv.global.opencv_imgproc;
 import org.bytedeco.opencv.opencv_core.*;
-//import org.bytedeco.opencv.opencv_core.Pointer;
-//import org.opencv.core.Mat;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.prep.PreparedGeometry;
@@ -30,7 +26,6 @@ import qupath.lib.analysis.images.SimpleImage;
 import qupath.lib.analysis.images.SimpleImages;
 import qupath.lib.analysis.images.SimpleModifiableImage;
 import qupath.lib.analysis.stats.RunningStatistics;
-import qupath.lib.analysis.stats.StatisticsHelper;
 import qupath.lib.awt.common.AwtTools;
 import qupath.lib.awt.common.BufferedImageTools;
 import qupath.lib.geom.ImmutableDimension;
@@ -64,9 +59,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.bytedeco.opencv.global.opencv_core.cvarrToMat;
-import static org.bytedeco.opencv.global.opencv_core.merge;
-import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 import static qupath.lib.scripting.QP.*;
 import static qupath.lib.scripting.QP.clearMeasurements;
 
@@ -144,7 +136,6 @@ public class QiimiaQuantBackend {
          * Cell boundary, with interior removed
          */
         MEMBRANE
-
     }
 
     /**
@@ -2075,7 +2066,7 @@ public class QiimiaQuantBackend {
 //                 How does the imageServer handle being hit with multiple readBufferedImage requests?
 //                 How does the PixelClassifier classes perform region requests so quickly?
 //                 Maybe there is a way to refactor this whole thing into a set of ImageOps? and then process the stats? --> This is the way
-                boolean test_openCV_gpu = false;
+                boolean test_openCV_gpu = true;
                 if(test_openCV_gpu){
                     BufferedImage img = null;
                     RegionRequest lastRegion = null;
@@ -2131,6 +2122,7 @@ public class QiimiaQuantBackend {
                             Mat tileStdDev = new Mat();
 //                          double maskPxProportion = 1.0;
                             if (opencv_core.getCudaEnabledDeviceCount() > 0) {
+//                                org.bytedeco.opencv.global.opencv_core.printCudaDeviceInfo(0);
                                 logger.debug("Using CUDA....");
                                 // Create a GpuMat object from the mask.
                                 GpuMat maskGpu = new GpuMat(maskMat);

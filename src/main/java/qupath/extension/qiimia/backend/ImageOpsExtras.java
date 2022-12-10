@@ -15,7 +15,7 @@ import qupath.opencv.ops.ImageOps;
 
 public class ImageOpsExtras extends ImageOps {
 	
-	private final static Logger logger = LoggerFactory.getLogger(ImageOpsExtras.class);
+	private static final Logger logger = LoggerFactory.getLogger(ImageOpsExtras.class);
 	
 	
 	@Target(ElementType.TYPE)

@@ -5,7 +5,6 @@ import qupath.lib.objects.classes.PathClass;
 
 import java.io.Serializable;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class QiimiaQuantPreset implements Serializable {
     private List<ColorTransforms.ColorTransform> targetTransforms = new ArrayList<>();

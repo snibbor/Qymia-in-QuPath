@@ -75,7 +75,7 @@ import java.util.stream.Collectors;
 public class QiimiaMeasurementExportCommand implements Runnable {
 
 	private QuPathGUI qupath;
-	private final static Logger logger = LoggerFactory.getLogger(QiimiaMeasurementExportCommand.class);
+	private static final Logger logger = LoggerFactory.getLogger(QiimiaMeasurementExportCommand.class);
 	private ObjectProperty<Future<?>> runningTask = new SimpleObjectProperty<>();
 
 	private Dialog<ButtonType> dialog = null;

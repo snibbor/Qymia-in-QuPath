@@ -2,10 +2,8 @@ package qupath.extension.qiimia;
 
 import javafx.beans.property.BooleanProperty;
 import javafx.beans.property.DoubleProperty;
-import javafx.beans.property.IntegerProperty;
 import javafx.beans.property.SimpleBooleanProperty;
 import javafx.beans.value.ObservableValue;
-import javafx.collections.FXCollections;
 import javafx.collections.ObservableSet;
 import javafx.collections.SetChangeListener;
 import javafx.event.EventHandler;
@@ -20,14 +18,10 @@ import javafx.util.Callback;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.objects.classes.PathClass;
 
 import java.net.URL;
 import java.util.ResourceBundle;
-import java.util.Set;
-
-import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 
 public class QiimiaQuantSettingsController extends BaseController implements Initializable {
     private static final Logger logger = LoggerFactory.getLogger(QiimiaQuantSettingsController.class);
