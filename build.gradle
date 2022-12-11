@@ -51,15 +51,11 @@ dependencies {
 //    implementation 'org.bytedeco:javacpp-presets:1.5.5'
 //    implementation 'org.bytedeco:cuda:11.2-8.1-1.5.5'
 //    implementation 'org.bytedeco:opencv:4.5.1-1.5.5'
-//
-//
-//
 
-    def moduleName = 'opencv-platform-gpu'
-    def moduleVersion = '4.5.1'
-//
-    implementation group: 'org.bytedeco', name: moduleName, version: moduleVersion + '-1.5.5'
-    implementation group: 'org.bytedeco', name: 'cuda-platform-redist', version: '11.2-8.1-1.5.5'
+    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.4.0-1.5.4'
+//    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu'
+    implementation group: 'org.bytedeco', name: 'cuda-platform', version: '11.0-8.0-1.5.4'
+//    implementation group: 'org.bytedeco', name: 'cuda-platform-redist'
 
     // JavaCPP and OpenCV with CUDA and cuDNN support
 //    compile group: 'org.bytedeco', name: 'javacpp', version: '1.5.5'

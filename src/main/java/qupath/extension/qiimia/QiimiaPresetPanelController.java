@@ -87,6 +87,7 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 
 	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQiimiaQuant", 0.75);
 	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQiimiaQuant", 20.0);
+	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQiimiaQuant", true);
 
 	private FilteredList<PathClass> compartmentList;
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
@@ -785,7 +786,8 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 								controlListToToggle,
 								menuItemListToToggle,
 								quantProgressBar,
-								progressLabel
+								progressLabel,
+								useCUDAProperty.get()
 						);
 
 						qiimiaQuant.runQuant().get();
@@ -879,7 +881,8 @@ public class QiimiaPresetPanelController extends BaseController implements Initi
 								controlListToToggle,
 								menuItemListToToggle,
 								quantProgressBar,
-								progressLabel
+								progressLabel,
+								useCUDAProperty.get()
 						);
 
 						qiimiaQuant.runQuant().get();

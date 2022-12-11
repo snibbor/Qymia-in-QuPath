@@ -110,6 +110,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 
 	private static DoubleProperty downsampleProperty = PathPrefs.createPersistentPreference("downsampleQiimiaQuant", 1.0);
 
+	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQiimiaQuant", true);
+
 	private final int defaultTileSize = 512;
 	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
 
@@ -802,7 +804,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 							controlListToToggle,
 							menuItemListToToggle,
 							quantProgressBar,
-							progressLabel
+							progressLabel,
+							useCUDAProperty.get()
 					);
 
 					qiimiaQuant.runQuant().get();
