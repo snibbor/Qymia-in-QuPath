@@ -7,7 +7,6 @@ import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.lib.analysis.stats.RunningStatistics;
 
 import java.util.function.UnaryOperator;
 

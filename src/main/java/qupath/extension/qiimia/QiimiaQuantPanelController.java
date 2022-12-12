@@ -30,8 +30,6 @@ import javafx.scene.layout.HBox;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 import javafx.util.Callback;
-import javafx.util.StringConverter;
-import javafx.util.converter.DoubleStringConverter;
 import javafx.util.converter.IntegerStringConverter;
 
 import org.controlsfx.control.action.Action;
@@ -56,7 +54,6 @@ import qupath.lib.projects.Projects;
 import static qupath.extension.qiimia.QiimiaQuantBackend.TileOption.*;
 import static qupath.lib.common.Prefs.getNumThreads;
 import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
-import static qupath.lib.objects.classes.PathClass.getInstance;
 
 
 import java.awt.image.BufferedImage;
@@ -70,7 +67,6 @@ import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class QiimiaQuantPanelController extends BaseController implements Initializable {
