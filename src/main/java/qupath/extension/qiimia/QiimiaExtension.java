@@ -57,6 +57,6 @@ public class QiimiaExtension implements QuPathExtension, GitHubProject {
 	 */
 	@Override
 	public Version getQuPathVersion() {
-		return Version.parse("0.4.0-rc2");
+		return Version.parse("0.4.1-rc2");
 	}
 }
