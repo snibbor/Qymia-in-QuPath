@@ -30,6 +30,7 @@ public class SceneManager {
         scenes.computeIfAbsent(sceneUrl, u ->{
             FXMLLoader loader = new FXMLLoader(getClass().getResource(u));
             loader.setControllerFactory(controllerClass -> controller);
+            loader.setClassLoader(getClass().getClassLoader());
             try {
                 Parent p = loader.load();
                 BaseController thisController = loader.getController();
