@@ -951,6 +951,22 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 //			sourceType = PathAnnotationObject.class;
 //		}
 
+		double intensityScaleFactor = 1.0;
+//		https://www.microscopyu.com/microscopy-basics/image-brightness
+//		Tries to account for intensity brightness between objectives for epifluorescence...
+		if(stain.equals("Fluorescence")) {
+			intensityScaleFactor = Math.pow((Math.pow(refNAProperty.get(), 2) * workingMagProperty.get()) / (refMagProperty.get() * Math.pow(workingNAProperty.get(), 2)), 2);
+		} else{
+//			Accounts for brightfield/trans-illumination intensity differences
+			intensityScaleFactor = Math.pow(refNAProperty.get() / refMagProperty.get(), 2) / Math.pow(workingNAProperty.get() / workingMagProperty.get(), 2);
+		}
+
+		if(Double.isNaN(intensityScaleFactor) || Double.isInfinite(intensityScaleFactor)){
+			intensityScaleFactor = 1.0;
+			logger.error("Intensity scale factor is invalid! Check ref and working NA and Mag input values within advanced settings...");
+			logger.info("Using default intensity scale factor = 1.0");
+		}
+
 		int inputTileSize;
 		if(tileSizeTextField.getText().isEmpty() || tileSizeTextField.getText() == null)
 			inputTileSize = 0;
@@ -971,7 +987,8 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 				Map.entry("maxFloatValue", maxFloatValue),
 				Map.entry("result", result),
 				Map.entry("slide", slide),
-				Map.entry("stain", stain)
+				Map.entry("stain", stain),
+				Map.entry("intensityScaleFactor", intensityScaleFactor)
 		));
 
 

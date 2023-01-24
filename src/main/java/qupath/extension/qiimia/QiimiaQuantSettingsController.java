@@ -46,6 +46,18 @@ public class QiimiaQuantSettingsController extends BaseController implements Ini
     @FXML
     TextField downsampleTextField;
 
+    @FXML
+    TextField refNATextField;
+
+    @FXML
+    TextField refMagTextField;
+
+    @FXML
+    TextField workNATextField;
+
+    @FXML
+    TextField workMagTextField;
+
 
     public QiimiaQuantSettingsController(QuPathGUI qupath,
                                          ObservableSet<PathClass> ignoreClasses,
@@ -102,6 +114,114 @@ public class QiimiaQuantSettingsController extends BaseController implements Ini
                     downsampleProperty.set(Double.parseDouble(downsampleTextField.getText()));
                 }
                 logger.info("downsampleTextField focus lost: {}", downsampleProperty.get());
+            }
+        });
+
+        refNATextField = QiimiaUtils.formatTextFields(refNATextField, "pos_double", String.valueOf(refNAProperty.get()));
+        refNATextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent ke) {
+                if (ke.getCode().equals(KeyCode.ENTER)) {
+                    if (refNATextField.getText().isEmpty() || refNATextField.getText() == null) {
+                        refNAProperty.set(0.75);
+                        refNATextField.setText("0.75");
+                    } else{
+                        refNAProperty.set(Double.parseDouble(refNATextField.getText()));
+                    }
+                    logger.info("refNATextField key enter: {}", refNAProperty.get());
+                }
+            }
+        });
+        refNATextField.focusedProperty().addListener((ov, oldV, newV) -> {
+            if (!newV) { // focus lost
+                if (refNATextField.getText().isEmpty() || refNATextField.getText() == null) {
+                    refNAProperty.set(0.75);
+                    refNATextField.setText("0.75");
+                } else{
+                    refNAProperty.set(Double.parseDouble(refNATextField.getText()));
+                }
+                logger.info("refNATextField focus lost: {}", refNAProperty.get());
+            }
+        });
+
+        refMagTextField = QiimiaUtils.formatTextFields(refMagTextField, "pos_double", String.valueOf(refMagProperty.get()));
+        refMagTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent ke) {
+                if (ke.getCode().equals(KeyCode.ENTER)) {
+                    if (refMagTextField.getText().isEmpty() || refMagTextField.getText() == null) {
+                        refMagProperty.set(20.0);
+                        refMagTextField.setText("20.0");
+                    } else{
+                        refMagProperty.set(Double.parseDouble(refMagTextField.getText()));
+                    }
+                    logger.info("refMagTextField key enter: {}", refMagProperty.get());
+                }
+            }
+        });
+        refMagTextField.focusedProperty().addListener((ov, oldV, newV) -> {
+            if (!newV) { // focus lost
+                if (refMagTextField.getText().isEmpty() || refMagTextField.getText() == null) {
+                    refMagProperty.set(20.0);
+                    refMagTextField.setText("20.0");
+                } else{
+                    refMagProperty.set(Double.parseDouble(refMagTextField.getText()));
+                }
+                logger.info("refMagTextField focus lost: {}", refMagProperty.get());
+            }
+        });
+
+        workNATextField = QiimiaUtils.formatTextFields(workNATextField, "pos_double", String.valueOf(workingNAProperty.get()));
+        workNATextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent ke) {
+                if (ke.getCode().equals(KeyCode.ENTER)) {
+                    if (workNATextField.getText().isEmpty() || workNATextField.getText() == null) {
+                        workingNAProperty.set(0.75);
+                        workNATextField.setText("0.75");
+                    } else{
+                        workingNAProperty.set(Double.parseDouble(workNATextField.getText()));
+                    }
+                    logger.info("workNATextField key enter: {}", workingNAProperty.get());
+                }
+            }
+        });
+        workNATextField.focusedProperty().addListener((ov, oldV, newV) -> {
+            if (!newV) { // focus lost
+                if (workNATextField.getText().isEmpty() || workNATextField.getText() == null) {
+                    workingNAProperty.set(0.75);
+                    workNATextField.setText("0.75");
+                } else{
+                    workingNAProperty.set(Double.parseDouble(workNATextField.getText()));
+                }
+                logger.info("workNATextField focus lost: {}", workingNAProperty.get());
+            }
+        });
+
+        workMagTextField = QiimiaUtils.formatTextFields(workMagTextField, "pos_double", String.valueOf(workingMagProperty.get()));
+        workMagTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
+            @Override
+            public void handle(KeyEvent ke) {
+                if (ke.getCode().equals(KeyCode.ENTER)) {
+                    if (workMagTextField.getText().isEmpty() || workMagTextField.getText() == null) {
+                        workingMagProperty.set(20.0);
+                        workMagTextField.setText("20.0");
+                    } else{
+                        workingMagProperty.set(Double.parseDouble(workMagTextField.getText()));
+                    }
+                    logger.info("workMagTextField key enter: {}", workingMagProperty.get());
+                }
+            }
+        });
+        workMagTextField.focusedProperty().addListener((ov, oldV, newV) -> {
+            if (!newV) { // focus lost
+                if (workMagTextField.getText().isEmpty() || workMagTextField.getText() == null) {
+                    workingMagProperty.set(20.0);
+                    workMagTextField.setText("20.0");
+                } else{
+                    workingMagProperty.set(Double.parseDouble(workMagTextField.getText()));
+                }
+                logger.info("workMagTextField focus lost: {}", workingMagProperty.get());
             }
         });
     }

@@ -1931,6 +1931,7 @@ public class QiimiaQuantBackend {
         boolean rescaleScore;
         boolean normalizeScore;
         double maxFloatValue;
+        double intensityScaleFactor;
         String stain;
         try {
             downsample = (double) params.get("downsample");
@@ -1938,11 +1939,15 @@ public class QiimiaQuantBackend {
                 tileSize = (int) params.get("tileSize");
                 tileUnitIsMicrons = (boolean) params.get("tileUnitIsMicrons");
             }
-            verboseMeasures = (boolean) params.get("verboseMeasures");
-            rescaleScore = (boolean) params.get("rescaleScore");
-            normalizeScore = (boolean) params.get("normalizeScore");
-            maxFloatValue = (double) params.get("maxFloatValue");
+            verboseMeasures = (boolean) params.getOrDefault("verboseMeasures", true);
+            rescaleScore = (boolean) params.getOrDefault("rescaleScore", true);
+            normalizeScore = (boolean) params.getOrDefault("normalizeScore", true);
+            maxFloatValue = (double) params.getOrDefault("maxFloatValue", 255.0);
             stain = (String) params.get("stain");
+            intensityScaleFactor = (Double) params.getOrDefault("intensityScaleFactor", 1.0);
+            if(Double.isNaN(intensityScaleFactor)){
+                intensityScaleFactor = 1.0;
+            }
         } catch (Exception ex) {
 //				ex.printStackTrace();
             throw new RuntimeException(ex);
@@ -1957,7 +1962,7 @@ public class QiimiaQuantBackend {
         }
 
         return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, stain, cellCompartments, theseMeasurements,
-                downsample, tileSize, tileUnitIsMicrons, rescaleScore, normalizeScore, maxFloatValue);
+                downsample, tileSize, tileUnitIsMicrons, rescaleScore, normalizeScore, maxFloatValue, intensityScaleFactor);
 
     }
 
@@ -1971,7 +1976,7 @@ public class QiimiaQuantBackend {
                                                     Collection<Measurements> measurements,
                                                     double downsample, int tileSize, boolean tileUnitIsMicrons,
                                                     boolean rescaleScore, boolean normalizeScore,
-                                                    double maxFloatValue) throws IOException {
+                                                    double maxFloatValue, double intensityScaleFactor) throws IOException {
 //			It would be nice to close the server after use, but doing this also closes the main server across all threads....
         try {
             if(intersectROIs==null){
@@ -1998,6 +2003,7 @@ public class QiimiaQuantBackend {
             measList.put("MPPy", pc.getPixelHeightMicrons());
             measList.put("MPP^2", mppSq);
             measList.put("Channel bitdepth", bitDepth);
+            measList.put("Intensity Scale Factor", intensityScaleFactor);
             int bitDepthVal = (int) Math.pow(2, bitDepth);
 
             if (downsample <= 0) {
@@ -2278,7 +2284,7 @@ public class QiimiaQuantBackend {
 //                        measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
 //                    } else
                     if(!stainType.equalsIgnoreCase("fluorescence")){
-                        double DAB_areaS = (targetMean / mppSq);
+                        double DAB_areaS = (targetMean / mppSq) * intensityScaleFactor;
                         measList.put(targetName + " in " + className + " OD/(um^2)", DAB_areaS);
                     }
                     if (rescaleScore && !normalizeScore) {
@@ -2289,7 +2295,7 @@ public class QiimiaQuantBackend {
                         measList.put("Rescale factor", rescaleFactor);
                         measList.put(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
                     } else if (normalizeScore) {
-                        double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
+                        double QIF_areaS = (targetMean / mppSq) * intensityScaleFactor / (bitDepthVal * exposure_time / 1000);
                         measList.put(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
                     } else {
                         // no normalization
