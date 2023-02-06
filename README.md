@@ -56,9 +56,9 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   
   - #### Advanced settings
     - [ ] Improve score normalization for all aspects of image brightness for fluoresence & trans-illumination microscopy. (Source intensity, transmission/fluorophore quantum efficiency, light collection, what else?)
-      - [ ] Normalize image brightness for fluorescence by microscope objective NA & Mag. (Brightness ~ (NA^2/M)^2 Because the objective is also the condenser lens)
-      - [ ] Does it matter if you calculate DAB OD for different NA/Mag objectives? Condenser optics? How to normalize brightness here?
-      - [ ] Is there a way to make a normalized score for different microscopes with different optical systems (NA/Mag objective/condenser combinations)? Unlikely to be simple, but the scores likely would regress by a proportionality constant.
+      - [x] Normalize image brightness for fluorescence by microscope objective NA & Mag. (Brightness ~ (NA^2/M)^2 Because the objective is also the condenser lens)
+      - [x] Does it matter if you calculate DAB OD for different NA/Mag objectives? Condenser optics? How to normalize brightness here? --> Yes. Similar adjustment to above.
+      - [ ] Is there a way to make a normalized score for different microscopes with different optical systems (NA/Mag objective/condenser combinations)? Unlikely to be simple, but the scores likely would regress by a proportionality constant. --> perhaps empirically determinable.
     - [x] Options to convert intensity scores for an image or set of images in project using a function (i.e. intensity score --> concentration of target expression (amol or molecules per area) using a standardization array)
       - [x] Regression options to calculate conversion function using standard index array
         - [x] Visuallization of regression fit in QuPath
@@ -96,14 +96,15 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Help > About & Docs link
       
   - #### Fix known bugs/problems, improve backend
-    - [ ] Ignore/exclude annotations displaces causes parent/child objects to be displaced when calculating ROI + Tile quantifications. The result is that either the ROI detection or Tile detections are displaced (not in propper parent/child object hierarchy). This is a problem because tiles are referenced by their parent object in downstream analysis.
+    - [ ] May run slower in "Run for project" mode vs. "run" mode. I think this is because how thread pools are allocated during a "run for project" task. When threads > 16, this becomes very noticeable and makes "run for project" mode ~0.75-0.5 as fast.
+    - [x] Ignore/exclude annotations displaces causes parent/child objects to be displaced when calculating ROI + Tile quantifications. The result is that either the ROI detection or Tile detections are displaced (not in propper parent/child object hierarchy). This is a problem because tiles are referenced by their parent object in downstream analysis. --> fixed this by editing how compartments are added to ROI during quantification.
       - [x] temporary solution --> run ROI then Tile quantification separately when ignore/exclude annotations are used. This displaces the ROI detection (which is named) and places the Tile detections under the parent ROI/object.
     - [ ] Wrap runQuant into a task so that cancel/force cancel can happen immediately. --> immediate cancellation can cause errors still
       - [x] Debug why cancelling sometimes causes image server exceptions for later runs... --> works after wrapping inside task
       - [x] Debug why sometimes the GUI stalls when running the first task but is fine for subsequent tasks --> I think this is from the thread executor. Perhaps using QuPath's thread executors and pools would be better than custom forkJoinPools. --> yes
       - [x] Bug with reloading images because task execution occurs on thread separate from JavaFX
     - [x] Remove ignore classes, ROI, and Unclassified PathClasses from available compartment choices
-    - [ ] Trim tiles to image dimensions (for asthetics)  
+    - [ ] Trim tiles to image dimensions (for asthetics)?  
     - [ ] On GUI close, prompt user with dialog if running a task and cancel running tasks.
     - [ ] On switching projects or images, make sure GUI is updated. Handle running tasks.
       - [ ] Restrict switching projects during a run? Dialog box to cancel tasks?
@@ -117,7 +118,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
   
   - #### Test for more bugs and interface & workflow usability
 
-- ### Qiimia Compartment Builder
+- ### Qiimia Compartment Builder [Might scrap this because built in thresholder is decent]
   - [ ] Streamline Compartment Builder UI, integrate with PixelClassificationOverlays, work on backend functions
     - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
     - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
