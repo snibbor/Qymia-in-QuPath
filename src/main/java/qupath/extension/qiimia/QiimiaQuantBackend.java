@@ -65,6 +65,7 @@ import static qupath.lib.scripting.QP.clearMeasurements;
 
 //	https://stackoverflow.com/questions/21163108/custom-thread-pool-in-java-8-parallel-stream
 public class QiimiaQuantBackend {
+
     private static final Logger logger = LoggerFactory.getLogger(QiimiaQuantBackend.class);
     private ForkJoinPool forkJoinPool;
 

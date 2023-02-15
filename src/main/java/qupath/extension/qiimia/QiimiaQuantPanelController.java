@@ -787,6 +787,7 @@ public class QiimiaQuantPanelController extends BaseController implements Initia
 //					currentViewers = viewersList.stream().filter(v -> v.getImageData().getProperties().equals(imageData.getProperties())).collect(Collectors.toList());
 					currentViewers = viewersList.stream().filter(v -> project.getEntry(v.getImageData()).equals(entry)).collect(Collectors.toList());
 					logger.info(currentViewers.toString());
+					logger.info("using nThreads: {}", getNumThreads()-2);
 
 					QiimiaQuantBackend qiimiaQuant = new QiimiaQuantBackend(
 							imageData,
