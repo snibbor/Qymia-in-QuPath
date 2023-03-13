@@ -2081,48 +2081,44 @@ public class QiimiaQuantBackend {
 //                 Maybe there is a way to refactor this whole thing into a set of ImageOps? and then process the stats? --> This is the way
                 boolean use_openCV_core = true;
                 if(use_openCV_core){
-                    for (Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
-                        ROI roi = interROI.getValue();
-                        PathClass pathClass = interROI.getKey();
-                        String className = pathClass.toString();
-                        if (roi == null) {
-                            logger.warn("ROI is null, cannot get intensity scores...");
-                            return false;
-                        }
-                        // Create tiled ROIs, if required
-                        ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
-                        Collection<? extends ROI> tiles = QiimiaQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
-                        if (tiles.size() > 1)
-                            logger.info("Splitting {} into {} tiles for intensity measurements", parentObject.getROI(), tiles.size());
-//                      Typically, tiles.size() == 1 for tile inputs because tileSize < 3000
-                        for(ROI tileROI : tiles) {
-                            // Get bounds
-                            RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, tileROI);
-                            // Usually the region requests are different because they depend on the roi annotation bounding box, not the tile dimensions
-                            BufferedImage img = server.readRegion(region);
-                            if (img == null) {
-                                logger.error("Could not read image - unable to compute intensity feature");
-                                continue;
+                    if(opencv_core.getCudaEnabledDeviceCount() > 0 && useCUDA){
+                        for (Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
+                            ROI roi = interROI.getValue();
+                            PathClass pathClass = interROI.getKey();
+                            String className = pathClass.toString();
+                            if (roi == null) {
+                                logger.warn("ROI is null, cannot get intensity scores...");
+                                return false;
                             }
-                            // Generate mask from tiledROI
-                            BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), tileROI, region);
-                            Mat maskMat = OpenCVTools.imageToMat(imgMask);
+                            // Create tiled ROIs, if required
+                            ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
+                            Collection<? extends ROI> tiles = QiimiaQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
+                            if (tiles.size() > 1)
+                                logger.info("Splitting {} into {} tiles for intensity measurements", parentObject.getROI(), tiles.size());
+                            //                      Typically, tiles.size() == 1 for tile inputs because tileSize < 3000
+                            for (ROI tileROI : tiles) {
+                                // Get bounds
+                                RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, tileROI);
+                                // Usually the region requests are different because they depend on the roi annotation bounding box, not the tile dimensions
+                                BufferedImage img = server.readRegion(region);
+                                if (img == null) {
+                                    logger.error("Could not read image - unable to compute intensity feature");
+                                    continue;
+                                }
+                                // Generate mask from tiledROI
+                                BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), tileROI, region);
+                                Mat maskMat = OpenCVTools.imageToMat(imgMask);
 
-                            GpuMat gpuMaskMat = null;
-                            boolean gpuMaskInit = false;
-                            if(opencv_core.getCudaEnabledDeviceCount() > 0 && useCUDA){
-                                gpuMaskMat = new GpuMat(maskMat);
-                                gpuMaskInit = true;
-                            }
+                                GpuMat gpuMaskMat = new GpuMat(maskMat);
+//                                boolean gpuMaskInit = true;
 
-                            int w = img.getWidth();
-                            int h = img.getHeight();
-                            // For each color transform, calculate target intensity stats
-                            for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
-                                ColorTransforms.ColorTransform transform = tar.getKey();
-                                String targetName = transform.toString();
-                                float[] pixels = transform.extractChannel(server, img, null);
-                                if(opencv_core.getCudaEnabledDeviceCount() > 0 && useCUDA){
+                                int w = img.getWidth();
+                                int h = img.getHeight();
+                                // For each color transform, calculate target intensity stats
+                                for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+                                    ColorTransforms.ColorTransform transform = tar.getKey();
+                                    String targetName = transform.toString();
+                                    float[] pixels = transform.extractChannel(server, img, null);
                                     // CUDA GPU implementation for scoring target intensity within mask
                                     Mat targetMat = new Mat(h, w, opencv_core.CV_32FC1, new FloatPointer(pixels));
                                     GpuMat gpuTargetMat = new GpuMat(targetMat);
@@ -2143,7 +2139,47 @@ public class QiimiaQuantBackend {
                                     gpuTargetMat.release();
                                     statsGpuMat.release();
                                     targetStatsMat.release();
-                                } else {
+                                }
+                                maskMat.release();
+                                gpuMaskMat.release();
+                            }
+                            addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
+                        }
+                    } else {
+                        for (Map.Entry<PathClass, ROI> interROI : intersectROIs.entrySet()) {
+                            ROI roi = interROI.getValue();
+                            PathClass pathClass = interROI.getKey();
+                            String className = pathClass.toString();
+                            if (roi == null) {
+                                logger.warn("ROI is null, cannot get intensity scores...");
+                                return false;
+                            }
+                            // Create tiled ROIs, if required
+                            ImmutableDimension sizePreferred = ImmutableDimension.getInstance((int) (3000 * downsample), (int) (3000 * downsample));
+                            Collection<? extends ROI> tiles = QiimiaQuantBackend.computeTiledROIs(roi, sizePreferred, sizePreferred, false, 0);
+                            if (tiles.size() > 1)
+                                logger.info("Splitting {} into {} tiles for intensity measurements", parentObject.getROI(), tiles.size());
+                            //                      Typically, tiles.size() == 1 for tile inputs because tileSize < 3000
+                            for (ROI tileROI : tiles) {
+                                // Get bounds
+                                RegionRequest region = RegionRequest.createInstance(server.getPath(), downsample, tileROI);
+                                // Usually the region requests are different because they depend on the roi annotation bounding box, not the tile dimensions
+                                BufferedImage img = server.readRegion(region);
+                                if (img == null) {
+                                    logger.error("Could not read image - unable to compute intensity feature");
+                                    continue;
+                                }
+                                // Generate mask from tiledROI
+                                BufferedImage imgMask = BufferedImageTools.createROIMask(img.getWidth(), img.getHeight(), tileROI, region);
+                                Mat maskMat = OpenCVTools.imageToMat(imgMask);
+
+                                int w = img.getWidth();
+                                int h = img.getHeight();
+                                // For each color transform, calculate target intensity stats
+                                for (Map.Entry<ColorTransforms.ColorTransform, Double> tar : targets.entrySet()) {
+                                    ColorTransforms.ColorTransform transform = tar.getKey();
+                                    String targetName = transform.toString();
+                                    float[] pixels = transform.extractChannel(server, img, null);
                                     // CPU only OpenCV implementation for scoring target intensity within mask
                                     Mat targetMat = new Mat(h, w, opencv_core.CV_32FC1, new FloatPointer(pixels));
                                     Mat meanMat = new Mat();
@@ -2162,13 +2198,10 @@ public class QiimiaQuantBackend {
                                     meanMat.release();
                                     stddevMat.release();
                                 }
+                                maskMat.release();
                             }
-                            maskMat.release();
-                            if(gpuMaskInit){
-                                gpuMaskMat.release();
-                            }
+                            addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
                         }
-                        addMeasurements_OpenCV_runStats(allStats.get(pathClass), measNames.get(pathClass), parentObject, measurements);
                     }
                 } else {
                     RegionRequest lastRegion = null;

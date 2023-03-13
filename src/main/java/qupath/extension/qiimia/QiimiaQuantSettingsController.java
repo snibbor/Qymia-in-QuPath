@@ -23,7 +23,7 @@ import qupath.lib.objects.classes.PathClass;
 import java.net.URL;
 import java.util.ResourceBundle;
 
-public class QiimiaQuantSettingsController extends BaseController implements Initializable {
+public class QiimiaQuantSettingsController implements Initializable {
     private static final Logger logger = LoggerFactory.getLogger(QiimiaQuantSettingsController.class);
     private final QuPathGUI qupath;
     private final ObservableSet<PathClass> ignoreClasses;

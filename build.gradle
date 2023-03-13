@@ -61,8 +61,8 @@ dependencies {
 //    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.5.5-1.5.7'
 //    implementation group: 'org.bytedeco', name: 'cuda-platform', version: '11.6-8.3-1.5.7'
 
-//    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.6.0-1.5.8'
-//    implementation group: 'org.bytedeco', name: 'cuda-platform-redist', version: '11.8-8.6-1.5.8'
+    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.6.0-1.5.8'
+    implementation group: 'org.bytedeco', name: 'cuda-platform-redist', version: '11.8-8.6-1.5.8'
 
 }
 
