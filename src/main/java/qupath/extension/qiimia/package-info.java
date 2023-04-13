@@ -1,1 +1,0 @@
-package qupath.extension.qiimia;

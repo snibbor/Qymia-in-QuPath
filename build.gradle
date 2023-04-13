@@ -26,13 +26,14 @@ repositories {
 //    jcenter()
 }
 
-ext.moduleName = 'qupath.extension.qiimia'
-archivesBaseName = 'qupath-extension-qiimia'
+ext.moduleName = 'qupath.extension.qymia'
+archivesBaseName = 'qupath-extension-qymia'
 description = 'Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis in QuPath'
 
 
 javafx {
-    version = "17.0.1"
+//    version = "19.0.2"
+    version = libs.versions.javafx.get()
     modules = ['javafx.base', 'javafx.controls', 'javafx.fxml']
 }
 

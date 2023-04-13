@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Button?>
+<?import javafx.scene.control.CheckMenuItem?>
+<?import javafx.scene.control.ComboBox?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.Menu?>
+<?import javafx.scene.control.MenuBar?>
+<?import javafx.scene.control.MenuItem?>
+<?import javafx.scene.control.ProgressBar?>
+<?import javafx.scene.control.SeparatorMenuItem?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane maxHeight="400.0" maxWidth="500.0" minHeight="300.0" prefHeight="300.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qymia.QymiaPresetPanelController">
+   <children>
+      <MenuBar layoutY="-36.0" prefHeight="25.0" prefWidth="323.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+        <menus>
+            <Menu mnemonicParsing="false" text="File">
+              <items>
+                <MenuItem fx:id="exportMeasMenuItem" mnemonicParsing="false" text="Export Measurements" />
+                  <MenuItem fx:id="exportMaskMenuItem" mnemonicParsing="false" text="Export Masks" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="runForProjectMenuItem" mnemonicParsing="false" text="Run for project..." />
+              </items>
+            </Menu>
+            <Menu fx:id="settingsMenu" mnemonicParsing="false" text="Settings">
+               <items>
+                  <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" selected="true" text="Verbose measurements" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
+                  <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize Qymia Scores" visible="false" />
+                  <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale previously normalized data (old PM2000)" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
+                  <CheckMenuItem fx:id="deleteTilesMenuItem" mnemonicParsing="false" selected="true" text="Delete tiles before run" visible="false" />
+                  <CheckMenuItem fx:id="tileUnitIsMicronsMenuItem" mnemonicParsing="false" text="Tile unit in microns" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
+                  <CheckMenuItem fx:id="convertMeasMenuItem" mnemonicParsing="false" text="Convert measurements (using regress. meas. convs.)" />
+                  <MenuItem fx:id="selectBatchMapMenuItem" mnemonicParsing="false" text="Select batch map file" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="selectSyncMapMenuItem" mnemonicParsing="false" text="Select sync map file" />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="advancedSettingsMenuItem" mnemonicParsing="false" text="Advanced settings..." visible="false" />
+                  <MenuItem fx:id="selectScriptDirMenuItem" mnemonicParsing="false" text="Select script directory" />
+                  <MenuItem fx:id="selectPresetDirMenuItem" mnemonicParsing="false" text="Select quant preset directory" />
+               </items>
+            </Menu>
+            <Menu fx:id="navigateMenu" mnemonicParsing="false" text="Navigate">
+               <items>
+                  <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
+                  <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />
+                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <MenuItem fx:id="switchQuantMenuItem" mnemonicParsing="false" text="Switch to Quant Panel..." />
+               </items>
+            </Menu>
+          <Menu fx:id="helpMenu" mnemonicParsing="false" text="Help">
+            <items>
+              <MenuItem mnemonicParsing="false" text="About" />
+            </items>
+          </Menu>
+        </menus>
+      </MenuBar>
+      <VBox alignment="CENTER" prefHeight="200.0" prefWidth="300.0" spacing="15.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="25.0">
+         <children>
+            <GridPane alignment="TOP_CENTER" maxWidth="340.0" minHeight="60.0" prefHeight="80.0" prefWidth="300.0">
+              <columnConstraints>
+                <ColumnConstraints hgrow="SOMETIMES" maxWidth="250.3999755859375" minWidth="10.0" prefWidth="242.19998779296876" />
+                <ColumnConstraints hgrow="SOMETIMES" maxWidth="151.20001220703128" minWidth="10.0" prefWidth="68.60001220703126" />
+              </columnConstraints>
+              <rowConstraints>
+                <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+              </rowConstraints>
+               <children>
+                  <ComboBox fx:id="scriptComboBox" prefWidth="250.0" promptText="Preprocessing Script" GridPane.halignment="CENTER" GridPane.valignment="BOTTOM">
+                     <GridPane.margin>
+                        <Insets left="7.0" right="7.0" />
+                     </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="Pre-processing and segmentation script (default path: PROJECT/scripts)" />
+                     </tooltip>
+                  </ComboBox>
+                  <ComboBox fx:id="presetComboBox" layoutX="17.0" layoutY="11.0" prefHeight="26.0" prefWidth="250.0" promptText="QymiaQuant Preset" GridPane.halignment="CENTER" GridPane.rowIndex="1" GridPane.valignment="BOTTOM">
+                     <GridPane.margin>
+                        <Insets left="7.0" right="7.0" />
+                     </GridPane.margin>
+                     <tooltip>
+                        <Tooltip text="PathObject source of compartments" />
+                     </tooltip>
+                  </ComboBox>
+                  <Button fx:id="editScriptButton" mnemonicParsing="false" text="Edit" visible="false" GridPane.columnIndex="1">
+                     <tooltip>
+                        <Tooltip />
+                     </tooltip>
+                  </Button>
+                  <Button fx:id="editPresetButton" mnemonicParsing="false" prefWidth="50.0" text="Edit" GridPane.columnIndex="1" GridPane.rowIndex="1" GridPane.valignment="BOTTOM">
+                     <tooltip>
+                        <Tooltip text="Edit QymiaQuant Preset settings inside Quant panel..." />
+                     </tooltip>
+                  </Button>
+               </children>
+            </GridPane>
+            <HBox alignment="CENTER" prefHeight="100.0" prefWidth="150.0" spacing="25.0">
+               <children>
+                  <Button fx:id="startQuantButton" disable="true" mnemonicParsing="false" text="Start Quantify" />
+                  <Button fx:id="cancelQuantButton" disable="true" mnemonicParsing="false" text="Cancel" />
+               </children>
+            </HBox>
+            <VBox alignment="TOP_CENTER" spacing="3.0">
+               <children>
+                  <Label fx:id="progressLabel" alignment="BOTTOM_CENTER" minHeight="25.0" prefHeight="25.0">
+                     <font>
+                        <Font size="14.0" />
+                     </font>
+                  </Label>
+                  <ProgressBar fx:id="quantProgressBar" minHeight="18.0" prefHeight="20.0" prefWidth="280.0" progress="0.0" />
+                  <Button fx:id="exportMeasButton" alignment="CENTER" mnemonicParsing="false" text="Export Measurements" />
+               </children>
+            </VBox>
+         </children>
+         <padding>
+            <Insets bottom="7.0" left="7.0" right="7.0" top="7.0" />
+         </padding>
+      </VBox>
+   </children>
+</AnchorPane>

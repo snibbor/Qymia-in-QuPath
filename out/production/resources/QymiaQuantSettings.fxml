@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.geometry.Insets?>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.Tab?>
+<?import javafx.scene.control.TabPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.layout.AnchorPane?>
+<?import javafx.scene.layout.ColumnConstraints?>
+<?import javafx.scene.layout.GridPane?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.RowConstraints?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
+
+<AnchorPane maxWidth="500.0" minHeight="300.0" prefHeight="450.0" prefWidth="325.0" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="qupath.extension.qymia.QymiaQuantSettingsController">
+   <children>
+      <TabPane prefHeight="200.0" prefWidth="200.0" tabClosingPolicy="UNAVAILABLE" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+        <tabs>
+          <Tab text="Quant Settings">
+            <content>
+              <AnchorPane minHeight="0.0" minWidth="0.0" prefHeight="180.0" prefWidth="200.0">
+                     <children>
+                        <VBox alignment="CENTER" prefHeight="200.0" prefWidth="304.0" spacing="10.0" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="7.0">
+                           <children>
+                              <HBox alignment="TOP_CENTER" maxWidth="400.0" prefHeight="600.0">
+                                 <children>
+                                    <VBox>
+                                       <children>
+                                          <Label text="Ignore Classes">
+                                             <tooltip>
+                                                <Tooltip text="Select compartments (PathClass)" />
+                                             </tooltip>
+                                          </Label>
+                                          <ScrollPane fx:id="ignoreScrollPane" fitToHeight="true" fitToWidth="true" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                             <content>
+                                                <ListView fx:id="ignoreListView" />
+                                             </content>
+                                          </ScrollPane>
+                                       </children>
+                                    </VBox>
+                                    <VBox>
+                                       <children>
+                                          <Label text="ROI Classes">
+                                             <tooltip>
+                                                <Tooltip text="Select the channels/transforms that are targets to quantify" />
+                                             </tooltip>
+                                          </Label>
+                                          <ScrollPane fx:id="roiScrollPane" fitToHeight="true" fitToWidth="true" prefWidth="200.0" VBox.vgrow="ALWAYS">
+                                             <content>
+                                                <ListView fx:id="roiListView" />
+                                             </content>
+                                          </ScrollPane>
+                                       </children>
+                                    </VBox>
+                                 </children>
+                              </HBox>
+                              <GridPane alignment="TOP_CENTER" maxWidth="340.0" minHeight="90.0" prefHeight="60.0" prefWidth="323.0">
+                                <columnConstraints>
+                                  <ColumnConstraints hgrow="SOMETIMES" maxWidth="165.0" minWidth="10.0" prefWidth="100.0" />
+                                  <ColumnConstraints hgrow="SOMETIMES" maxWidth="160.0" minWidth="10.0" prefWidth="100.0" />
+                                    <ColumnConstraints hgrow="SOMETIMES" maxWidth="160.0" minWidth="10.0" prefWidth="120.0" />
+                                    <ColumnConstraints hgrow="SOMETIMES" maxWidth="160.0" minWidth="10.0" prefWidth="100.0" />
+                                </columnConstraints>
+                                <rowConstraints>
+                                  <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                                    <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                                    <RowConstraints minHeight="10.0" prefHeight="30.0" vgrow="SOMETIMES" />
+                                </rowConstraints>
+                                 <children>
+                                    <Label text="Ref. NA:">
+                                       <padding>
+                                          <Insets left="3.0" />
+                                       </padding>
+                                    </Label>
+                                    <Label text="Ref. Mag:" GridPane.rowIndex="1">
+                                       <padding>
+                                          <Insets left="3.0" />
+                                       </padding>
+                                    </Label>
+                                    <TextField fx:id="refNATextField" prefWidth="50.0" GridPane.columnIndex="1" />
+                                    <TextField fx:id="refMagTextField" prefWidth="50.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                                    <Label text="Work. NA:" GridPane.columnIndex="2">
+                                       <padding>
+                                          <Insets left="6.0" />
+                                       </padding>
+                                    </Label>
+                                    <Label text="Work. Mag:" GridPane.columnIndex="2" GridPane.rowIndex="1">
+                                       <padding>
+                                          <Insets left="6.0" />
+                                       </padding>
+                                    </Label>
+                                    <TextField fx:id="workNATextField" prefWidth="50.0" GridPane.columnIndex="3" />
+                                    <TextField fx:id="workMagTextField" prefWidth="50.0" GridPane.columnIndex="3" GridPane.rowIndex="1" />
+                                    <Label text="Downsample:" GridPane.columnIndex="2" GridPane.rowIndex="2">
+                                       <padding>
+                                          <Insets left="3.0" />
+                                       </padding>
+                                    </Label>
+                                    <TextField fx:id="downsampleTextField" prefWidth="50.0" GridPane.columnIndex="3" GridPane.rowIndex="2" />
+                                 </children>
+                                 <VBox.margin>
+                                    <Insets />
+                                 </VBox.margin>
+                              </GridPane>
+                              <VBox alignment="TOP_CENTER" spacing="3.0">
+                                 <children>
+                                    <Label fx:id="progressLabel" alignment="BOTTOM_CENTER" minHeight="25.0" prefHeight="25.0">
+                                       <font>
+                                          <Font size="14.0" />
+                                       </font>
+                                    </Label>
+                                 </children>
+                              </VBox>
+                           </children>
+                           <padding>
+                              <Insets bottom="7.0" left="7.0" right="7.0" top="7.0" />
+                           </padding>
+                        </VBox>
+                     </children>
+                  </AnchorPane>
+            </content>
+          </Tab>
+        </tabs>
+      </TabPane>
+   </children>
+</AnchorPane>
