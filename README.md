@@ -1,13 +1,13 @@
-# Qiimia in QuPath
-### Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (QIIMIA, Qiimia, "kee-m-ee-a" or "k-EYE-m-ee-a") in QuPath
+# Qymia in QuPath
+### Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (QYMIA, Qymia, "kee-m-ee-a" or "k-EYE-m-ee-a") in QuPath
 
 Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
-Qiimia is currently designed as a 2 part GUI extension where you make compartments with Qiimia Compartment Builder and quantify the target expression within these compartments with Qiimia Quant. The Qiimia Compartment Builder portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
+Qymia is currently designed as a 2 part GUI extension where you make compartments with Qymia Compartment Builder and quantify the target expression within these compartments with Qymia Quant. The Qymia Compartment Builder portion of the extension is under construction, however QuPath natively provides many ways to define molecular compartments of interest.
 
 ## Workflow Demo Version 0.0.1:
 
-This workflow uses the QuPath built-in SimpleThresholder as well as Qiimia Quant
+This workflow uses the QuPath built-in SimpleThresholder as well as Qymia Quant
 
 ## Whole Tissue Sections:
 
@@ -42,7 +42,7 @@ https://user-images.githubusercontent.com/28576964/183575198-896ba7da-dab5-4433-
 https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-adf5-6118fc9ada42.mp4
 
 ## TODO:
-- ### Qiimia Quant
+- ### Qymia Quant
   - #### Main features
     - [ ] Fast cell & subcellular compartment intensity quantification
       - [ ] Cell, nuclei, cytoplasm, and membrane.
@@ -69,8 +69,8 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [x] Apply conversion functions/standard curves to images in project
         - [x] Load conversion function parameters from file --> apply based mapping of imagePath -> function name
           - [x] Map functions and images based on CSV/TSV/Excel file --> stain batch map file
-          - [x] Interactive GUI to select images for each conversion function --> convert measurements option in QiimiaAnalysis -> TMA standard tools
-          - [x] Automatic conversion of measurements -> if batch map and measurement converters exist in project, this option is available in QiimiaQuant panel
+          - [x] Interactive GUI to select images for each conversion function --> convert measurements option in QymiaAnalysis -> TMA standard tools
+          - [x] Automatic conversion of measurements -> if batch map and measurement converters exist in project, this option is available in QymiaQuant panel
     - [x] Tile size option for px and um
     - [x] Calculate verbose/extra measurements option
     - [x] Permanent user settings/preferences
@@ -113,12 +113,12 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
       - [ ] Bug with channel name not found when switching projects, although GUI displays correct channel name. resolves on switching images within project. --> is targetTransforms list updated after switching projects?
     - [ ] Improve scoring (getTargetsIntensity function) to be even faster through ImageOps? Notes in code.
     - [ ] Make the backend more accessible outside GUI for use in scripting
-      - [x] Separated QIIMIAQuantBackend into it's own class. 
-      - [ ] Make a QIIMIAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
+      - [x] Separated QYMIAQuantBackend into it's own class. 
+      - [ ] Make a QYMIAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
   
   - #### Test for more bugs and interface & workflow usability
 
-- ### Qiimia Compartment Builder [Might scrap this because built in thresholder is decent]
+- ### Qymia Compartment Builder [Might scrap this because built in thresholder is decent]
   - [ ] Streamline Compartment Builder UI, integrate with PixelClassificationOverlays, work on backend functions
     - [ ] Extend ImageOps classes to support bitwise operations for computing fast union, difference, or intersection of masks
     - [x] Improve QuPath ROI to OpenCV Mat casting/transformation functions to not rely on ImageJ
@@ -130,6 +130,6 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Handle drag and drop of operations?
 
 - ### Future workflows
-  - Integrate cell segmentation and subcellular compartment tools into Qiimia workflow
-  - Integrate custom or ML-generated segmentation masks into Qiimia workflow
+  - Integrate cell segmentation and subcellular compartment tools into Qymia workflow
+  - Integrate custom or ML-generated segmentation masks into Qymia workflow
 
