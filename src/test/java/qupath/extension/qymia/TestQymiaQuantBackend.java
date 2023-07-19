@@ -9,13 +9,18 @@ import org.junit.jupiter.api.Test;
 
 import java.text.MessageFormat;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 class TestQymiaQuantBackend {
+
+    private static final Logger logger = LoggerFactory.getLogger(TestQymiaQuantBackend.class);
 
     @Test
     void opencvGPUCalc() {
         if(opencv_core.getCudaEnabledDeviceCount() == 0){
             // no GPU available
-            System.out.println("No CUDA enabled device found (check that opencv-platform-gpu from javacpp-presets is built with correct cuda-platform)");
+            logger.info("No CUDA enabled device found (check that opencv-platform-gpu from javacpp-presets is built with correct cuda-platform)");
             Assumptions.assumeTrue(false);
             return;
         }
@@ -23,7 +28,7 @@ class TestQymiaQuantBackend {
         System.out.println("Found CUDA enabled device:");
         opencv_core.printCudaDeviceInfo(0);
         try {
-            System.out.println("Testing GPU calculation...");
+            logger.info("Testing GPU calculation...");
             Mat maskMat = new Mat(100, 100, opencv_core.CV_8UC1);
             UByteRawIndexer maskIndx = maskMat.createIndexer();
             // Populate with some values
@@ -71,7 +76,7 @@ class TestQymiaQuantBackend {
                 statsGpu.download(channelStats);
                 double tarMean = channelStats.createIndexer().getDouble(0, 0);
                 double tarStdev = channelStats.createIndexer().getDouble(0, 1);
-                System.out.println(MessageFormat.format("Ch: {0} Mean: {1} StdDev: {2}", j, tarMean, tarStdev));
+                logger.info(MessageFormat.format("Ch: {0} Mean: {1} StdDev: {2}", j, tarMean, tarStdev));
 
                 statsGpu.release();
                 gpuChannelMat.release();
@@ -81,7 +86,7 @@ class TestQymiaQuantBackend {
                 Assumptions.assumeTrue(true);
             }
         } catch(Exception e){
-            System.out.println("GPU Calc Exception: " + e);
+            logger.error("GPU Calc Exception: " + e);
             Assumptions.assumeTrue(false);
 //            Assertions.fail("GPU Calc Exception: " + e);
         }

@@ -13,7 +13,6 @@ import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.control.Button;
@@ -76,37 +75,39 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 
 	private final QuPathGUI qupath;
 
+	private final QymiaQuantModel quantModel;
+
 	private final AtomicReference<Boolean> runCancelled = new AtomicReference<>(false);
 
 	public LinkedHashMap<ColorTransform, Double> availableTransforms = new LinkedHashMap<>();
 
 	//will be in settings menu
 
-	private final ObservableSet<PathClass> ignoreClasses = FXCollections.observableSet();
-	private List<PathClass> defaultIgnoreClasses = new ArrayList<>(
-			List.of(
-					getPathClass("Ignore*"),
-					getPathClass("Necrosis"),
-					getPathClass("Other")
-			)
-	);
-	private final ObservableSet<PathClass> roiClasses = FXCollections.observableSet();
-	private List<PathClass> defaultRoiClasses = new ArrayList<>(
-			List.of(
-					getPathClass("ROI")
-			)
-	);
+	private final ObservableSet<PathClass> ignoreClasses;
+//	private List<PathClass> defaultIgnoreClasses = new ArrayList<>(
+//			List.of(
+//					getPathClass("Ignore*"),
+//					getPathClass("Necrosis"),
+//					getPathClass("Other")
+//			)
+//	);
+	private final ObservableSet<PathClass> roiClasses;
+//	private List<PathClass> defaultRoiClasses = new ArrayList<>(
+//			List.of(
+//					getPathClass("ROI")
+//			)
+//	);
 
 	//default params
-	private static DoubleProperty refNAProperty = PathPrefs.createPersistentPreference("refNAQymiaQuant", 0.75);
-	private static DoubleProperty refMagProperty = PathPrefs.createPersistentPreference("refMagQymiaQuant", 20.0);
-
-	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQymiaQuant", 0.75);
-	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQymiaQuant", 20.0);
-
-	private static DoubleProperty downsampleProperty = PathPrefs.createPersistentPreference("downsampleQymiaQuant", 1.0);
-
-	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQymiaQuant", true);
+//	private static DoubleProperty refNAProperty = PathPrefs.createPersistentPreference("refNAQymiaQuant", 0.75);
+//	private static DoubleProperty refMagProperty = PathPrefs.createPersistentPreference("refMagQymiaQuant", 20.0);
+//
+//	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQymiaQuant", 0.75);
+//	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQymiaQuant", 20.0);
+//
+//	private static DoubleProperty downsampleProperty = PathPrefs.createPersistentPreference("downsampleQymiaQuant", 1.0);
+//
+//	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQymiaQuant", true);
 
 	private final int defaultTileSize = 512;
 	private final ObjectProperty<Integer> tileSize = new SimpleObjectProperty(defaultTileSize);
@@ -132,7 +133,8 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	private ReadOnlyObjectProperty<String> selectedStainType;
 	@FXML
 	ComboBox<String> sourceComboBox;
-	private final String[] compartmentSources = {"Detections", "Annotations", "Cells"};
+//	private final String[] compartmentSources = {"Detections", "Annotations", "Cells"};
+	private final String[] compartmentSources = {"Detections", "Annotations"};
 	private ReadOnlyObjectProperty<String> selectedSource;
 	@FXML
 	ScrollPane compartmentScrollPane;
@@ -221,10 +223,13 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	public final Action EXPORT;
 
 
-	public QymiaQuantPanelController(QuPathGUI qupath) {
+	public QymiaQuantPanelController(QuPathGUI qupath, QymiaQuantModel quantModel) {
 		this.qupath = qupath;
 		var measureCommand = new QymiaMeasurementExportCommand(qupath);
 		EXPORT = qupath.createProjectAction(project -> measureCommand.run());
+		this.quantModel = quantModel;
+		this.ignoreClasses = quantModel.getIgnoreClasses();
+		this.roiClasses = quantModel.getRoiClasses();
 	}
 
 	@Override
@@ -258,8 +263,8 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 		menuItemListToToggle.addAll(runForProjectMenuItem, exportMeasMenuItem, standardCurveMenuItem, comparisonMenuItem);
 
 //		setup PathClass sets
-		ignoreClasses.addAll(defaultIgnoreClasses);
-		roiClasses.addAll(defaultRoiClasses);
+		ignoreClasses.addAll(quantModel.getDefaultIgnoreClasses());
+		roiClasses.addAll(quantModel.getDefaultRoiClasses());
 		ignoreClasses.addListener(new SetChangeListener<PathClass>() {
 			@Override
 			public void onChanged(Change<? extends PathClass> change) {
@@ -802,7 +807,7 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 							menuItemListToToggle,
 							quantProgressBar,
 							progressLabel,
-							useCUDAProperty.get()
+							quantModel.getUseCUDAProperty().get()
 					);
 
 					qymiaQuant.runQuant().get();
@@ -941,7 +946,7 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 		boolean verboseMeasures = verboseMeasuresMenuItem.selectedProperty().get();
 		boolean tileUnitIsMicrons = tileUnitIsMicronsMenuItem.selectedProperty().get();
 
-		double downsample = downsampleProperty.get();
+		double downsample = quantModel.getDownsampleProperty().get();
 		logger.info("using downsample: {}", downsample);
 //		Class<? extends PathObject> sourceType;
 //		if(source.equals("Cells")){
@@ -955,11 +960,16 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 		double intensityScaleFactor = 1.0;
 //		https://www.microscopyu.com/microscopy-basics/image-brightness
 //		Tries to account for intensity brightness between objectives for epifluorescence...
+		double refNA = quantModel.getRefNAProperty().get();
+		double workingNA = quantModel.getWorkingNAProperty().get();
+		double refMag = quantModel.getRefMagProperty().get();
+		double workingMag = quantModel.getWorkingMagProperty().get();
+
 		if(stain.equals("Fluorescence")) {
-			intensityScaleFactor = Math.pow((Math.pow(refNAProperty.get(), 2) * workingMagProperty.get()) / (refMagProperty.get() * Math.pow(workingNAProperty.get(), 2)), 2);
+			intensityScaleFactor = Math.pow((Math.pow(refNA, 2) * workingMag) / (refMag * Math.pow(workingNA, 2)), 2);
 		} else{
 //			Accounts for brightfield/trans-illumination intensity differences
-			intensityScaleFactor = Math.pow(refNAProperty.get() / refMagProperty.get(), 2) / Math.pow(workingNAProperty.get() / workingMagProperty.get(), 2);
+			intensityScaleFactor = Math.pow(refNA / refMag, 2) / Math.pow(workingNA / workingMag, 2);
 		}
 
 		if(Double.isNaN(intensityScaleFactor) || Double.isInfinite(intensityScaleFactor)){
@@ -1146,7 +1156,7 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 		Set<PathClass> presetROIClasses = quantPreset.getROIClasses();
 		Map<String, Object> presetParams = quantPreset.getParams();
 //		set gui params
-		downsampleProperty.set((double) presetParams.get("downsample"));
+		quantModel.setDownsample((double) presetParams.get("downsample"));
 		Integer inputTileSize = ((Double) presetParams.get("tileSize")).intValue();
 		if(inputTileSize > 0) {
 			tileSizeTextField.setText(String.valueOf(inputTileSize));
@@ -1195,17 +1205,18 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 		final Stage dialog = new Stage();
 		dialog.initModality(Modality.APPLICATION_MODAL);
 		dialog.initOwner(qupath.getStage());
-		FXMLLoader loader = new FXMLLoader();
-		loader.setLocation(getClass().getResource("/QymiaQuantSettings.fxml"));
-		loader.setControllerFactory(controllerClass -> new QymiaQuantSettingsController(
-				qupath, ignoreClasses, roiClasses,
-				refNAProperty, refMagProperty, workingNAProperty, workingMagProperty,
-				downsampleProperty
-				)
-		);
+		//		preload this with scene manager
+		Scene scene = sceneManager.getScene("/QymiaQuantSettings.fxml");
+
+//		old, might have incompatibilities based on file location
+//		FXMLLoader loader = new FXMLLoader();
+//		loader.setLocation(getClass().getResource("/QymiaQuantSettings.fxml"));
+//		loader.setControllerFactory(controllerClass -> new QymiaQuantSettingsController(
+//				qupath, quantModel)
+//		);
 //		Parent panel = loader.load();
 //		this.qymiaQuantPanelController = loader.getController();
-		Scene scene = new Scene(loader.load());
+//		Scene scene = new Scene(loader.load());
 		dialog.setScene(scene);
 		dialog.show();
 	}

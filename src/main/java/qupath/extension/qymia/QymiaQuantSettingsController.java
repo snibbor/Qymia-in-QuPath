@@ -25,20 +25,22 @@ import qupath.lib.objects.classes.PathClass;
 import java.net.URL;
 import java.util.ResourceBundle;
 
-public class QymiaQuantSettingsController implements Initializable {
+public class QymiaQuantSettingsController extends BaseController implements Initializable {
     private static final Logger logger = LoggerFactory.getLogger(QymiaQuantSettingsController.class);
     private final QuPathGUI qupath;
     private final ObservableSet<PathClass> ignoreClasses;
     private final ObservableSet<PathClass> roiClasses;
 
+    private final QymiaQuantModel quantModel;
+
     //default params
-    private static DoubleProperty refNAProperty;
-    private static DoubleProperty refMagProperty;
-
-    private static DoubleProperty workingNAProperty;
-    private static DoubleProperty workingMagProperty;
-
-    private static DoubleProperty downsampleProperty;
+//    private static DoubleProperty refNAProperty;
+//    private static DoubleProperty refMagProperty;
+//
+//    private static DoubleProperty workingNAProperty;
+//    private static DoubleProperty workingMagProperty;
+//
+//    private static DoubleProperty downsampleProperty;
     @FXML
     Label progressLabel;
     @FXML
@@ -67,22 +69,16 @@ public class QymiaQuantSettingsController implements Initializable {
     TextField workMagTextField;
 
 
-    public QymiaQuantSettingsController(QuPathGUI qupath,
-                                        ObservableSet<PathClass> ignoreClasses,
-                                        ObservableSet<PathClass> roiClasses,
-                                        DoubleProperty refNA,
-                                        DoubleProperty refMag,
-                                        DoubleProperty workingNA,
-                                        DoubleProperty workingMag,
-                                        DoubleProperty downsample){
+    public QymiaQuantSettingsController(QuPathGUI qupath, QymiaQuantModel quantModel){
         this.qupath = qupath;
-        this.ignoreClasses = ignoreClasses;
-        this.roiClasses = roiClasses;
-        refNAProperty = refNA;
-        refMagProperty = refMag;
-        workingNAProperty = workingNA;
-        workingMagProperty = workingMag;
-        downsampleProperty = downsample;
+        this.ignoreClasses = quantModel.getIgnoreClasses();
+        this.roiClasses = quantModel.getRoiClasses();
+        this.quantModel = quantModel;
+//        refNAProperty = quantModel.getRefNAProperty();
+//        refMagProperty = quantModel.getRefMagProperty();
+//        workingNAProperty = quantModel.getWorkingNAProperty();
+//        workingMagProperty = quantModel.getWorkingMagProperty();
+//        downsampleProperty = quantModel.getDownsampleProperty();
     }
 
     @Override
@@ -98,138 +94,141 @@ public class QymiaQuantSettingsController implements Initializable {
     }
 
     private void setupTextFields(){
-        downsampleTextField = QymiaUtils.formatTextFields(downsampleTextField, "pos_double", String.valueOf(downsampleProperty.get()));
+        downsampleTextField = QymiaUtils.formatTextFields(downsampleTextField, "pos_double", String.valueOf(quantModel.getDownsampleProperty().get()));
         downsampleTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent ke) {
                 if (ke.getCode().equals(KeyCode.ENTER)) {
                     if (downsampleTextField.getText().isEmpty() || downsampleTextField.getText() == null) {
-                        downsampleProperty.set(1);
+                        quantModel.setDownsample(1);
                         downsampleTextField.setText("1");
                     } else{
-                        downsampleProperty.set(Double.parseDouble(downsampleTextField.getText()));
+                        quantModel.setDownsample(Double.parseDouble(downsampleTextField.getText()));
                     }
-                    logger.info("downsampleTextField key enter: {}", downsampleProperty.get());
+                    logger.info("downsampleTextField key enter: {}", quantModel.getDownsampleProperty().get());
                 }
             }
         });
         downsampleTextField.focusedProperty().addListener((ov, oldV, newV) -> {
             if (!newV) { // focus lost
                 if (downsampleTextField.getText().isEmpty() || downsampleTextField.getText() == null) {
-                    downsampleProperty.set(1);
+                    quantModel.setDownsample(1);
                     downsampleTextField.setText("1");
                 } else{
-                    downsampleProperty.set(Double.parseDouble(downsampleTextField.getText()));
+                    quantModel.setDownsample(Double.parseDouble(downsampleTextField.getText()));
                 }
-                logger.info("downsampleTextField focus lost: {}", downsampleProperty.get());
+                logger.info("downsampleTextField focus lost: {}", quantModel.getDownsampleProperty().get());
             }
         });
 
-        refNATextField = QymiaUtils.formatTextFields(refNATextField, "pos_double", String.valueOf(refNAProperty.get()));
+
+//change old property variable names to quantModel properties
+
+        refNATextField = QymiaUtils.formatTextFields(refNATextField, "pos_double", String.valueOf(quantModel.getRefNAProperty().get()));
         refNATextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent ke) {
                 if (ke.getCode().equals(KeyCode.ENTER)) {
                     if (refNATextField.getText().isEmpty() || refNATextField.getText() == null) {
-                        refNAProperty.set(0.75);
+                        quantModel.setRefNA(0.75);
                         refNATextField.setText("0.75");
                     } else{
-                        refNAProperty.set(Double.parseDouble(refNATextField.getText()));
+                        quantModel.setRefNA(Double.parseDouble(refNATextField.getText()));
                     }
-                    logger.info("refNATextField key enter: {}", refNAProperty.get());
+                    logger.info("refNATextField key enter: {}", quantModel.getRefNAProperty().get());
                 }
             }
         });
         refNATextField.focusedProperty().addListener((ov, oldV, newV) -> {
             if (!newV) { // focus lost
                 if (refNATextField.getText().isEmpty() || refNATextField.getText() == null) {
-                    refNAProperty.set(0.75);
+                    quantModel.setRefNA(0.75);
                     refNATextField.setText("0.75");
                 } else{
-                    refNAProperty.set(Double.parseDouble(refNATextField.getText()));
+                    quantModel.setRefNA(Double.parseDouble(refNATextField.getText()));
                 }
-                logger.info("refNATextField focus lost: {}", refNAProperty.get());
+                logger.info("refNATextField focus lost: {}", quantModel.getRefNAProperty().get());
             }
         });
 
-        refMagTextField = QymiaUtils.formatTextFields(refMagTextField, "pos_double", String.valueOf(refMagProperty.get()));
+        refMagTextField = QymiaUtils.formatTextFields(refMagTextField, "pos_double", String.valueOf(quantModel.getRefMagProperty().get()));
         refMagTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent ke) {
                 if (ke.getCode().equals(KeyCode.ENTER)) {
                     if (refMagTextField.getText().isEmpty() || refMagTextField.getText() == null) {
-                        refMagProperty.set(20.0);
+                        quantModel.setRefMag(20.0);
                         refMagTextField.setText("20.0");
                     } else{
-                        refMagProperty.set(Double.parseDouble(refMagTextField.getText()));
+                        quantModel.setRefMag(Double.parseDouble(refMagTextField.getText()));
                     }
-                    logger.info("refMagTextField key enter: {}", refMagProperty.get());
+                    logger.info("refMagTextField key enter: {}", quantModel.getRefMagProperty().get());
                 }
             }
         });
         refMagTextField.focusedProperty().addListener((ov, oldV, newV) -> {
             if (!newV) { // focus lost
                 if (refMagTextField.getText().isEmpty() || refMagTextField.getText() == null) {
-                    refMagProperty.set(20.0);
+                    quantModel.setRefMag(20.0);
                     refMagTextField.setText("20.0");
                 } else{
-                    refMagProperty.set(Double.parseDouble(refMagTextField.getText()));
+                    quantModel.setRefMag(Double.parseDouble(refMagTextField.getText()));
                 }
-                logger.info("refMagTextField focus lost: {}", refMagProperty.get());
+                logger.info("refMagTextField focus lost: {}", quantModel.getRefMagProperty().get());
             }
         });
 
-        workNATextField = QymiaUtils.formatTextFields(workNATextField, "pos_double", String.valueOf(workingNAProperty.get()));
+        workNATextField = QymiaUtils.formatTextFields(workNATextField, "pos_double", String.valueOf(quantModel.getWorkingNAProperty().get()));
         workNATextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent ke) {
                 if (ke.getCode().equals(KeyCode.ENTER)) {
                     if (workNATextField.getText().isEmpty() || workNATextField.getText() == null) {
-                        workingNAProperty.set(0.75);
+                        quantModel.setWorkingNA(0.75);
                         workNATextField.setText("0.75");
                     } else{
-                        workingNAProperty.set(Double.parseDouble(workNATextField.getText()));
+                        quantModel.setWorkingNA(Double.parseDouble(workNATextField.getText()));
                     }
-                    logger.info("workNATextField key enter: {}", workingNAProperty.get());
+                    logger.info("workNATextField key enter: {}", quantModel.getWorkingMagProperty().get());
                 }
             }
         });
         workNATextField.focusedProperty().addListener((ov, oldV, newV) -> {
             if (!newV) { // focus lost
                 if (workNATextField.getText().isEmpty() || workNATextField.getText() == null) {
-                    workingNAProperty.set(0.75);
+                    quantModel.setWorkingNA(0.75);
                     workNATextField.setText("0.75");
                 } else{
-                    workingNAProperty.set(Double.parseDouble(workNATextField.getText()));
+                    quantModel.setWorkingNA(Double.parseDouble(workNATextField.getText()));
                 }
-                logger.info("workNATextField focus lost: {}", workingNAProperty.get());
+                logger.info("workNATextField focus lost: {}", quantModel.getWorkingNAProperty().get());
             }
         });
 
-        workMagTextField = QymiaUtils.formatTextFields(workMagTextField, "pos_double", String.valueOf(workingMagProperty.get()));
+        workMagTextField = QymiaUtils.formatTextFields(workMagTextField, "pos_double", String.valueOf(quantModel.getWorkingMagProperty().get()));
         workMagTextField.setOnKeyPressed(new EventHandler<KeyEvent>() {
             @Override
             public void handle(KeyEvent ke) {
                 if (ke.getCode().equals(KeyCode.ENTER)) {
                     if (workMagTextField.getText().isEmpty() || workMagTextField.getText() == null) {
-                        workingMagProperty.set(20.0);
+                        quantModel.setWorkingMag(20.0);
                         workMagTextField.setText("20.0");
                     } else{
-                        workingMagProperty.set(Double.parseDouble(workMagTextField.getText()));
+                        quantModel.setWorkingMag(Double.parseDouble(workMagTextField.getText()));
                     }
-                    logger.info("workMagTextField key enter: {}", workingMagProperty.get());
+                    logger.info("workMagTextField key enter: {}", quantModel.getWorkingMagProperty().get());
                 }
             }
         });
         workMagTextField.focusedProperty().addListener((ov, oldV, newV) -> {
             if (!newV) { // focus lost
                 if (workMagTextField.getText().isEmpty() || workMagTextField.getText() == null) {
-                    workingMagProperty.set(20.0);
+                    quantModel.setWorkingMag(20.0);
                     workMagTextField.setText("20.0");
                 } else{
-                    workingMagProperty.set(Double.parseDouble(workMagTextField.getText()));
+                    quantModel.setWorkingMag(Double.parseDouble(workMagTextField.getText()));
                 }
-                logger.info("workMagTextField focus lost: {}", workingMagProperty.get());
+                logger.info("workMagTextField focus lost: {}", quantModel.getWorkingMagProperty().get());
             }
         });
     }

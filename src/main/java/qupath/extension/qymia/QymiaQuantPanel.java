@@ -20,6 +20,8 @@ public class QymiaQuantPanel implements Runnable{
 
 //	private QymiaQuantPanelController qymiaQuantPanelController;
 	private SceneManager sceneManager;
+
+	private QymiaQuantModel quantParams;
 	private String firstWindow;
 
 	public QymiaQuantPanel(final QuPathGUI qupath, String firstWindow) {
@@ -47,12 +49,15 @@ public class QymiaQuantPanel implements Runnable{
 			stage.setMaxWidth(800);
 
 			sceneManager = new SceneManager(stage);
-			sceneManager.preloadScene("/QymiaQuantPanel.fxml", new QymiaQuantPanelController(qupath));
+			quantParams = new QymiaQuantModel();
+			sceneManager.preloadScene("/QymiaQuantPanel.fxml", new QymiaQuantPanelController(qupath, quantParams));
 			sceneManager.setCSSStyle("/QymiaQuantPanel.fxml", "/application.css");
-			sceneManager.preloadScene("/QymiaPresetPanel.fxml", new QymiaPresetPanelController(qupath));
+			sceneManager.preloadScene("/QymiaPresetPanel.fxml", new QymiaPresetPanelController(qupath, quantParams));
 			sceneManager.setCSSStyle("/QymiaPresetPanel.fxml", "/application.css");
 			sceneManager.preloadScene("/QymiaAnalysisPanel.fxml", new QymiaAnalysisPanelController(qupath));
 			sceneManager.setCSSStyle("/QymiaAnalysisPanel.fxml", "/application.css");
+			sceneManager.preloadScene("/QymiaQuantSettings.fxml", new QymiaQuantSettingsController(qupath, quantParams));
+			sceneManager.setCSSStyle("/QymiaQuantSettings.fxml", "/application.css");
 
 			if(Objects.equals(firstWindow, "preset")) {
 				sceneManager.switchScene("/QymiaPresetPanel.fxml");

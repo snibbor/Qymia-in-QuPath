@@ -1873,6 +1873,7 @@ public class QymiaQuantBackend {
                                     }
                                     // Calculate AQUA scoring metrics for new compartment detections for all targets
                                     try {
+                                        logger.info(String.format("Getting intensity scores... %s in %s", adjPathObj.toString(), adjPathObj.getParent().getName().toString()));
                                         getTargetsIntensityScores_OpenCV(server, adjPathObj);
                                         tmaMeasList.putAll(adjPathObj.getMeasurementList());
 

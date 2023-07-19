@@ -59,6 +59,8 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 
 	private final QuPathGUI qupath;
 
+	private final QymiaQuantModel quantModel;
+
 	private final AtomicReference<Boolean> runCancelled = new AtomicReference<>(false);
 
 	private String clearQuantPathObjOption = "all";
@@ -66,28 +68,28 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 	public LinkedHashMap<ColorTransform, Double> availableTransforms = new LinkedHashMap<>();
 
 	//will be in settings menu
-	private final ObservableSet<PathClass> ignoreClasses = FXCollections.observableSet();
-	private List<PathClass> defaultIgnoreClasses = new ArrayList<>(
-			List.of(
-					getPathClass("Ignore*"),
-					getPathClass("Necrosis"),
-					getPathClass("Other")
-			)
-	);
-	private final ObservableSet<PathClass> roiClasses = FXCollections.observableSet();
-	private List<PathClass> defaultRoiClasses = new ArrayList<>(
-			List.of(
-					getPathClass("ROI")
-			)
-	);
+	private final ObservableSet<PathClass> ignoreClasses;
+//	private List<PathClass> defaultIgnoreClasses = new ArrayList<>(
+//			List.of(
+//					getPathClass("Ignore*"),
+//					getPathClass("Necrosis"),
+//					getPathClass("Other")
+//			)
+//	);
+	private final ObservableSet<PathClass> roiClasses;
+//	private List<PathClass> defaultRoiClasses = new ArrayList<>(
+//			List.of(
+//					getPathClass("ROI")
+//			)
+//	);
 
 	//default params
-	private static DoubleProperty refNAProperty = PathPrefs.createPersistentPreference("refNAQymiaQuant", 0.75);
-	private static DoubleProperty refMagProperty = PathPrefs.createPersistentPreference("refMagQymiaQuant", 20.0);
-
-	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQymiaQuant", 0.75);
-	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQymiaQuant", 20.0);
-	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQymiaQuant", true);
+//	private static DoubleProperty refNAProperty = PathPrefs.createPersistentPreference("refNAQymiaQuant", 0.75);
+//	private static DoubleProperty refMagProperty = PathPrefs.createPersistentPreference("refMagQymiaQuant", 20.0);
+//
+//	private static DoubleProperty workingNAProperty = PathPrefs.createPersistentPreference("workingNAQymiaQuant", 0.75);
+//	private static DoubleProperty workingMagProperty = PathPrefs.createPersistentPreference("workingMagQymiaQuant", 20.0);
+//	private static BooleanProperty useCUDAProperty = PathPrefs.createPersistentPreference("useCUDAQymiaQuant", true);
 
 	private FilteredList<PathClass> compartmentList;
 	private final ObservableSet<PathClass> selectedCompartments = FXCollections.observableSet();
@@ -190,10 +192,13 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 	private static final Collection<Class<?>> defaultStaticClasses = getDefaultStaticClasses();
 
 
-	public QymiaPresetPanelController(QuPathGUI qupath) {
+	public QymiaPresetPanelController(QuPathGUI qupath, QymiaQuantModel quantModel) {
 		this.qupath = qupath;
 		var measureCommand = new QymiaMeasurementExportCommand(qupath);
 		EXPORT = qupath.createProjectAction(project -> measureCommand.run());
+		this.quantModel = quantModel;
+		this.ignoreClasses = quantModel.getIgnoreClasses();
+		this.roiClasses = quantModel.getRoiClasses();
 	}
 
 	@Override
@@ -210,8 +215,8 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 		menuItemListToToggle.addAll(runForProjectMenuItem, exportMeasMenuItem, standardCurveMenuItem, comparisonMenuItem);
 
 //		setup PathClass sets
-		ignoreClasses.addAll(defaultIgnoreClasses);
-		roiClasses.addAll(defaultRoiClasses);
+		ignoreClasses.addAll(quantModel.getDefaultIgnoreClasses());
+		roiClasses.addAll(quantModel.getDefaultRoiClasses());
 		ignoreClasses.addListener(new SetChangeListener<PathClass>() {
 			@Override
 			public void onChanged(Change<? extends PathClass> change) {
@@ -787,7 +792,7 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 								menuItemListToToggle,
 								quantProgressBar,
 								progressLabel,
-								useCUDAProperty.get()
+								quantModel.getUseCUDAProperty().get()
 						);
 
 						qymiaQuant.runQuant().get();
@@ -882,7 +887,7 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 								menuItemListToToggle,
 								quantProgressBar,
 								progressLabel,
-								useCUDAProperty.get()
+								quantModel.getUseCUDAProperty().get()
 						);
 
 						qymiaQuant.runQuant().get();
