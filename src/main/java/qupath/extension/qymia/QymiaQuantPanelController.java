@@ -184,7 +184,7 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	private static BooleanProperty tileUnitIsMicronsProperty = PathPrefs.createPersistentPreference("tileUnitIsMicronsQymiaQuant", false);
 	@FXML
 	CheckMenuItem verboseMeasuresMenuItem;
-	private static BooleanProperty verboseMeasuresProperty = PathPrefs.createPersistentPreference("verboseMeasuresQymiaQuant", true);
+	private static BooleanProperty verboseMeasuresProperty = PathPrefs.createPersistentPreference("verboseMeasuresQymiaQuant", false);
 	@FXML
 	CheckMenuItem normalizeMenuItem;
 	private static BooleanProperty normalizeProperty = PathPrefs.createPersistentPreference("normalizeQymiaQuant", true);
@@ -204,7 +204,7 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	private String defaultMeasConvFolder = "measurement_converters";
 	@FXML
 	CheckMenuItem convertMeasMenuItem;
-	private static BooleanProperty convertMeasurementsProperty = new SimpleBooleanProperty(false);
+	private static BooleanProperty convertMeasurementsProperty = new SimpleBooleanProperty(true);
 
 	@FXML
 	MenuItem advancedSettingsMenuItem;

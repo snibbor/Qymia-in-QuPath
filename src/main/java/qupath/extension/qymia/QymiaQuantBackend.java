@@ -74,6 +74,16 @@ public class QymiaQuantBackend {
     private int estNumTasks;
     private int numThreads;
 
+    //    Make a hashmap of A-Z to 1-26
+    private Map<String, Double> LetterToNumber = new HashMap<>();
+    {
+        for (int i = 0; i < 26; i++) {
+            LetterToNumber.put(Character.toString((char) (i + 65)), (double) i + 1);
+//            to make it a case-insensitive map
+            LetterToNumber.put(Character.toString((char) (i + 97)), (double) i + 1);
+        }
+    }
+
     private Collection<Compartments> cellCompartments = Collections.synchronizedList(Arrays.asList(Compartments.values()));
     private Set<Measurements> measurements = Collections.synchronizedSet(new HashSet<>(Arrays.asList(Measurements.values())));
     private Map<String, Object> params = new ConcurrentHashMap<>();
@@ -601,6 +611,17 @@ public class QymiaQuantBackend {
                         throw new CancellationException();
                     }
                     if(result.toLowerCase().contains("tma") && slide.equals("TMA")){
+
+//                        logger.warn("Deleting measurements on TMA core objects!...");
+//                        List<TMACoreObject> tmaCores = hierarchy.getTMAGrid().getTMACoreList();
+//                        for (TMACoreObject coreObject : tmaCores) {
+//                            // Remove all measurements
+//                            coreObject.getMeasurementList().clear();
+//                            coreObject.getMeasurementList().close();
+//                        }
+//                        if (hierarchy != null)
+//                            hierarchy.fireObjectMeasurementsChangedEvent(null, tmaCores);
+
                         logger.info("Beginning compartment quantification of TMA cores for compartments: {} and targets: {}...", compartments.toString(), targets.toString());
                         if(progressLabel!=null) {
                             Platform.runLater(() -> {
@@ -1788,6 +1809,20 @@ public class QymiaQuantBackend {
             return result;
         }
         List<TMACoreObject> tmaCores = tmaGrid.getTMACoreList();
+//        get Row and Column from name of TMA core objects
+        tmaCores.parallelStream().forEach(core -> {
+            String name = core.getName();
+            MeasurementList coreMeasurements = core.getMeasurementList();
+            String[] nameSplit = name.split("-");
+            if(nameSplit.length==2){
+//                Convert letters A-Z to 1-26
+                coreMeasurements.put("Row", LetterToNumber.getOrDefault(nameSplit[0], Double.parseDouble(nameSplit[0])));
+                coreMeasurements.put("Col", LetterToNumber.getOrDefault(nameSplit[1], Double.parseDouble(nameSplit[1])));
+            } else {
+                logger.error("TMA core name is not in the format of Row-Column, please rename TMA core objects!");
+            }
+        });
+
         // an estimate if there are the same amount of compartments per TMA spot....
         // could just try and use the amount of tasks queued... doesn't work in time before forkJoinPool is done with submit/invoke
 //			setEstNumTasks((int) tmaCores.size() * compartments.size());
@@ -1841,7 +1876,7 @@ public class QymiaQuantBackend {
                                 if (isCancelled.get()) {
                                     throw new CancellationException();
                                 }
-                                MeasurementList tmaMeasList = pathObj.getMeasurementList();
+                                MeasurementList tmaMeasList = pathObj.getParent().getMeasurementList();
 //					ignore the objects that are unclassified/PathClass == null
                                 if (pathObj.getPathClass() != null && compartments.contains(pathObj.getPathClass()) && pathObj.getClass() == sourceType) {
                                     PathObject adjPathObj;
@@ -2008,12 +2043,13 @@ public class QymiaQuantBackend {
             measList.put("Intensity Scale Factor", intensityScaleFactor);
             int bitDepthVal = (int) Math.pow(2, bitDepth);
 
-            if (downsample <= 0) {
-                logger.warn("Effective downsample must be > 0 (requested value {})", downsample);
+            if (downsample < 1.0) {
+                logger.warn("Effective downsample must be >= 1 (requested value {})", downsample);
                 downsample = 1.0;
             }
 
             measList.put("downsample", downsample);
+            measList.put("effective resolution (um)", downsample * pc.getPixelWidthMicrons());
 
             // Add shape measurements and setup stat trackers
             Map<PathClass, Map<String, RunningStatistics>> allStats = new ConcurrentHashMap<>();
