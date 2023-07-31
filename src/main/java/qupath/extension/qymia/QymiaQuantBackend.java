@@ -75,12 +75,12 @@ public class QymiaQuantBackend {
     private int numThreads;
 
     //    Make a hashmap of A-Z to 1-26
-    private Map<String, Double> LetterToNumber = new HashMap<>();
+    private Map<String, Integer> LetterToNumber = new HashMap<>();
     {
         for (int i = 0; i < 26; i++) {
-            LetterToNumber.put(Character.toString((char) (i + 65)), (double) i + 1);
+            LetterToNumber.put(Character.toString((char) (i + 65)), (int) i + 1);
 //            to make it a case-insensitive map
-            LetterToNumber.put(Character.toString((char) (i + 97)), (double) i + 1);
+            LetterToNumber.put(Character.toString((char) (i + 97)), (int) i + 1);
         }
     }
 
@@ -1816,8 +1816,21 @@ public class QymiaQuantBackend {
             String[] nameSplit = name.split("-");
             if(nameSplit.length==2){
 //                Convert letters A-Z to 1-26
-                coreMeasurements.put("Row", LetterToNumber.getOrDefault(nameSplit[0], Double.parseDouble(nameSplit[0])));
-                coreMeasurements.put("Col", LetterToNumber.getOrDefault(nameSplit[1], Double.parseDouble(nameSplit[1])));
+                int row;
+                int col;
+                try{
+                    row = Integer.parseInt(nameSplit[0]);
+                    coreMeasurements.put("Row", row);
+                } catch(NumberFormatException e){
+                    coreMeasurements.put("Row", LetterToNumber.get(nameSplit[0]));
+                }
+                try{
+                    col = Integer.parseInt(nameSplit[1]);
+                    coreMeasurements.put("Col", col);
+                } catch(NumberFormatException e){
+                    coreMeasurements.put("Col", LetterToNumber.get(nameSplit[1]));
+                }
+
             } else {
                 logger.error("TMA core name is not in the format of Row-Column, please rename TMA core objects!");
             }

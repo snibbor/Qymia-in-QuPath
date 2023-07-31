@@ -1127,16 +1127,17 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	}
 
 	public void loadQuantPreset(File presetFilePath){
+		if (presetFilePath == null) {
+			logger.error("No QymiaQuant Preset selected....");
+			return;
+		}
 		if(!presetFilePath.toString().endsWith(".json")){
 			logger.error("{} is not a JSON file and is not a QymiaQuant Preset!", presetFilePath);
 			return;
 		}
 		Gson gson = GsonTools.getInstance(true);
 		QymiaQuantPreset quantPreset = null;
-		if (presetFilePath == null) {
-			logger.error("No QymiaQuant Preset selected....");
-			return;
-		}
+
 		try(
 			BufferedReader reader = Files.newReader(presetFilePath, StandardCharsets.UTF_8);
 			){
