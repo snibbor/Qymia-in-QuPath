@@ -692,6 +692,8 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 					ProjectImageEntry<BufferedImage> quantEntry = null;
 					String quantImageName = null;
 					if(syncMap!=null) {
+						logger.info("{}, syncMap is not null", syncMapPath);
+						logger.info("searching for {} in syncMap", entryImageName);
 						String syncFileName = syncMap.get(entryImageName);
 						if (syncFileName != null) {
 							logger.info("Trying to get first image for quantification from sync map");
