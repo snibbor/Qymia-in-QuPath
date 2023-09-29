@@ -2011,7 +2011,7 @@ public class QymiaQuantBackend {
             theseMeasurements = measurements;
         }
 
-        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, stain, cellCompartments, theseMeasurements,
+        return getTargetsIntensityScores_OpenCV(server, parentObject, intersectROIs, targets, stain, cellCompartments, theseMeasurements, verboseMeasures,
                 downsample, tileSize, tileUnitIsMicrons, rescaleScore, normalizeScore, maxFloatValue, intensityScaleFactor);
 
     }
@@ -2024,6 +2024,7 @@ public class QymiaQuantBackend {
                                                     String stainType,
                                                     Collection<Compartments> cellCompartments,
                                                     Collection<Measurements> measurements,
+                                                    boolean verboseMeasures,
                                                     double downsample, int tileSize, boolean tileUnitIsMicrons,
                                                     boolean rescaleScore, boolean normalizeScore,
                                                     double maxFloatValue, double intensityScaleFactor) throws IOException {
@@ -2380,7 +2381,10 @@ public class QymiaQuantBackend {
                         measList.put(targetName + " in " + className + " Sum I/(um^2)", QIF_areaS);
                     } else if (normalizeScore) {
                         double QIF_areaS = (targetMean / mppSq) * intensityScaleFactor / (bitDepthVal * exposure_time / 1000);
-                        measList.put(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+                        if(verboseMeasures)
+                            measList.put(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+                        else
+                            measList.put(targetName + " in " + className + " Qymia Score", QIF_areaS);
                     } else {
                         // no normalization
                         double QIF_areaS = (targetMean / mppSq);
@@ -2394,7 +2398,6 @@ public class QymiaQuantBackend {
                     //    measList.putMeasurement(targetName+' in '+className+' Sum I/([Compartment % Area]*[exp time (ms)])', QIF_areaPercentS);
                 }
             }
-
 
             measList.close();
 
