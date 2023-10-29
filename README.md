@@ -56,7 +56,6 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [x] Quant Presets and Preset Panel alongside linear calibration curve support to further automate Qymia workflow.
     - [ ] Fast cell & subcellular compartment intensity quantification
       - [ ] Cell, nuclei, cytoplasm, and membrane --> QuPath default still.
-      - [ ] Ability to quantify custom subcellular compartment definitions --> e.g. mitochondria (labeled with TOM20) compartments for every cell object. EE, MVE, RE, LE, & lysosomes for every cell object.
     - [x] Grid/Tile calculation of compartment scores + overlay image (measurement map?)
       - [x] Export measurements to tab delim .csv ~~or .json?~~
       - [ ] Grid/Tile calculation is very very slow for TMA because of the merge annotations step, which is unnecessary --> write a slightly different method for Grid/Tile calculation for TMA where the Tile bounds are for each TMA Core Objects and the computeTiledROIs are parallelized per core.
@@ -65,7 +64,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [x] Need to fix memory leak from ~~ForkJoinPool~~ --> wasn't a memory leak due to thread pooling, it was the ImageRegion tile cache filling up!
   
   - #### Advanced settings
-    - [ ] Improve score normalization for all aspects of image brightness for fluoresence & trans-illumination microscopy. (Source intensity, transmission/fluorophore quantum efficiency, light collection, what else?)
+    - [ ] Improve score normalization for all aspects of image brightness for fluoresence & diascope.
       - [x] Normalize image brightness for fluorescence by microscope objective NA & Mag. (Brightness ~ (NA^2/M)^2 Because the objective is also the condenser lens)
       - [x] Does it matter if you calculate DAB OD for different NA/Mag objectives? Condenser optics? How to normalize brightness here? --> Yes. Similar adjustment to above.
       - [ ] Is there a way to make a normalized score for different microscopes with different optical systems (NA/Mag objective/condenser combinations)? Unlikely to be simple, but the scores likely would regress by a proportionality constant. --> perhaps empirically determinable.
@@ -125,11 +124,9 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [X] Improve scoring (getTargetsIntensity function) to be even faster --> rewrote code for OpenCV and added OpenCV CUDA GPU support.
     - [ ] Make the backend more accessible outside GUI for use in scripting
       - [x] Separated QYMIAQuantBackend into it's own class. 
-      - [ ] Make a QYMIAQuantBackend builder and then configure it so that the methods can be used to run on the images via scripting (like other scripting extensions in QuPath [StarDist, Cellpose, etc.])
   
   - #### Test for more bugs and interface & workflow usability
 
 - ### Future workflows
-  - Integrate cell segmentation and subcellular compartment tools into Qymia workflow
   - Integrate custom or ML-generated segmentation masks into Qymia workflow
 
