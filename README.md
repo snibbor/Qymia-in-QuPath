@@ -105,7 +105,7 @@ https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-
     - [ ] Help > About & Docs link
       
   - #### Fix known bugs/problems, improve backend
-    - [x] IT network bug where Advanced Settings panel would not load because of filepath error.. --> fixed by loading all resource at extension entrypoint and initializing parameters using QymiaQuantModel object.
+    - [x] Advanced Settings panel would not load because of filepath error.. --> fixed by loading all resource at extension entrypoint and initializing parameters using QymiaQuantModel object.
     - [x] May run slower in "Run for project" mode vs. "run" mode. I think this is because how thread pools are allocated during a "run for project" task. When threads > 16, this becomes very noticeable and makes "run for project" mode ~0.75-0.5 as fast. --> resolved.
     - [x] Ignore/exclude annotations displaces causes parent/child objects to be displaced when calculating ROI + Tile quantifications. The result is that either the ROI detection or Tile detections are displaced (not in propper parent/child object hierarchy). This is a problem because tiles are referenced by their parent object in downstream analysis. --> fixed this by editing how compartments are added to ROI during quantification.
       - [x] temporary solution --> run ROI then Tile quantification separately when ignore/exclude annotations are used. This displaces the ROI detection (which is named) and places the Tile detections under the parent ROI/object.
