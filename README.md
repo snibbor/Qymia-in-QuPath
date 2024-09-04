@@ -1,5 +1,5 @@
 # Qymia in QuPath
-### Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (QYMIA, Qymia, "kee-m-ee-a" or "k-EYE-m-ee-a") in QuPath
+### Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (QYMIA, Qymia, "kee-m-ee-a") in QuPath
 
 Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques (tissue and cell-based) in QuPath.
 
