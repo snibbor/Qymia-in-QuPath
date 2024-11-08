@@ -6,7 +6,7 @@ Fast, high-throughput quantification of multiplex immunofluorescence and/or immu
 To use (see below for example):
 1) Create compartments/segmentations/annotations inside of QuPath
 2) Run Qymia Quant on those compartments to quantify target biomarker expression of interest using experiment parameters
-3) (optionally) Constuct calibration curves and convert Qymia scores to adjust for batch-to-batch intensity variation
+3) (optionally) Construct calibration curves and convert Qymia scores to adjust for batch-to-batch intensity variation
 
 References:
 - Dr. David Rimm's Laboratory at Yale School of Medicine (https://medicine.yale.edu/lab/rimm/)
