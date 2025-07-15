@@ -42,12 +42,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.common.ThreadTools;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.commands.SummaryMeasurementTableCommand;
+import qupath.lib.gui.measure.ui.SummaryMeasurementTable;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.measure.ObservableMeasurementTableData;
 import qupath.lib.gui.prefs.PathPrefs;
-import qupath.lib.gui.tools.GuiTools;
+import qupath.fx.utils.FXUtils;
 import qupath.lib.gui.tools.MeasurementExporter;
 import qupath.lib.gui.tools.PaneTools;
 import qupath.lib.images.ImageData;
@@ -187,7 +187,7 @@ public class QymiaMeasurementExportCommand implements Runnable {
 		
 		Label includeLabel = new Label("Columns to include (Optional)");
 		includeLabel.setLabelFor(includeCombo);
-		GuiTools.installSelectAllOrNoneMenu(includeCombo);
+		FXUtils.installSelectAllOrNoneMenu(includeCombo);
 		
 		Button btnPopulateColumns = new Button("Populate\t");
 		ProgressIndicator progressIndicator = new ProgressIndicator();
@@ -436,7 +436,7 @@ public class QymiaMeasurementExportCommand implements Runnable {
 					ImageData<?> imageData = entry.readImageData();
 					ObservableMeasurementTableData model = new ObservableMeasurementTableData();
 					model.setImageData(imageData, imageData == null ? Collections.emptyList() : imageData.getHierarchy().getObjects(null, type));
-					List<String> data = SummaryMeasurementTableCommand.getTableModelStrings(model, separator, excludeColumns);
+					List<String> data = SummaryMeasurementTable.getTableModelStrings(model, separator, excludeColumns);
 					
 					// Get header
 					String[] header;

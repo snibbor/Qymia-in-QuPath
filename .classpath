@@ -1,32 +1,472 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
-	<classpathentry kind="src" output="bin/main" path="src/main/java">
+	<classpathentry kind="src" output="build/resources/test" path="src/test/resources">
 		<attributes>
-			<attribute name="gradle_scope" value="main"/>
-			<attribute name="gradle_used_by_scope" value="main,test"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="src" output="bin/main" path="src/main/resources">
-		<attributes>
-			<attribute name="gradle_scope" value="main"/>
-			<attribute name="gradle_used_by_scope" value="main,test"/>
-		</attributes>
-	</classpathentry>
-	<classpathentry kind="src" output="bin/test" path="src/test/java">
-		<attributes>
-			<attribute name="gradle_scope" value="test"/>
-			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>
+			<attribute name="optional" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+			<attribute name="resource" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="src" output="bin/test" path="src/test/resources">
+	<classpathentry kind="src" output="build/classes/java/test" path="src/test/java">
 		<attributes>
-			<attribute name="gradle_scope" value="test"/>
-			<attribute name="gradle_used_by_scope" value="test"/>
 			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
 		</attributes>
 	</classpathentry>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-17/"/>
-	<classpathentry kind="con" path="org.eclipse.buildship.core.gradleclasspathcontainer"/>
+	<classpathentry kind="src" output="build/resources/main" path="src/main/resources">
+		<attributes>
+			<attribute name="optional" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+			<attribute name="resource" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" output="build/classes/java/main" path="src/main/java">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" output="build/classes/java/test" path="build/generated/sources/annotationProcessor/java/test">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="optional" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" output="build/classes/java/main" path="build/generated/sources/annotationProcessor/java/main">
+		<attributes>
+			<attribute name="optional" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-21">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/18.0.0/7e53956bd57f23498f021e5ddbd11111f7a3af54/annotations-18.0.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jetbrains/annotations/18.0.0/27b25ec228ba39aa674620fc378a290c67df0eda/annotations-18.0.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-media/23.0.2/b27f12b417de89f6fd6180a6540f6f26ab98a0ee/javafx-media-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-media/23.0.2/14dceece85e7018e98538d76dfd0aa3e49b39c2a/javafx-media-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/16a0fbc18bbc3d25d9c1496d4e84f9fddc7d0dc3/opencv-4.10.0-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/d7b0bc116c6eddf14ab5de752afa6b0767f63eaa/opencv-4.10.0-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/listenablefuture/9999.0-empty-to-avoid-conflict-with-guava/b421526c5f297295adef1c886e5246c39d4ac629/listenablefuture-9999.0-empty-to-avoid-conflict-with-guava.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-fxml/23.0.2/b032052fc189c1c702cc9b01f416f7cae53674df/javafx-fxml-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-fxml/23.0.2/8507542f985fc4bdde009966651fb25482d0c5ac/javafx-fxml-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/ch.qos.logback/logback-classic/1.5.8/229bb1ef6b14dfbf74ff443af9097d836dc5f0dd/logback-classic-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/ch.qos.logback/logback-classic/1.5.8/19d657d846289b02b60f61c00b967f3133f157fa/logback-classic-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.3/aeaffd00d57023a2c947393ed251f0354f0985fc/failureaccess-1.0.3.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.3/18ed910a9966320b5ccfdfc3dbabbd1afd3d40e0/failureaccess-1.0.3-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.checkerframework/checker-qual/2.11.1/8c43bf8f99b841d23aadda6044329dad9b63c185/checker-qual-2.11.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.checkerframework/checker-qual/2.11.1/81dbb91c8dc3c53ae7066ce9e70ed7efb0551261/checker-qual-2.11.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/708290572c03e790ef294a0c911632a02825faf7/cuda-11.8-8.6-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/d896931c88e5da2358b8858d7e4ef0b215e19646/cuda-11.8-8.6-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/af872448324e403fc6475b4460636be160bb150b/cuda-11.8-8.6-1.5.8-windows-x86_64.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/d896931c88e5da2358b8858d7e4ef0b215e19646/cuda-11.8-8.6-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-ionicons4-pack/12.3.1/b03996bd32c136c866fb574bafe5320e4f119bd7/ikonli-ionicons4-pack-12.3.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-ionicons4-pack/12.3.1/63058bb5e4f6c4985fc38e219b682e57cb83d80/ikonli-ionicons4-pack-12.3.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.flowless/flowless/0.7.0/1c3053ea3cfdeb9b8579795e14be54fc6b7d654c/flowless-0.7.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.flowless/flowless/0.7.0/2310ebd4370715cc9067c9b5bf132e827cc491f7/flowless-0.7.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp/1.5.11/76a0197853ab5e2d3643804e62f9018053750ddf/javacpp-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp/1.5.11/10daa5438ad7467b7a82f236ebc3f1e88d6b4c10/javacpp-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/f5c6d973166272710931913275e542ab87c50f11/opencv-4.10.0-1.5.11-windows-x86_64-gpu.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/d7b0bc116c6eddf14ab5de752afa6b0767f63eaa/opencv-4.10.0-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-logging-logback/0.2.0/3cff22fb8c6c325acf1c0f4541b2e0ec4d43288a/logviewer-logging-logback-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-logging-logback/0.2.0/b3f4bc818043bbe811bbf749eaf0d5ed321cf72e/logviewer-logging-logback-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.1/1dcf1de382a0bf95a3d8b0849546c88bac1292c9/failureaccess-1.0.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/failureaccess/1.0.1/1d064e61aad6c51cc77f9b59dc2cccc78e792f5a/failureaccess-1.0.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.commonmark/commonmark-ext-yaml-front-matter/0.24.0/6917a0e3230858b2834d8ebf9392228a75191152/commonmark-ext-yaml-front-matter-0.24.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.commonmark/commonmark-ext-yaml-front-matter/0.24.0/cb698b51acaf7d6bd6d854c5a28deb376ac40a24/commonmark-ext-yaml-front-matter-0.24.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.yaml/snakeyaml/2.3/936b36210e27320f920536f695cf1af210c44586/snakeyaml-2.3.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.yaml/snakeyaml/2.3/2ae51d08a00f8dd573ca5c1989f0627279931662/snakeyaml-2.3-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.commonmark/commonmark/0.24.0/59af01016ece382b55b4acb6a5190b08879c637c/commonmark-0.24.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.commonmark/commonmark/0.24.0/2b75b9524e8eed4ff888a2ca542eb63e22a50612/commonmark-0.24.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-core/12.3.1/50c5658c1a5aeeec30320c6be71274d01f5fb869/ikonli-core-12.3.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-core/12.3.1/9ffba8c7ebe94447313bc51f2204f4035d1c037/ikonli-core-12.3.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/29.0-jre/801142b4c3d0f0770dd29abea50906cacfddd447/guava-29.0-jre.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/29.0-jre/33e6868bc0fcb9b4b493123eeec78d1352934e87/guava-29.0-jre-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-web/23.0.2/9513d540da2e54cf7db3ac6ca1ef980ca91f25f5/javafx-web-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-web/23.0.2/df030c7611cd4ef2813c029e5ae4ddcb4723c426/javafx-web-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv-platform-gpu/4.6.0-1.5.8/2e54fe3ff4a6532ab61765bc309cf4517077eda0/opencv-platform-gpu-4.6.0-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv-platform-gpu/4.6.0-1.5.8/1466e9039ab0199a7502eee995c2c870e427eff5/opencv-platform-gpu-4.6.0-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.locationtech.jts/jts-core/1.20.0/25b72c9548a328cb1aea8a6b89d710a31ade5403/jts-core-1.20.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.locationtech.jts/jts-core/1.20.0/afc7c6f672ffa4fad7af8f1b13637872f3bf5d32/jts-core-1.20.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-richtextfx/0.2.0/31dff3602a75634bd9cdb77830db6f6d51a5b738/logviewer-ui-richtextfx-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-richtextfx/0.2.0/9fa44cb0c0f013abef0d544ed8c759bc142ef35f/logviewer-ui-richtextfx-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-graphics/23.0.2/4b8f3472efec5d300ab49777ba2092276667aaa6/javafx-graphics-23.0.2-linux.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-graphics/23.0.2/bbad352cacebb209011debc19fa45ecdc363c4eb/javafx-graphics-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.reactfx/reactfx/2.0-M5/aa02bc40ebbb87a76d4b188516294612c8972b80/reactfx-2.0-M5.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.reactfx/reactfx/2.0-M5/ac8e445dd40ceb48172c782144fb16c133f7743c/reactfx-2.0-M5-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jfxtras/jfxtras-common/17-r1/c5906fc79e695911b7b4ff814c905c46bfbbfce0/jfxtras-common-17-r1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jfxtras/jfxtras-common/17-r1/6a5ae70fcbbd21006ada7d062f095a7809a4da90/jfxtras-common-17-r1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-lang3/3.12.0/c6842c86792ff03b9f1d1fe2aab8dc23aa6c6f0e/commons-lang3-3.12.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-lang3/3.12.0/198b882fdc2c72c89c63401d946f6ba46c3acea3/commons-lang3-3.12.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp/1.5.11/b1245824a612462e16021b26aa1004e2b69aead0/javacpp-1.5.11-windows-x86_64.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp/1.5.11/10daa5438ad7467b7a82f236ebc3f1e88d6b4c10/javacpp-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/qupath-bioimageio-spec/0.2.0/fe24e07adb1f2be4831964711f08968cb22f2ccf/qupath-bioimageio-spec-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/qupath-bioimageio-spec/0.2.0/efbdca4b0c08643cf06d0bee9641a6e4b5edd0d7/qupath-bioimageio-spec-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/extensionmanager/1.0.0/5729f8a3f35c908ebc2bf55fc055e789e7832720/extensionmanager-1.0.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/extensionmanager/1.0.0/3689069593003044d5020ae67f51e1da9263b1d2/extensionmanager-1.0.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/info.picocli/picocli/4.7.7/82bcae3dc45ddeb08b4954e2f596772a42219715/picocli-4.7.7.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/info.picocli/picocli/4.7.7/16db0e451d9787cf794c789afcf56d0b56b5658e/picocli-4.7.7-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/net.imagej/ij/1.54k/cd7974ffa00eb4be50cecb9a5d1ccb7cba5682e2/ij-1.54k.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/net.imagej/ij/1.54k/806c9863614e06f1aaf2f6a743efcab37c266788/ij-1.54k-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.j2objc/j2objc-annotations/3.0.0/7399e65dd7e9ff3404f4535b2f017093bdb134c7/j2objc-annotations-3.0.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.j2objc/j2objc-annotations/3.0.0/e6e870c6faf70867a723848b036607cd7d389621/j2objc-annotations-3.0.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/7425a601c1c7ec76645a78d22b8c6a627edee507/jspecify-1.0.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jspecify/jspecify/1.0.0/f1a67bbcf2f9f282baf3821046563983f16ca9b2/jspecify-1.0.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-swing/23.0.2/1d61c77af59fa5179ef2671772be10a8d0689a93/javafx-swing-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-swing/23.0.2/1c40230cc8c35035dcbf99cdc3f610bd0f9a140c/javafx-swing-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-base/23.0.2/e44e750005596dc44ce37c07fc3b8c10da9ab354/javafx-base-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-base/23.0.2/20f846a814bd695f6e0311466c286de7600718ee/javafx-base-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda-platform-redist/11.8-8.6-1.5.8/e0a964c9fd3ead01c78968039d61f1d89c155618/cuda-platform-redist-11.8-8.6-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda-platform-redist/11.8-8.6-1.5.8/a9c6a13bfaafb3a2da4ad594e2979413dd208f5c/cuda-platform-redist-11.8-8.6-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv-platform/4.10.0-1.5.11/359538d58a6971ce50d150cfd709a6f26a0b01cb/opencv-platform-4.10.0-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv-platform/4.10.0-1.5.11/a26985611b9f3bf75abe2bfd58018b69e08a78ef/opencv-platform-4.10.0-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.errorprone/error_prone_annotations/2.38.0/fc0ae991433e8590ba51cd558421478318a74c8c/error_prone_annotations-2.38.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.errorprone/error_prone_annotations/2.38.0/89b24f7eb69d776239d46ae4979e3d61a0784a9/error_prone_annotations-2.38.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/1868515adb1e1754ea9cdfb37deb998a9c752d6a/cuda-11.8-8.6-1.5.8-windows-x86_64-redist.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda/11.8-8.6-1.5.8/d896931c88e5da2358b8858d7e4ef0b215e19646/cuda-11.8-8.6-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-textarea/0.2.0/25b74bfec7ee10d7df685e52c0f400a16c69b4c4/logviewer-ui-textarea-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-textarea/0.2.0/942eff3022362005b4197874fb5d574ddfd6fcc8/logviewer-ui-textarea-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.wellbehaved/wellbehavedfx/0.3.3/c69c986469f23feee75f09812357e6b6a0657d57/wellbehavedfx-0.3.3.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.wellbehaved/wellbehavedfx/0.3.3/358702e39bca56d3e6f89c27fb7d73b8603b02da/wellbehavedfx-0.3.3-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.richtext/richtextfx/0.11.0/c12dd8a145ccc7af3e178b6f9dff05ae0c80f32e/richtextfx-0.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.richtext/richtextfx/0.11.0/1a8a4137a9cf914a67c0915476700733c702b95c/richtextfx-0.11.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.undo/undofx/2.1.1/69e1b938bd6d12c48ab07478cc09386a1fba3d2d/undofx-2.1.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.fxmisc.undo/undofx/2.1.1/b493e1975ccfd393443e468b09f06193e0a025a6/undofx-2.1.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/qupath-fxtras/0.2.0/c10bbbcc3961922cb4cbcff14acaa517b6cff7bb/qupath-fxtras-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/qupath-fxtras/0.2.0/7b9c17db6a250a12c7714309bb79fa2e47569756/qupath-fxtras-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas/0.3.28-1.5.11/88092a82318819af79499f2e3a05aa2432086dbd/openblas-0.3.28-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas/0.3.28-1.5.11/2c8a969e8e21d2bdc8844ec954bc3b4fa1e791b8/openblas-0.3.28-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.code.findbugs/jsr305/3.0.2/25ea2e8b0c338a877313bd4672d3fe056ea78f0d/jsr305-3.0.2.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.code.findbugs/jsr305/3.0.2/b19b5927c2c25b6c70f093767041e641ae0b1b35/jsr305-3.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/2a4ad7ad335cd22ab09fe18bdf4c60d3bad867cb/opencv-4.10.0-1.5.11-windows-x86_64.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/opencv/4.10.0-1.5.11/d7b0bc116c6eddf14ab5de752afa6b0767f63eaa/opencv-4.10.0-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas/0.3.28-1.5.11/ad4209e2a05042830b04d0b35378dccf21fe59ad/openblas-0.3.28-1.5.11-windows-x86_64.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas/0.3.28-1.5.11/2c8a969e8e21d2bdc8844ec954bc3b4fa1e791b8/openblas-0.3.28-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.code.gson/gson/2.13.1/853ce06c11316b33a8eae5e9095da096a9528b8f/gson-2.13.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.code.gson/gson/2.13.1/291e19613797898e0b2ba95553c874c1d07e00c1/gson-2.13.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.hildan.fxgson/fx-gson/4.0.1/d2a0176034bdf9dadc9a1bccf1c852e8ea43721d/fx-gson-4.0.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.hildan.fxgson/fx-gson/4.0.1/4dc368fd0e1e1ccc3f202c0df50e375dcfe6b20d/fx-gson-4.0.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.j2objc/j2objc-annotations/1.3/ba035118bc8bac37d7eff77700720999acd9986d/j2objc-annotations-1.3.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.j2objc/j2objc-annotations/1.3/d26c56180205cbb50447c3eca98ecb617cf9f58b/j2objc-annotations-1.3-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda-platform/11.8-8.6-1.5.8/63572040a13a86f30c3622be88452948c764a707/cuda-platform-11.8-8.6-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/cuda-platform/11.8-8.6-1.5.8/a947876fac17cb917adaa55bff2494f75fe5ee5f/cuda-platform-11.8-8.6-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.4.8-jre/e70a3268e6cd3e7d458aa15787ce6811c34e96ae/guava-33.4.8-jre.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/com.google.guava/guava/33.4.8-jre/29e173ce8da3d6b4eaf81cc1f1e502b5285f29f4/guava-33.4.8-jre-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp-platform/1.5.11/3be0f5396552ec336fffd83f2042aacaa02248d1/javacpp-platform-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/javacpp-platform/1.5.11/98ab630c4521e4d1aa5c7cd016c54b78be94f31e/javacpp-platform-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-math3/3.6.1/e4ba98f1d4b3c80ec46392f25e094a6a2e58fcbf/commons-math3-3.6.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-math3/3.6.1/8fab23986ea8886af34818daf32a718e81dc98ba/commons-math3-3.6.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.16/172931663a09a1fa515567af5fbef00897d3c04/slf4j-api-2.0.16.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.slf4j/slf4j-api/2.0.16/68223612de5e53b90b752bbbe520390ae1f104db/slf4j-api-2.0.16-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-graphics/23.0.2/21ed994c9ba8a9d30099204c556e6dba3a23f169/javafx-graphics-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-graphics/23.0.2/bbad352cacebb209011debc19fa45ecdc363c4eb/javafx-graphics-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/ch.qos.logback/logback-core/1.5.8/3fce599197de3b6f387cc9bee412ead2b4994a46/logback-core-1.5.8.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/ch.qos.logback/logback-core/1.5.8/1b3788db90c0a342ac3bc94f0150291762aee748/logback-core-1.5.8-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jfxtras/jfxtras-menu/17-r1/1e7e7d3314668254944a2eac47bb9c0c21a140fb/jfxtras-menu-17-r1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.jfxtras/jfxtras-menu/17-r1/8adf19cc077a982d473e9cb17bffd4ea896567e6/jfxtras-menu-17-r1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-controls/23.0.2/ea7a2048ce6b344273affb916713120fe77fb1e8/javafx-controls-23.0.2-win.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-controls/23.0.2/1308d954540532bbaae246c01ae63b66ea2c77cb/javafx-controls-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-base/23.0.2/3491430b720983619f03afd204cf43ed933244c2/javafx-base-23.0.2-linux.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.openjfx/javafx-base/23.0.2/20f846a814bd695f6e0311466c286de7600718ee/javafx-base-23.0.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-javafx/12.3.1/6df78c8f23f4509f88b8e05c32da64b7dc494356/ikonli-javafx-12.3.1.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.kordamp.ikonli/ikonli-javafx/12.3.1/b86ebf097a552c72c4ea729703118e879e440042/ikonli-javafx-12.3.1-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas-platform/0.3.28-1.5.11/f08d1c50ba304328962f9e6e9af6b8dbd6618c5d/openblas-platform-0.3.28-1.5.11.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.bytedeco/openblas-platform/0.3.28-1.5.11/e972c8650a238cfc320e9d7a7faff33b24786750/openblas-platform-0.3.28-1.5.11-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-text/1.10.0/3363381aef8cef2dbc1023b3e3a9433b08b64e01/commons-text-1.10.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apache.commons/commons-text/1.10.0/99ad76c831fcf0edead47f3aa9c0731653a0845d/commons-text-1.10.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/javadocviewer/0.1.2/a8f7df4c2bc6dbb7baf1f55e9fe55228caf86bcf/javadocviewer-0.1.2.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/javadocviewer/0.1.2/864d1c479093c096eda7d6ed138a5f8a116f591f/javadocviewer-0.1.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-api/0.2.0/8d760aed7f36ba1197295a9137ceed9ee1006669/logviewer-api-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-api/0.2.0/152ad30c22420384f48ced564475189293a81f58/logviewer-api-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.controlsfx/controlsfx/11.2.2/4b1c23b790739a10e0bf64a85ba12864059d1dab/controlsfx-11.2.2.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.controlsfx/controlsfx/11.2.2/7b4c32af7e1a73ba99ff7cead16e45355f1d1476/controlsfx-11.2.2-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-main/0.2.0/2aa853d878219d1c1cca69e9bc86ffe0f068ca97/logviewer-ui-main-0.2.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/io.github.qupath/logviewer-ui-main/0.2.0/77be7abaabc2081c71ebb9feefcb0d36ae15d211/logviewer-ui-main-0.2.0-sources.jar">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-engine/5.11.0/e0ef3a2222e000e0b5ab76fda0d38d011526f54c/junit-jupiter-engine-5.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-engine/5.11.0/e7ab87b12f0a7fdf54dff3eb4b328f748dcbd9a4/junit-jupiter-engine-5.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter/5.11.0/7ded0835a2522be8e559ac09baff3e9fb2607b27/junit-jupiter-5.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter/5.11.0/4e79ee610aff59d79b5f229252ded392b7d48fd1/junit-jupiter-5.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-api/5.11.0/2093fd814e940224cfa5a1882d87cc9d81e25c3/junit-jupiter-api-5.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-api/5.11.0/9229115c1811a5a7b3c8c617b8ca6b70e9b27d13/junit-jupiter-api-5.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-commons/1.11.0/9bb41eff52781584798c487b68782ae3b4126f14/junit-platform-commons-1.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-commons/1.11.0/2ae6ca14c1e110fe57184c20831457ed9156005b/junit-platform-commons-1.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-launcher/1.11.0/605624a277ab3b02317765e1111ad577676648e1/junit-platform-launcher-1.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-launcher/1.11.0/d705f6b0d147036b7d84dca5eaad35b41d64592a/junit-platform-launcher-1.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.opentest4j/opentest4j/1.3.0/152ea56b3a72f655d4fd677fc0ef2596c3dd5e6e/opentest4j-1.3.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.opentest4j/opentest4j/1.3.0/afb8ff23cffb021c56f333953aebfe6e8818568e/opentest4j-1.3.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-params/5.11.0/97068da5f462c9a9212516ab58aee632a93c349f/junit-jupiter-params-5.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.jupiter/junit-jupiter-params/5.11.0/7f884b4510c564db7d8b2416ce834a3e9796420a/junit-jupiter-params-5.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apiguardian/apiguardian-api/1.1.2/a231e0d844d2721b0fa1b238006d15c6ded6842a/apiguardian-api-1.1.2.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.apiguardian/apiguardian-api/1.1.2/e0787a997746ac32639e0bf3cb27af8dce8a3428/apiguardian-api-1.1.2-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-engine/1.11.0/b981f322be92fe343d4a79f28208bb4475806019/junit-platform-engine-1.11.0.jar" sourcepath="C:/Users/snibb/.gradle/caches/modules-2/files-2.1/org.junit.platform/junit-platform-engine/1.11.0/9e0c6d3fbc852b5c5a6d8a3fb42eec7abd63c7d4/junit-platform-engine-1.11.0-sources.jar">
+		<attributes>
+			<attribute name="test" value="true"/>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" path="/qupath-core-processing">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" path="/qupath-core">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="src" path="/qupath-gui-fx">
+		<attributes>
+			<attribute name="gradle.buildServer" value="true"/>
+		</attributes>
+	</classpathentry>
 	<classpathentry kind="output" path="bin/default"/>
 </classpath>

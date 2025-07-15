@@ -2,88 +2,28 @@ plugins {
     id 'qupath.extension-conventions'
     id 'java-library'
     id 'application'
-    id 'org.openjfx.javafxplugin' version '0.0.13'
-    // To create a shadow/fat jar, including dependencies
     id 'maven-publish'
-//    id 'org.bytedeco.javacpp-presets'
-//    id 'org.bytedeco.javacv'
+    id 'org.openjfx.javafxplugin'
 }
 
 repositories {
-    // Use this only for local development!
-//    mavenLocal()
-
     mavenCentral()
-
-//    maven {
-//        url "https://maven.scijava.org/content/repositories/releases"
-//    }
-//
-//    maven {
-//        url "https://maven.scijava.org/content/repositories/snapshots"
-//    }
-
-//    jcenter()
 }
 
 ext.moduleName = 'qupath.extension.qymia'
 archivesBaseName = 'qupath-extension-qymia'
 description = 'Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis in QuPath'
 
-
 javafx {
-//    version = "19.0.2"
     version = libs.versions.javafx.get()
     modules = ['javafx.base', 'javafx.controls', 'javafx.fxml']
 }
 
-configurations {
-  implementation.extendsFrom commonsmath
-  implementation.extendsFrom guava
-}
-
 dependencies {
-//    def qupathVersion = "0.4.0" // For now
-//    implementation "io.github.qupath:qupath-gui-fx:${qupathVersion}"
+    implementation libs.qupath.fxtras
+    implementation libs.commons.math
+    implementation libs.guava
     implementation 'org.hildan.fxgson:fx-gson:4.0.1'
-    implementation 'com.google.guava:guava:29.0-jre'
-    implementation 'org.apache.commons:commons-math3:3.6.1'
-
-//    implementation 'org.bytedeco:javacpp-presets:1.5.5'
-//    implementation 'org.bytedeco:cuda:11.2-8.1-1.5.5'
-//    implementation 'org.bytedeco:opencv:4.5.1-1.5.5'
-
-//    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.4.0-1.5.4'
-//    implementation group: 'org.bytedeco', name: 'cuda-platform', version: '11.0-8.0-1.5.4'
-
-//    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.5.1-1.5.5'
-//    implementation group: 'org.bytedeco', name: 'cuda-platform', version: '11.2-8.1-1.5.5'
-
-//    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.5.5-1.5.7'
-//    implementation group: 'org.bytedeco', name: 'cuda-platform', version: '11.6-8.3-1.5.7'
-
-    implementation group: 'org.bytedeco', name: 'opencv-platform-gpu', version: '4.6.0-1.5.8'
-    implementation group: 'org.bytedeco', name: 'cuda-platform-redist', version: '11.8-8.6-1.5.8'
-
+    implementation 'org.bytedeco:opencv-platform-gpu:4.11.0-1.5.12'
+    implementation 'org.bytedeco:cuda-platform-redist:12.6-9.5-1.5.11'
 }
-
-
-// Set the paths to the CUDA and cuDNN libraries
-//javacpp {
-//    platforms {
-//        cuda {
-//            platform {
-//                cudaPath '/ysm-gpfs/apps/software/CUDAcore/11.2.2/bin'
-//                cudnnPath '/ysm-gpfs/apps/software/cuDNN/8.1.1.33-CUDA-11.2.2/lib64'
-//            }
-//        }
-//    }
-//}
-
-//tasks.withType(JavaCompile) {
-//    options.compilerArgs += ['-Xcompiler', '-fPIC']
-//}
-//
-//tasks.withType(Link) {
-//    options.linkerArgs += ['-L/usr/local/cuda/lib64', '-lcudart']
-//}

@@ -39,7 +39,7 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.prefs.PathPrefs;
-import qupath.lib.gui.viewer.QuPathViewerPlus;
+import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.*;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
@@ -749,8 +749,8 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 				}
 			}
 
-			var viewersList = qupath.getViewers();
-			List<QuPathViewerPlus> currentViewers = new ArrayList<>();
+			var viewersList = qupath.getViewerManager().getAllViewers();
+			List<QuPathViewer> currentViewers = new ArrayList<>();
 //			if (viewersList.size() == 1){
 //				logger.info("Only one viewer found! Setting current viewer.");
 //				currentViewers.add(viewersList.get(0));
@@ -840,7 +840,11 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 						for(var openViewer : currentViewers){
 //							need to run on the JavaFX application thread to avoid throwing errors
 							Platform.runLater(()->{
-								openViewer.setImageData(imageData);
+								try {
+									openViewer.setImageData(imageData);
+								} catch (IOException ex) {
+									logger.error("Error setting image data in viewer", ex);
+								}
 							});
 						}
 					}

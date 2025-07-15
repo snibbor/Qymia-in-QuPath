@@ -17,11 +17,6 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.control.*;
-import javafx.scene.control.Button;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.Label;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.GridPane;
 import javafx.stage.Modality;
@@ -35,13 +30,14 @@ import qupath.lib.gui.dialogs.ProjectDialogs;
 import qupath.lib.gui.measure.ObservableMeasurementTableData;
 import qupath.lib.gui.prefs.PathPrefs;
 import qupath.lib.gui.tools.PaneTools;
-import qupath.lib.gui.viewer.QuPathViewerPlus;
+import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.objects.*;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
+import qupath.lib.gui.viewer.ViewerManager;
 
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -53,7 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class QymiaAnalysisPanelController extends BaseController implements Initializable {
@@ -532,9 +527,9 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
             }
-
-            var viewersList = qupath.getViewers();
-            List<QuPathViewerPlus> currentViewers = new ArrayList<>();
+            
+            var viewersList = qupath.getViewerManager().getAllViewers();
+            List<QuPathViewer> currentViewers = new ArrayList<>();
 
             long startTime = System.currentTimeMillis();
             int counter = 0;
@@ -656,7 +651,7 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
                 .filter(c -> !((TMACoreObject)c.getParent()).isMissing())
                 .forEach(p -> {
                     TMACoreObject parentCore = (TMACoreObject) p.getParent();
-                    Double measValue = p.getMeasurementList().getMeasurementValue(measurementName);
+                    Double measValue = p.getMeasurementList().get(measurementName);
 //                    logger.info("{} with {}", parentCore.getName(), measValue);
                     if(Double.isNaN(measValue)){
                         return;
@@ -843,7 +838,7 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
         List<ProjectImageEntry<BufferedImage>> imagesToProcess = new ArrayList<>(previousImages);
 
         ConvertMeasurementTask worker = new ConvertMeasurementTask(project, imagesToProcess,
-                measConverterText.getText(), batchMapText.getText(), doSave, reload, qupath.getViewers());
+                measConverterText.getText(), batchMapText.getText(), doSave, reload, qupath.getViewerManager().getAllViewers());
 
 
         ProgressDialog progress = new ProgressDialog(worker);
@@ -878,7 +873,7 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
         private String batchMapPath;
         private boolean doSave = true;
         private boolean reload = false;
-        private List<QuPathViewerPlus> viewersList;
+        private List<QuPathViewer> viewersList;
         private boolean doBatchMap = false;
         private boolean quietCancel = false;
 
@@ -888,7 +883,7 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
                                final String batchMapPath,
                                final boolean doSave,
                                final boolean reload,
-                               final List<QuPathViewerPlus> viewersList) {
+                               final List<QuPathViewer> viewersList) {
             this.project = project;
             this.imagesToProcess = imagesToProcess;
             this.measConvPath = measurementConverterPath;
@@ -967,7 +962,7 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
             }
 
 //            var viewersList = qupath.getViewers();
-            List<QuPathViewerPlus> currentViewers = new ArrayList<>();
+            List<QuPathViewer> currentViewers = new ArrayList<>();
 //            if (viewersList.size() == 1){
 //                logger.info("Only one viewer found! Setting current viewer.");
 //                currentViewers.add(viewersList.get(0));
@@ -1033,7 +1028,12 @@ public class QymiaAnalysisPanelController extends BaseController implements Init
                         for(var openViewer : currentViewers){
 //							need to run on the JavaFX application thread to avoid throwing errors
                             Platform.runLater(()->{
-                                openViewer.setImageData(imageData);
+                                try {
+                                    openViewer.setImageData(imageData);
+                                } catch (IOException ex) {
+                                    // wrap or log as unchecked, or show an alert
+                                    logger.error("Error reloading image data", ex);
+                                }
                             });
                         }
                     }

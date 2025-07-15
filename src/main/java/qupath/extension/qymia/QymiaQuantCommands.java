@@ -14,7 +14,7 @@ import qupath.lib.common.GeneralTools;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.gui.images.servers.RenderedImageServer;
 import qupath.lib.gui.prefs.PathPrefs;
-import qupath.lib.gui.tools.GuiTools;
+import qupath.fx.utils.FXUtils;
 import qupath.lib.gui.tools.PaneTools;
 import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
@@ -91,8 +91,14 @@ public class QymiaQuantCommands {
         }
 
         ImageServer<BufferedImage> server = viewer.getServer();
-        if (renderedImage)
-            server = RenderedImageServer.createRenderedServer(viewer);
+        if (renderedImage) {
+            try {
+                server = RenderedImageServer.createRenderedServer(viewer);
+            } catch (IOException e) {
+                Dialogs.showErrorMessage("Export all ROI images", "Failed to create rendered image server: " + e.getMessage());
+                return;
+            }
+        }
 
 //      Select all ROIs by PathClass
         PathObject pathObject = viewer.getSelectedObject();
@@ -108,8 +114,8 @@ public class QymiaQuantCommands {
         ComboBox<ImageWriter<BufferedImage>> comboImageType = new ComboBox<>();
 
         Function<ImageWriter<BufferedImage>, String> fun = (ImageWriter<BufferedImage> writer) -> writer.getName();
-        comboImageType.setCellFactory(p -> GuiTools.createCustomListCell(fun));
-        comboImageType.setButtonCell(GuiTools.createCustomListCell(fun));
+        comboImageType.setCellFactory(p -> FXUtils.createCustomListCell(fun));
+        comboImageType.setButtonCell(FXUtils.createCustomListCell(fun));
 
         var writers = ImageWriterTools.getCompatibleWriters(server, null);
         comboImageType.getItems().setAll(writers);
@@ -209,8 +215,14 @@ public class QymiaQuantCommands {
         exportDownsample.set(downsample.get());
 
         // Now that we know the output, we can create a new server to ensure it is downsampled as the necessary resolution
-        if (renderedImage && downsample.get() != server.getDownsampleForResolution(0))
-            server = new RenderedImageServer.Builder(viewer).downsamples(downsample.get()).build();
+        if (renderedImage && downsample.get() != server.getDownsampleForResolution(0)) {
+            try {
+                server = new RenderedImageServer.Builder(viewer).downsamples(downsample.get()).build();
+            } catch (IOException e) {
+                Dialogs.showErrorMessage("Export image region", "Failed to create rendered image server: " + e.getMessage());
+                return;
+            }
+        }
 
 //		selectedImageType.set(comboImageType.getSelectionModel().getSelectedItem());
 

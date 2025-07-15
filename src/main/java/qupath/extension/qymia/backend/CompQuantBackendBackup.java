@@ -54,7 +54,7 @@ public class CompQuantBackendBackup {
 		}
 
 		if (newAnnot) {
-			removeObjects(annots, true);
+			removeObjects(annots);
 			PathObject combinedAnnot = PathObjects.createAnnotationObject(combinedROI, p_class);
 			addObject(combinedAnnot);
 		}
@@ -115,7 +115,7 @@ public class CompQuantBackendBackup {
 							// Add object as a child of the ROI
 							//                        addObject(compInterDet);
 							compInterDet.setName(r.getName() + " (" + compObj.getPathClass().toString() + ")");
-							imageData.getHierarchy().addPathObjectBelowParent(r, compInterDet, true);
+							imageData.getHierarchy().addObjectBelowParent(r, compInterDet, true);
 
 							logger.info(String.format("Got %s intersection with ROI", compObj.getPathClass().toString()));
 
@@ -190,7 +190,7 @@ public class CompQuantBackendBackup {
 						logger.info(String.format("Adjusting %s compartment based on new annotations...", detection.getPathClass().toString()));
 						adjDetection = PathObjects.createDetectionObject(adjDetectionROI, detection.getPathClass());
 						addObject(adjDetection);
-						removeObject(detection, true);
+						removeObject(detection);
 					} else {
 						adjDetection = detection;
 					}
@@ -288,10 +288,10 @@ public class CompQuantBackendBackup {
 
 		// Add shape measurements
 		double annotationArea = pathObject.getROI().getArea();
-		measList.putMeasurement(className + " area px", annotationArea);
-		measList.putMeasurement(className + " area um^2", annotationArea * mppSq);
-		measList.putMeasurement("MPP^2", mppSq);
-		measList.putMeasurement("Channel bitdepth", bitDepth);
+		measList.put(className + " area px", annotationArea);
+		measList.put(className + " area um^2", annotationArea * mppSq);
+		measList.put("MPP^2", mppSq);
+		measList.put("Channel bitdepth", bitDepth);
 		int bitDepthVal = (int) Math.pow(2, bitDepth);
 
 		Map<String, ImageProcessor> channels = new LinkedHashMap<>();
@@ -351,20 +351,20 @@ public class CompQuantBackendBackup {
 			String targetName = tar.getKey();
 			int targetChannel = tar.getValue();
 			String measName = measNames.get(targetName);
-			double targetMean = measList.getMeasurementValue(measName + ": Mean");
+			double targetMean = measList.get(measName + ": Mean");
 			// double sumInt = targetMean*annotationArea;
 			// measList.putMeasurement(targetName+' in '+className+' Sum Intensity', sumInt);
 			// Debugging, would load from available metadata
 			double exposure_time;
 			if (metaData == null) {
 				exposure_time = 1000;
-				measList.putMeasurement(targetName + " exposure time (ms)", 0);
+				measList.put(targetName + " exposure time (ms)", 0);
 			} else if (metaData instanceof Double) {
 				exposure_time = (double) metaData;
-				measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+				measList.put(targetName + " exposure time (ms)", exposure_time);
 			} else {
 				exposure_time = Double.parseDouble(((String[]) metaData)[targetChannel - 1]);
-				measList.putMeasurement(targetName + " exposure time (ms)", exposure_time);
+				measList.put(targetName + " exposure time (ms)", exposure_time);
 			}
 
 			// double MeanI_S = targetMean/(exposure_time/1000)
@@ -373,7 +373,7 @@ public class CompQuantBackendBackup {
 			// double QIF_area = targetMean/mppSq;
 			// measList.putMeasurement(targetName+' in '+className+' Sum I/um^2', QIF_area);
 			double QIF_areaS = (targetMean / mppSq) / (bitDepthVal * exposure_time / 1000);
-			measList.putMeasurement(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
+			measList.put(targetName + " in " + className + " Sum I/(um^2*[exp time (s)]*[2^bitDepth])", QIF_areaS);
 
 			//    double totalPx = server.getHeight()*server.getWidth();
 			//    println 'Total pixels: '+ totalPx.toString();

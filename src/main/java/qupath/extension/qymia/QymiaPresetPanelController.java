@@ -24,7 +24,7 @@ import qupath.lib.gui.prefs.PathPrefs;
 
 import qupath.lib.gui.scripting.QPEx;
 import qupath.lib.gui.scripting.languages.ScriptLanguageProvider;
-import qupath.lib.gui.viewer.QuPathViewerPlus;
+import qupath.lib.gui.viewer.QuPathViewer;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ColorTransforms;
 import qupath.lib.images.servers.ColorTransforms.ColorTransform;
@@ -628,9 +628,9 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 				}
 			}
 
-			var viewersList = qupath.getViewers();
-			List<QuPathViewerPlus> thisCurrentViewers = new ArrayList<>();
-			List<QuPathViewerPlus> quantCurrentViewers = new ArrayList<>();
+			var viewersList = qupath.getViewerManager().getAllViewers();
+			List<QuPathViewer> thisCurrentViewers = new ArrayList<>();
+			List<QuPathViewer> quantCurrentViewers = new ArrayList<>();
 
 			File scriptFile = scriptFileMap.get(selectedScriptName.get());
 			String script = null;
@@ -925,7 +925,11 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 							for(var openViewer : quantCurrentViewers){
 //							need to run on the JavaFX application thread to avoid throwing errors
 								Platform.runLater(()->{
-									openViewer.setImageData(finalQuantImageData);
+									try {
+										openViewer.setImageData(finalQuantImageData);
+									} catch (IOException ex) {
+										logger.error("Error reloading image data", ex);
+									}
 								});
 							}
 						}
@@ -946,7 +950,11 @@ public class QymiaPresetPanelController extends BaseController implements Initia
 						for(var openViewer : thisCurrentViewers){
 //							need to run on the JavaFX application thread to avoid throwing errors
 							Platform.runLater(()->{
-								openViewer.setImageData(imageData);
+								try {
+									openViewer.setImageData(imageData);
+								} catch (IOException ex) {
+									logger.error("Error reloading image data", ex);
+								}
 							});
 						}
 					}
