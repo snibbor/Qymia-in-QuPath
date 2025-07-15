@@ -18,17 +18,17 @@ public class QymiaExtension implements QuPathExtension, GitHubProject {
           + "Can utilize compartments and calculate intensity measurements within those compartments for experiment."
         );
 
-        var actionStartQymiaPreset = ActionTools.createAction(new QymiaQuantPanel(qupath, "preset"), "Run Qymia Preset…");
-        actionStartQymiaPreset.setLongText(
-            "Load Qymia Preset to quantify immunofluorescence and immunohistochemistry staining. "
-          + "Can create compartments via script and run preset quantification settings for assays."
-        );
+        // var actionStartQymiaPreset = ActionTools.createAction(new QymiaQuantPanel(qupath, "preset"), "Run Qymia Preset…");
+        // actionStartQymiaPreset.setLongText(
+        //     "Load Qymia Preset to quantify immunofluorescence and immunohistochemistry staining. "
+        //   + "Can create compartments via script and run preset quantification settings for assays."
+        // );
 
         Menu menu = qupath.getMenu("Extensions>Qymia Toolkit", true);
 
         MenuTools.addMenuItems(menu,
-            actionStartQymiaQuant,
-            actionStartQymiaPreset
+            actionStartQymiaQuant
+            // actionStartQymiaPreset
         );
     }
 		

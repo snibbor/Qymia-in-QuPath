@@ -15,13 +15,6 @@ import javafx.fxml.FXMLLoader;
 import javafx.fxml.Initializable;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
-import javafx.scene.control.Button;
-import javafx.scene.control.Dialog;
-import javafx.scene.control.Label;
-import javafx.scene.control.Menu;
-import javafx.scene.control.MenuItem;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.TextField;
 import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
@@ -56,6 +49,8 @@ import static qupath.lib.objects.classes.PathClassFactory.getPathClass;
 
 
 import java.awt.image.BufferedImage;
+import java.awt.Desktop;
+import java.net.URI;
 import java.io.*;
 import java.net.URI;
 import java.net.URL;
@@ -63,7 +58,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
-import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -214,6 +208,8 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 	MenuItem comparisonMenuItem;
 	@FXML
 	MenuItem switchToPresetMenuItem;
+	@FXML
+	MenuItem aboutMenuItem;
 
 //	don't like how I need two observable lists to do this... because MenuItem doesn't inherit from Control.......
 	private ObservableList<Control> controlListToToggle = FXCollections.observableArrayList();
@@ -311,6 +307,19 @@ public class QymiaQuantPanelController extends BaseController implements Initial
 				switchToPresetMode(e);
 			} catch (IOException ex){
 				throw new RuntimeException(ex);
+			}
+		});
+
+		// Open GitHub on About click
+		aboutMenuItem.setOnAction(e -> {
+			try {
+				if (Desktop.isDesktopSupported()) {
+					Desktop.getDesktop().browse(
+						new URI("https://github.com/snibbor/Qymia-in-QuPath/")
+					);
+				}
+			} catch (Exception ex) {
+				logger.error("Unable to open GitHub link", ex);
 			}
 		});
 

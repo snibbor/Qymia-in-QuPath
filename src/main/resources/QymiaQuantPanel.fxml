@@ -39,21 +39,21 @@
             </Menu>
             <Menu fx:id="settingsMenu" mnemonicParsing="false" text="Settings">
                <items>
-                  <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" selected="true" text="Verbose measurements" />
+                  <CheckMenuItem fx:id="verboseMeasuresMenuItem" mnemonicParsing="false" text="Verbose measurements" />
                   <SeparatorMenuItem mnemonicParsing="false" />
-                  <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize Qymia Scores" />
-                  <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale previously normalized data (old PM2000)" />
-                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <CheckMenuItem fx:id="normalizeMenuItem" mnemonicParsing="false" selected="true" text="Normalize Qymia Scores" visible="false" />
+                  <CheckMenuItem fx:id="rescaleMenuItem" mnemonicParsing="false" text="Rescale previously normalized data (old PM2000)" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
                   <CheckMenuItem fx:id="deleteTilesMenuItem" mnemonicParsing="false" selected="true" text="Delete tiles before run" />
                   <CheckMenuItem fx:id="tileUnitIsMicronsMenuItem" mnemonicParsing="false" text="Tile unit in microns" />
                   <SeparatorMenuItem mnemonicParsing="false" />
-                  <CheckMenuItem fx:id="convertMeasMenuItem" mnemonicParsing="false" text="Convert measurements (using regress. meas. convs.)" />
-                  <MenuItem fx:id="selectBatchMapMenuItem" mnemonicParsing="false" text="Select batch map file" />
-                  <SeparatorMenuItem mnemonicParsing="false" />
+                  <CheckMenuItem fx:id="convertMeasMenuItem" mnemonicParsing="false" text="Convert measurements (using regress. meas. convs.)" visible="false" />
+                  <MenuItem fx:id="selectBatchMapMenuItem" mnemonicParsing="false" text="Select batch map file" visible="false" />
+                  <SeparatorMenuItem mnemonicParsing="false" visible="false" />
                   <MenuItem fx:id="advancedSettingsMenuItem" mnemonicParsing="false" text="Advanced settings..." />
                </items>
             </Menu>
-            <Menu fx:id="navigateMenu" mnemonicParsing="false" text="Navigate">
+            <Menu fx:id="navigateMenu" mnemonicParsing="false" text="Navigate" visible="false">
                <items>
                   <MenuItem fx:id="standardCurveMenuItem" mnemonicParsing="false" text="TMA standard curve..." />
                   <MenuItem fx:id="comparisonMenuItem" mnemonicParsing="false" text="Comparison..." />
@@ -63,7 +63,7 @@
             </Menu>
           <Menu fx:id="helpMenu" mnemonicParsing="false" text="Help">
             <items>
-              <MenuItem mnemonicParsing="false" text="About" />
+              <MenuItem fx:id="aboutMenuItem" mnemonicParsing="false" text="About" />
             </items>
           </Menu>
         </menus>
