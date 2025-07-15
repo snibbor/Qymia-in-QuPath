@@ -13,10 +13,12 @@ repositories {
 ext.moduleName = 'qupath.extension.qymia'
 archivesBaseName = 'qupath-extension-qymia'
 description = 'Quantitative Immunofluorescence/Immunohistochemistry Molecular Analysis in QuPath'
+version  = "0.6.0"
 
 javafx {
     version = libs.versions.javafx.get()
     modules = ['javafx.base', 'javafx.controls', 'javafx.fxml']
+    configuration = 'compileOnly'
 }
 
 dependencies {
@@ -27,3 +29,21 @@ dependencies {
     implementation 'org.bytedeco:opencv-platform-gpu:4.11.0-1.5.12'
     implementation 'org.bytedeco:cuda-platform-redist:12.6-9.5-1.5.11'
 }
+
+def jarName = "${archivesBaseName}-${version}.jar"
+
+tasks.register('release', Zip) {
+    dependsOn 'build'
+    group = 'distribution'
+    description = 'Builds the JAR, copies to build/release, and zips it.'
+
+    from("$buildDir/libs") {
+        include jarName
+    }
+
+    destinationDirectory.set(layout.buildDirectory.dir("release"))
+
+    archiveFileName.set("${project.name}-${version}.zip")
+}
+
+
