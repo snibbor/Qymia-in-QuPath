@@ -15,8 +15,7 @@ References:
 
 ## Workflow Demo:
 
-This workflow uses the QuPath built-in SimpleThresholder as well as Qymia Quant
-
+This workflow uses the QuPath built-in SimpleThresholder as well as Qymia Quant. An example workflow guide is recorded in videos below and can be found in the powerpoint here: [Qymia Workflow](docs/Qymia-workflow-example-guide.pptx) 
 ### 1) Thresholding TMA with PixelClassifiers
 
 [![Thresholding CK](media_assets/threshold-thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EQWPRGGFIVNFg4MhVb80TYEBdxo2VMW5C6ABOdb0-dqU6Q?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=zGagPE)
