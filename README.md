@@ -2,9 +2,9 @@
 <img src="media_assets/simple-Q-tumor-icon.png" align="left" width="175" alt="Qymia Icon"/>
 
 
-### **Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (Qymia)**
+### **Quantitative Immunofluorescence and Immunohistochemistry Molecular Image Analysis (Qymia)**
 
-Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques in QuPath.
+Fast, high-throughput quantification of multiplex immunofluorescence or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques in QuPath.
 
 <br clear="left">
 
