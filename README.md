@@ -1,19 +1,19 @@
 # Qymia in QuPath
-<img src="media_assets/Q-tissue-cut-icon.png" align="left" width="150" alt="Qymia Icon"/>
 
-
-### **Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (Qymia)**
-
-Fast, high-throughput quantification of multiplex immunofluorescence and/or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques in QuPath.
+<img src="media_assets/simple-Q-tumor-icon.png" align="left" width="200" alt="Qymia Icon"/>
 
 <br clear="left">
+
+### **Quantitative Immunofluorescence and Immunohistochemistry Molecular Image Analysis (Qymia)**
+
+Fast, high-throughput quantification of multiplex immunofluorescence or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques in QuPath.
 
 ## Installation
 1. Download compatible Qymia release from [Releases](https://github.com/snibbor/Qymia-in-QuPath/releases)
 2. Unzip and drag .jar into QuPath
 
 ## Usage
-1. Create compartments/segmentations/annotations inside of QuPath
+1. Create compartments (annotations or detections) inside of QuPath
 2. Run **Qymia Quant** to quantify target biomarker expression within compartments
 
 ## Workflow Demo:
