@@ -13,7 +13,7 @@ Fast, high-throughput quantification of multiplex immunofluorescence or immunohi
 2. Unzip and drag .jar into QuPath
 
 ## Usage
-1. Create compartments/segmentations/annotations inside of QuPath
+1. Create compartments (annotations or detections) inside of QuPath
 2. Run **Qymia Quant** to quantify target biomarker expression within compartments
 
 ## Workflow Demo:
