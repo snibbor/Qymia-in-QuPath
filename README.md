@@ -17,28 +17,13 @@ References:
 
 This workflow uses the QuPath built-in SimpleThresholder as well as Qymia Quant
 
-## Tissue MicroArrays:
-
 ### 1) Thresholding TMA with PixelClassifiers
 
-https://user-images.githubusercontent.com/28576964/183574975-aeb73c5b-1ce9-4315-8396-17a0987772f9.mp4
+[![Thresholding CK](video_examples/thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EQWPRGGFIVNFg4MhVb80TYEBdxo2VMW5C6ABOdb0-dqU6Q?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=zGagPE)
+
+[![Ignore artifacts](video_examples/thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EeSU_w8hDdVClHCuIVu_DhABFwJbIKD-5av7sbVsFODOFg?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=ZtWiu7)
+
 
 ### 2) Within each TMA core, quantify the expression of targets for each compartment
 
-https://user-images.githubusercontent.com/28576964/183575245-3d960cd8-a6e8-444d-adf5-6118fc9ada42.mp4
-
-
-## Whole Tissue Sections:
-
-### 1) Thresholding Whole Tissue Section with PixelClassifiers
-
-<!-- <video width="50%" height="50%" src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" type="video/mp4"></video> -->
-
-<!-- <video src="https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4" controls="controls" style="max-width:640px;max-height:200px;"></video> -->
-https://user-images.githubusercontent.com/28576964/183573868-0d0fc0d3-2792-4cbb-b90f-fb3ae6cb93bd.mp4
-
-### 2) Within each user-annotated Regions of Interest (ROIs), quantify expression of targets for each compartment
-
-https://user-images.githubusercontent.com/28576964/183574042-ec201410-09a5-42bf-9e2c-e939a6e99cfb.mp4
-
-https://user-images.githubusercontent.com/28576964/183574493-1628455c-d40b-46e1-a7f1-7cf26b2f8bb0.mp4
+ [![Quantifying expression](video_examples/thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EYiFl0U6apFMqKLb7F7mFPEBRKDtKqcC8SRfW19TSg5yww?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=oKpXnY)
