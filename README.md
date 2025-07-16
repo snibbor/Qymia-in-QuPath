@@ -1,5 +1,5 @@
 # Qymia in QuPath
-<img src="media_assets/QymiaIcon2024-tumor-StyledQ.png" align="left" width="150" alt="Qymia Icon"/>
+<img src="media_assets/Q-tissue-cut-icon.png" align="left" width="150" alt="Qymia Icon"/>
 
 
 ### **Quantitative Immunofluorescence/Immunohistochemistry Molecular Image Analysis (Qymia)**
