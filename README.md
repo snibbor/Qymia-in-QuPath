@@ -1,12 +1,12 @@
 # Qymia in QuPath
-<img src="media_assets/simple-Q-tumor-icon.png" align="left" width="150" alt="Qymia Icon"/>
 
+<img src="media_assets/simple-Q-tumor-icon.png" align="left" width="200" alt="Qymia Icon"/>
+
+<br clear="left">
 
 ### **Quantitative Immunofluorescence and Immunohistochemistry Molecular Image Analysis (Qymia)**
 
 Fast, high-throughput quantification of multiplex immunofluorescence or immunohistochemistry staining in clinical specimens (tissue microarrays, whole tissue sections) by molecular compartmentalization techniques in QuPath.
-
-<br clear="left">
 
 ## Installation
 1. Download compatible Qymia release from [Releases](https://github.com/snibbor/Qymia-in-QuPath/releases)
