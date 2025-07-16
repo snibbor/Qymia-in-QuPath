@@ -22,12 +22,12 @@ This workflow uses QuPath’s built-in SimpleThresholder and Qymia Quant. See th
 
 ### 1) Thresholding TMA with PixelClassifiers
 
-[![Thresholding CK](media_assets/threshold-thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EQWPRGGFIVNFg4MhVb80TYEBdxo2VMW5C6ABOdb0-dqU6Q?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=zGagPE)
+[![Thresholding CK](media_assets/threshold-thumbnail.png)](https://youtu.be/M9KBGcuKsf8)
 
-[![Ignore artifacts](media_assets/ignore-thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EeSU_w8hDdVClHCuIVu_DhABFwJbIKD-5av7sbVsFODOFg?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=ZtWiu7)
+[![Ignore artifacts](media_assets/ignore-thumbnail.png)](https://youtu.be/-oKFG7HiH1g)
 
 ### 3) Quantifying Expression
- [![Quantifying expression](media_assets/quant-thumbnail.png)](https://yaleedu-my.sharepoint.com/:v:/g/personal/jack_robbins_yale_edu/EYiFl0U6apFMqKLb7F7mFPEBRKDtKqcC8SRfW19TSg5yww?nav=eyJyZWZlcnJhbEluZm8iOnsicmVmZXJyYWxBcHAiOiJPbmVEcml2ZUZvckJ1c2luZXNzIiwicmVmZXJyYWxBcHBQbGF0Zm9ybSI6IldlYiIsInJlZmVycmFsTW9kZSI6InZpZXciLCJyZWZlcnJhbFZpZXciOiJNeUZpbGVzTGlua0NvcHkifX0&e=oKpXnY)
+ [![Quantifying expression](media_assets/quant-thumbnail.png)](https://youtu.be/BHNJACf_f0U)
 
 ## References:
 - Dr. David Rimm's Laboratory at Yale School of Medicine (https://medicine.yale.edu/lab/rimm/)
