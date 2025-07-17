@@ -30,6 +30,7 @@ This workflow uses QuPath’s built-in SimpleThresholder and Qymia Quant. See th
  [![Quantifying expression](media_assets/quant-thumbnail.png)](https://youtu.be/BHNJACf_f0U)
 
 ## References:
-- Dr. David Rimm's Laboratory at Yale School of Medicine (https://medicine.yale.edu/lab/rimm/)
-- Camp RL, Dolled-Filhart M, King BL, Rimm DL. Quantitative analysis of breast cancer tissue microarrays shows that both high and normal levels of HER2 expression are associated with poor outcome. Cancer Res. 2003 Apr 1;63(7):1445-8. PMID: 12670887.
-- McCabe A, Dolled-Filhart M, Camp RL, Rimm DL. Automated quantitative analysis (AQUA) of in situ protein expression, antibody concentration, and prognosis. J Natl Cancer Inst. 2005 Dec 21;97(24):1808-15. doi: 10.1093/jnci/dji427. PMID: 16368942.
+1. Robbins, C. J. et al. Quantitative Multiplex Immunofluorescence Assay for Trophoblast Cell-Surface Antigen 2 and Human Epidermal Growth Factor Receptor 2 Expression in Breast Cancer: Toward Guiding Patient Selection for Antibody-Drug Conjugate Therapies. JCO Precis Oncol e2500128 (2025) doi:10.1200/PO-25-00128.
+2. Dr. David Rimm's Laboratory at Yale School of Medicine (https://medicine.yale.edu/lab/rimm/)
+3. Camp RL, Dolled-Filhart M, King BL, Rimm DL. Quantitative analysis of breast cancer tissue microarrays shows that both high and normal levels of HER2 expression are associated with poor outcome. Cancer Res. 2003 Apr 1;63(7):1445-8. PMID: 12670887.
+4. McCabe A, Dolled-Filhart M, Camp RL, Rimm DL. Automated quantitative analysis (AQUA) of in situ protein expression, antibody concentration, and prognosis. J Natl Cancer Inst. 2005 Dec 21;97(24):1808-15. doi: 10.1093/jnci/dji427. PMID: 16368942.
