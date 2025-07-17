@@ -29,6 +29,11 @@ This workflow uses QuPath’s built-in SimpleThresholder and Qymia Quant. See th
 ### 3) Quantifying Expression
  [![Quantifying expression](media_assets/quant-thumbnail.png)](https://youtu.be/BHNJACf_f0U)
 
+## Citation
+**If you use Qymia, please cite this [paper](https://ascopubs.org/doi/10.1200/PO-25-00128):**
+
+Robbins, C. J. et al. Quantitative Multiplex Immunofluorescence Assay for Trophoblast Cell-Surface Antigen 2 and Human Epidermal Growth Factor Receptor 2 Expression in Breast Cancer: Toward Guiding Patient Selection for Antibody-Drug Conjugate Therapies. JCO Precis Oncol e2500128 (2025) doi:10.1200/PO-25-00128.
+
 ## References:
 1. Robbins, C. J. et al. Quantitative Multiplex Immunofluorescence Assay for Trophoblast Cell-Surface Antigen 2 and Human Epidermal Growth Factor Receptor 2 Expression in Breast Cancer: Toward Guiding Patient Selection for Antibody-Drug Conjugate Therapies. JCO Precis Oncol e2500128 (2025) doi:10.1200/PO-25-00128.
 2. Dr. David Rimm's Laboratory at Yale School of Medicine (https://medicine.yale.edu/lab/rimm/)
