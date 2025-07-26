@@ -26,7 +26,7 @@ This workflow uses QuPath’s built-in SimpleThresholder and Qymia Quant. See th
 
 [![Ignore artifacts](media_assets/ignore-thumbnail.png)](https://youtu.be/-oKFG7HiH1g)
 
-### 3) Quantifying Expression
+### 2) Quantifying Expression
  [![Quantifying expression](media_assets/quant-thumbnail.png)](https://youtu.be/BHNJACf_f0U)
 
 ## Citation
